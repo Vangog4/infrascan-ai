@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy dependency manifests first for layer caching
+COPY pyproject.toml uv.lock* ./
+
+# Install dependencies without the project itself
+RUN uv sync --frozen --no-install-project
+
+# Copy source
+COPY src/ ./src/
+
+# Sync with project installed
+RUN uv sync --frozen
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["uv", "run", "python", "-m", "src.bot"]

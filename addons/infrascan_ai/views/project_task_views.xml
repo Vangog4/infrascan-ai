@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Добавляем поле x_telegram_id в форму задачи (после поля user_ids) -->
+    <record id="view_task_form_infrascan" model="ir.ui.view">
+        <field name="name">project.task.form.infrascan</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_form2"/>
+        <field name="arch" type="xml">
+            <field name="user_ids" position="after">
+                <field name="x_telegram_id" placeholder="Telegram ID инженера, напр. 123456789"/>
+            </field>
+        </field>
+    </record>
+</odoo>

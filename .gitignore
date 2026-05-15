@@ -1,0 +1,24 @@
+# Секреты
+bot/.env
+secrets/
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+bot/.venv/
+bot/.pytest_cache/
+
+# Логи и бэкапы
+logs/
+backups/
+
+# Odoo
+addons/**/__pycache__/
+addons/**/*.pyc
+
+# Прочее
+.DS_Store
