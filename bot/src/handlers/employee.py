@@ -1,7 +1,9 @@
 import base64
 import logging
+from datetime import datetime
 
 from aiogram import Bot, F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -36,7 +38,8 @@ async def today_tasks(message: Message, role: Role) -> None:
     lines = []
     for i, t in enumerate(tasks, 1):
         proj = t.get("project_id", [None, "—"])[1]
-        lines.append(f"<b>{i}. {t['name']}</b>\n   📁 {proj}")
+        deadline = t.get("date_deadline") or "—"
+        lines.append(f"<b>{i}. {t['name']}</b>\n   📁 {proj}  📅 {deadline}")
     await message.answer(
         "🚗 <b>Ваши выезды на сегодня:</b>\n\n" + "\n\n".join(lines),
         reply_markup=employee_menu(),
@@ -66,12 +69,12 @@ async def photo_task_selected(call: CallbackQuery, state: FSMContext) -> None:
     task_id = int(call.data.split(":")[1])
     data = await state.get_data()
     task_name = data.get("tasks", {}).get(str(task_id), f"Задача #{task_id}")
-    await state.update_data(task_id=task_id, task_name=task_name, photo_count=0)
+    await state.update_data(task_id=task_id, task_name=task_name, photo_count=0, analyses=[])
     await state.set_state(EmployeePhotoFlow.photos)
     await call.message.edit_text(
         f"📍 Объект: <b>{task_name}</b>\n\n"
         "Теперь отправляйте фотографии прямо сюда.\n"
-        "Каждый снимок проходит контроль качества ИИ.\n\n"
+        "Каждый снимок проходит контроль качества и тепловизионный анализ ИИ.\n\n"
         "Когда закончите — нажмите /done или /cancel для выхода."
     )
     await call.answer()
@@ -98,23 +101,80 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
     data = await state.get_data()
     task_id: int = data["task_id"]
     count: int = data.get("photo_count", 0) + 1
-    await state.update_data(photo_count=count)
 
     filename = f"report_{task_id}_{count:03d}.jpg"
     data_b64 = base64.b64encode(photo_bytes).decode()
-    att_id = await odoo.attach_photo(task_id, filename, data_b64)
+
+    await wait.edit_text("📎 Прикрепляю к задаче и выполняю анализ...")
+
+    att_id, analysis = await _attach_and_analyze(task_id, filename, data_b64, photo_bytes)
+
+    analyses: list = data.get("analyses", [])
+    analyses.append({"filename": filename, "result": analysis})
+    await state.update_data(photo_count=count, analyses=analyses)
 
     await wait.delete()
-    if att_id:
+
+    status = "Прикреплено к задаче в системе." if att_id else "⚠️ Не удалось прикрепить к Odoo."
+    await message.answer(
+        f"🟢 <b>Фото #{count} принято</b>\n{status}\n\n"
+        f"<b>🔬 Анализ:</b>\n{analysis}"
+    )
+
+
+async def _attach_and_analyze(
+    task_id: int, filename: str, data_b64: str, photo_bytes: bytes
+) -> tuple[int | None, str]:
+    import asyncio
+    att_id, analysis = await asyncio.gather(
+        odoo.attach_photo(task_id, filename, data_b64),
+        gemini.analyze_photo(photo_bytes),
+    )
+    return att_id, analysis
+
+
+@router.message(Command("done"), EmployeePhotoFlow.photos)
+async def photo_done(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    task_id: int = data.get("task_id", 0)
+    task_name: str = data.get("task_name", "—")
+    analyses: list = data.get("analyses", [])
+    await state.clear()
+
+    if not analyses:
         await message.answer(
-            f"🟢 <b>Фото принято</b> ({count} шт.)\n"
-            "Прикреплено к задаче в системе. Можешь отправить следующее."
+            "📋 Фотографий не было загружено. Отчёт не сохранён.",
+            reply_markup=employee_menu(),
+        )
+        return
+
+    report = _build_report(task_name, analyses)
+    saved = await odoo.save_analysis_report(task_id, report)
+
+    if saved:
+        await message.answer(
+            f"✅ <b>Отчёт сохранён в Odoo</b>\n"
+            f"Объект: {task_name}\n"
+            f"Фотографий: {len(analyses)} шт.\n\n"
+            "Результаты доступны диспетчеру в системе.",
+            reply_markup=employee_menu(),
         )
     else:
         await message.answer(
-            f"🟢 <b>Фото принято</b> ({count} шт.)\n"
-            "⚠️ Не удалось прикрепить к Odoo — проверь соединение позже."
+            f"✅ <b>Отчёт завершён</b> ({len(analyses)} фото)\n"
+            "⚠️ Не удалось сохранить в Odoo — передайте диспетчеру вручную.",
+            reply_markup=employee_menu(),
         )
+
+
+def _build_report(task_name: str, analyses: list[dict]) -> str:
+    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
+    parts = [f"<h2>Тепловизионный отчёт: {task_name}</h2>", f"<p>Дата: {timestamp}</p><hr/>"]
+    for i, item in enumerate(analyses, 1):
+        parts.append(f"<h3>Снимок #{i}: {item['filename']}</h3>")
+        result = item["result"].replace("\n", "<br/>")
+        parts.append(f"<p>{result}</p><hr/>")
+    return "\n".join(parts)
 
 
 # ─── SOS ─────────────────────────────────────────────────────────────────────

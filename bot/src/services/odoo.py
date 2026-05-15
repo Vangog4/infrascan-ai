@@ -140,13 +140,21 @@ async def is_employee(telegram_id: int) -> bool:
 async def get_today_tasks(telegram_id: int) -> list[dict]:
     """Return tasks from project 'Выезд' for this engineer.
 
+    Shows tasks where date_deadline = today OR date_deadline is not set.
     Tasks with x_telegram_id set are shown only to the matching engineer.
     Tasks with x_telegram_id empty/False are shown to all engineers.
     Leads (prefixed [Лид]) are excluded.
     """
+    from datetime import date
+    today = date.today().isoformat()
     result = await _exec(
         "project.task", "search_read",
-        [[["project_id", "=", _LEADS_PROJECT_ID]]],
+        [[
+            ["project_id", "=", _LEADS_PROJECT_ID],
+            "|",
+            ["date_deadline", "=", today],
+            ["date_deadline", "=", False],
+        ]],
         {"fields": ["id", "name", "project_id", "stage_id", "description",
                     "date_deadline", "x_telegram_id"], "limit": 50},
     )
@@ -160,6 +168,16 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
             continue
         tasks.append(t)
     return tasks
+
+
+async def save_analysis_report(task_id: int, report: str) -> bool:
+    result = await _exec(
+        "project.task", "write",
+        [[task_id], {"description": report}],
+    )
+    if result:
+        logger.info("Saved analysis report to task %d", task_id)
+    return bool(result)
 
 
 async def attach_photo(task_id: int, filename: str, data_b64: str, mime: str = "image/jpeg") -> int | None:
