@@ -1,14 +1,3 @@
 {
-  "mcpServers": {
-    "mcp-logseq": {
-      "command": "mcp-logseq",
-      "args": ["--graph-path", "/path/to/your/logseq/graph"],
-      "env": {}
-    },
-    "autoresearch": {
-      "command": "autoresearch",
-      "args": [],
-      "env": {}
-    }
-  }
+	"mcpServers": {}
 }

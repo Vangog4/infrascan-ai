@@ -1,0 +1,2 @@
+{"type":"config","name":"stack-health","metricName":"health_score","metricUnit":"%","bestDirection":"higher"}
+{"run":1,"commit":"33edbf9","metric":18,"metrics":{"checks_passed":2,"checks_failed":9},"status":"keep","description":"baseline — контейнеры не запущены","timestamp":1778822259,"segment":0}
