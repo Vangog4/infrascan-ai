@@ -9,20 +9,29 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 remove_kb = ReplyKeyboardRemove()
 
-# Shared button label — used in both client_menu and partner_menu
 BTN_PHOTO = "📸 Анализ фото ИИ"
+BTN_PHOTO_EN = "📸 AI Photo Analysis"
 
 
-def client_menu() -> ReplyKeyboardMarkup:
+def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
-    kb.row(
-        KeyboardButton(text=BTN_PHOTO),
-        KeyboardButton(text="📊 Расчёт теплопотерь"),
-    )
-    kb.row(
-        KeyboardButton(text="🚗 Вызвать инженера"),
-        KeyboardButton(text="🤝 Стать партнёром"),
-    )
+    if locale == "ru":
+        kb.row(
+            KeyboardButton(text=BTN_PHOTO),
+            KeyboardButton(text="📊 Расчёт теплопотерь"),
+        )
+        if is_local:
+            kb.row(
+                KeyboardButton(text="🚗 Вызвать инженера"),
+                KeyboardButton(text="🤝 Стать партнёром"),
+            )
+        else:
+            kb.row(KeyboardButton(text="⭐️ Premium"))
+    else:
+        kb.row(
+            KeyboardButton(text=BTN_PHOTO_EN),
+            KeyboardButton(text="⭐️ Premium"),
+        )
     return kb.as_markup(resize_keyboard=True)
 
 
@@ -63,12 +72,28 @@ def heating_kb() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
-def order_kb() -> InlineKeyboardMarkup:
+def order_kb(locale: str = "ru") -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.row(InlineKeyboardButton(
-        text="🚗 Заказать профессиональный выезд",
-        callback_data="action:order",
-    ))
+    if locale == "ru":
+        b.row(InlineKeyboardButton(
+            text="🚗 Заказать профессиональный выезд",
+            callback_data="action:order",
+        ))
+    return b.as_markup()
+
+
+def premium_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    if locale == "ru":
+        b.row(InlineKeyboardButton(
+            text=f"⭐️ Купить Premium — {stars} Stars/мес",
+            callback_data="premium:buy",
+        ))
+    else:
+        b.row(InlineKeyboardButton(
+            text=f"⭐️ Get Premium — {stars} Stars/month",
+            callback_data="premium:buy",
+        ))
     return b.as_markup()
 
 

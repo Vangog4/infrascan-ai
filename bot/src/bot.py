@@ -8,7 +8,9 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from src.config import settings
 from src.handlers import client, common, employee, partner
+from src.handlers import payments
 from src.middlewares.dedupe import ContentDedupeMiddleware
+from src.middlewares.geo import GeoMiddleware
 from src.middlewares.logging import LoggingMiddleware
 from src.middlewares.ratelimit import RateLimitMiddleware
 from src.middlewares.role import RoleMiddleware
@@ -26,15 +28,17 @@ async def main() -> None:
     )
     dp = Dispatcher(storage=RedisStorage.from_url(settings.redis_url))
 
-    # Outer middleware: role injection (runs for all update types)
-    dp.update.outer_middleware(RoleMiddleware())
+    # Outer middlewares (run for all update types, in registration order)
+    dp.update.outer_middleware(RoleMiddleware())   # injects: role
+    dp.update.outer_middleware(GeoMiddleware())    # injects: locale, is_local
 
-    # Inner message middlewares (rate-limit → dedupe → logging)
+    # Inner message middlewares
     dp.message.middleware(RateLimitMiddleware())
     dp.message.middleware(ContentDedupeMiddleware())
     dp.message.middleware(LoggingMiddleware())
 
-    # Routers (order matters: most specific first)
+    # Routers (most specific first)
+    dp.include_router(payments.router)   # Stars payment — before common to catch F.successful_payment
     dp.include_router(employee.router)
     dp.include_router(partner.router)
     dp.include_router(client.router)

@@ -5,44 +5,110 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, Message
 
 from src.config import settings
-from src.keyboards.menus import BTN_PHOTO, client_menu, contact_kb, heating_kb, order_kb, partner_menu
+from src.keyboards.menus import (
+    BTN_PHOTO,
+    BTN_PHOTO_EN,
+    client_menu,
+    contact_kb,
+    heating_kb,
+    order_kb,
+)
 from src.services import gemini, odoo, roles
+from src.services import premium as premium_svc
 from src.states.flows import AuditFlow, CalcFlow, LeadFlow, PartnerRegFlow
 
 logger = logging.getLogger(__name__)
 router = Router(name="client")
 
-# Separator line used in formatted responses
 _SEP = "━━━━━━━━━━━━━━━━━━━━━"
 
 
-# ─── Photo Audit ────────────────────────────────────────────────────────────
+# ── Photo Audit ───────────────────────────────────────────────────────────────
 
-@router.message(F.text == BTN_PHOTO)
-async def audit_start(message: Message, state: FSMContext) -> None:
+@router.message(F.text.in_({BTN_PHOTO, BTN_PHOTO_EN}))
+async def audit_start(
+    message: Message,
+    state: FSMContext,
+    locale: str = "ru",
+    is_local: bool = True,
+) -> None:
     await state.set_state(AuditFlow.photo)
-    await message.answer(
-        "📷 Отправьте фотографию объекта — окно, стена, щиток, кровля или фасад.\n\n"
-        "<i>ИИ проанализирует снимок и выдаст структурированное заключение с уровнем риска.</i>",
-    )
+    await state.update_data(locale=locale, is_local=is_local)
+    if locale == "ru":
+        await message.answer(
+            "📷 Отправьте фото объекта — окно, стена, щиток, кровля или фасад.\n\n"
+            "<i>ИИ проанализирует снимок и выдаст заключение с уровнем риска за 30 секунд.</i>"
+        )
+    else:
+        await message.answer(
+            "📷 Send a photo of the object — window, wall, electrical panel, roof or facade.\n\n"
+            "<i>AI will analyze it and return a risk assessment in ~30 seconds.</i>"
+        )
 
 
 @router.message(AuditFlow.photo, F.photo)
-async def audit_photo(message: Message, state: FSMContext, bot: Bot) -> None:
+async def audit_photo(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+) -> None:
+    data = await state.get_data()
+    locale: str = data.get("locale", "ru")
+    is_local: bool = data.get("is_local", True)
     await state.clear()
-    wait = await message.answer("🔍 Анализирую снимок...")
+
+    user_id = message.from_user.id
+    is_prem = await premium_svc.is_premium(user_id)
+
+    if not is_prem:
+        remaining = await premium_svc.scans_remaining(user_id)
+        if remaining <= 0:
+            if locale == "ru":
+                await message.answer(
+                    f"⚠️ <b>Дневной лимит исчерпан</b> ({settings.free_daily_scans} из {settings.free_daily_scans}).\n\n"
+                    "Лимит обновится в полночь по UTC, или подключите Premium — "
+                    "безлимитный анализ за <b>150 Stars/мес</b>.\n\n"
+                    "👉 /premium",
+                    reply_markup=client_menu(locale, is_local),
+                )
+            else:
+                await message.answer(
+                    f"⚠️ <b>Daily limit reached</b> ({settings.free_daily_scans}/{settings.free_daily_scans}).\n\n"
+                    "Limit resets at midnight UTC, or get Premium for unlimited analysis — "
+                    f"<b>150 Stars/month</b>.\n\n"
+                    "👉 /premium",
+                    reply_markup=client_menu(locale, is_local),
+                )
+            return
+
+    wait_text = "🔍 Анализирую снимок..." if locale == "ru" else "🔍 Analyzing photo..."
+    wait = await message.answer(wait_text)
+
     photo = message.photo[-1]
     file_io = await bot.download(photo)
-    analysis = await gemini.analyze_photo(file_io.read())
+    result = await gemini.analyze_photo(file_io.read(), locale=locale)
+
     await wait.delete()
-    await message.answer(
-        f"🔬 <b>Тепловизионный анализ</b>\n{_SEP}\n\n"
-        f"{analysis}",
-        reply_markup=order_kb(),
-    )
+
+    if not is_prem:
+        await premium_svc.increment_scan(user_id)
+        remaining_after = await premium_svc.scans_remaining(user_id)
+        text = gemini.format_analysis_free(result, locale, settings.premium_price_stars)
+        if remaining_after > 0:
+            footer = (
+                f"\n\n<i>Осталось бесплатных анализов сегодня: {remaining_after}</i>"
+                if locale == "ru"
+                else f"\n\n<i>Free analyses remaining today: {remaining_after}</i>"
+            )
+            text += footer
+        await message.answer(text, reply_markup=client_menu(locale, is_local))
+    else:
+        text = gemini.format_analysis_premium(result, locale)
+        kb = order_kb(locale) if is_local else None
+        await message.answer(text, reply_markup=kb or client_menu(locale, is_local))
 
 
-# ─── Heat Loss Calculator ────────────────────────────────────────────────────
+# ── Heat Loss Calculator ──────────────────────────────────────────────────────
 
 @router.message(F.text == "📊 Расчёт теплопотерь")
 async def calc_start(message: Message, state: FSMContext) -> None:
@@ -97,13 +163,12 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
     result = await gemini.calculate_losses(data["area"], data["heating"], payment)
     await wait.delete()
     await message.answer(
-        f"🧮 <b>Расчёт теплопотерь</b>\n{_SEP}\n\n"
-        f"{result}",
-        reply_markup=order_kb(),
+        f"🧮 <b>Расчёт теплопотерь</b>\n{_SEP}\n\n{result}",
+        reply_markup=order_kb("ru"),
     )
 
 
-# ─── Lead Capture ────────────────────────────────────────────────────────────
+# ── Lead Capture (local only) ─────────────────────────────────────────────────
 
 @router.message(F.text == "🚗 Вызвать инженера")
 async def lead_start(message: Message, state: FSMContext) -> None:
@@ -127,19 +192,31 @@ async def lead_from_button(call: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.message(LeadFlow.contact, F.contact)
-async def lead_contact(message: Message, state: FSMContext, bot: Bot) -> None:
+async def lead_contact(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    locale: str = "ru",
+    is_local: bool = True,
+) -> None:
     await state.clear()
     contact: Contact = message.contact
     phone = contact.phone_number
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Клиент"
-    tg_ref = f"@{message.from_user.username}" if message.from_user.username else f"tg://user?id={message.from_user.id}"
+    tg_ref = (
+        f"@{message.from_user.username}"
+        if message.from_user.username
+        else f"tg://user?id={message.from_user.id}"
+    )
+
+    # Cache phone for geo detection refinement
+    await roles.set_phone(message.from_user.id, phone)
 
     result = await odoo.create_lead(
         name=name,
         phone=phone,
         description=f"Заявка через Telegram-бот. TG: {tg_ref}",
     )
-    # Fallback: notify admin if Odoo unavailable
     if result is None:
         for admin_id in settings.admin_ids:
             if admin_id:
@@ -148,7 +225,7 @@ async def lead_contact(message: Message, state: FSMContext, bot: Bot) -> None:
                         admin_id,
                         f"📥 <b>Новый лид!</b>\n\n"
                         f"Имя: {name}\nТелефон: <code>{phone}</code>\nTG: {tg_ref}\n\n"
-                        f"⚠️ Odoo недоступен — зафиксируй вручную.",
+                        "⚠️ Odoo недоступен — зафиксируй вручную.",
                     )
                 except Exception:
                     pass
@@ -157,11 +234,11 @@ async def lead_contact(message: Message, state: FSMContext, bot: Bot) -> None:
         "✅ <b>Заявка принята!</b>\n\n"
         "Инженер свяжется с вами в ближайшее время для согласования выезда.\n\n"
         "<i>Среднее время ответа — 15 минут в рабочие часы.</i>",
-        reply_markup=client_menu(),
+        reply_markup=client_menu(locale, is_local),
     )
 
 
-# ─── Become Partner ──────────────────────────────────────────────────────────
+# ── Become Partner (local only) ───────────────────────────────────────────────
 
 @router.message(F.text == "🤝 Стать партнёром")
 async def partner_reg_start(message: Message, state: FSMContext) -> None:
@@ -175,11 +252,18 @@ async def partner_reg_start(message: Message, state: FSMContext) -> None:
 
 
 @router.message(PartnerRegFlow.contact, F.contact)
-async def partner_reg_contact(message: Message, state: FSMContext) -> None:
+async def partner_reg_contact(
+    message: Message,
+    state: FSMContext,
+    locale: str = "ru",
+    is_local: bool = True,
+) -> None:
     await state.clear()
     contact: Contact = message.contact
     phone = contact.phone_number
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Партнёр"
+
+    await roles.set_phone(message.from_user.id, phone)
 
     partner = await odoo.find_partner(phone)
     if partner:
@@ -187,8 +271,9 @@ async def partner_reg_contact(message: Message, state: FSMContext) -> None:
     else:
         await odoo.create_lead(name=name, phone=phone, description="Запрос на партнёрство")
 
-    await roles.set_role(message.from_user.id, roles.Role.PARTNER)
-    await roles.set_phone(message.from_user.id, phone)
+    from src.keyboards.menus import partner_menu
+    from src.services.roles import Role
+    await roles.set_role(message.from_user.id, Role.PARTNER)
 
     await message.answer(
         "✅ <b>Вы зарегистрированы как партнёр!</b>\n\n"

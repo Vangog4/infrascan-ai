@@ -19,5 +19,10 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://infrascan-ai_redis:6379/0"
 
+    # Freemium
+    free_daily_scans: int = 3
+    premium_price_stars: int = 150  # ~$1.5/month
+    premium_duration_days: int = 30
+
 
 settings = Settings()

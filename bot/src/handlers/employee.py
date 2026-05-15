@@ -126,10 +126,11 @@ async def _attach_and_analyze(
     task_id: int, filename: str, data_b64: str, photo_bytes: bytes
 ) -> tuple[int | None, str]:
     import asyncio
-    att_id, analysis = await asyncio.gather(
+    result_dict, att_id = await asyncio.gather(
+        gemini.analyze_photo(photo_bytes, locale="ru"),
         odoo.attach_photo(task_id, filename, data_b64),
-        gemini.analyze_photo(photo_bytes),
     )
+    analysis = gemini.format_analysis_text(result_dict)
     return att_id, analysis
 
 

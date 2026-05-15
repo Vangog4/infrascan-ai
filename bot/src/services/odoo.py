@@ -193,6 +193,49 @@ async def attach_photo(task_id: int, filename: str, data_b64: str, mime: str = "
     return result
 
 
+async def get_premium_status(telegram_id: int) -> bool:
+    """Check if a Telegram user has an active Premium subscription in Odoo."""
+    from datetime import date
+    today = date.today().isoformat()
+    result = await _exec(
+        "res.partner", "search_read",
+        [[
+            ["x_telegram_id", "=", str(telegram_id)],
+            ["x_is_premium", "=", True],
+            "|",
+            ["x_premium_ends", ">=", today],
+            ["x_premium_ends", "=", False],
+        ]],
+        {"fields": ["id", "x_premium_ends"], "limit": 1},
+    )
+    return bool(result)
+
+
+async def set_premium(telegram_id: int, days: int) -> bool:
+    """Grant or extend Premium for a Telegram user. Creates partner record if missing."""
+    from datetime import date, timedelta
+    ends = (date.today() + timedelta(days=days)).isoformat()
+
+    existing = await _exec(
+        "res.partner", "search_read",
+        [[["x_telegram_id", "=", str(telegram_id)]]],
+        {"fields": ["id"], "limit": 1},
+    )
+    if existing:
+        result = await _exec(
+            "res.partner", "write",
+            [[existing[0]["id"]], {"x_is_premium": True, "x_premium_ends": ends}],
+        )
+        return bool(result)
+
+    result = await _exec(
+        "res.partner", "create",
+        [{"name": f"TG:{telegram_id}", "x_telegram_id": str(telegram_id),
+          "x_is_premium": True, "x_premium_ends": ends}],
+    )
+    return bool(result)
+
+
 async def partner_balance(phone: str) -> float | None:
     partner = await find_partner(phone)
     if not partner:

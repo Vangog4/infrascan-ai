@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Добавляем поле x_partner_balance в форму контакта -->
     <record id="view_partner_form_infrascan" model="ir.ui.view">
         <field name="name">res.partner.form.infrascan</field>
         <field name="model">res.partner</field>
@@ -8,6 +7,9 @@
         <field name="arch" type="xml">
             <field name="phone" position="after">
                 <field name="x_partner_balance" widget="monetary"/>
+                <field name="x_telegram_id"/>
+                <field name="x_is_premium"/>
+                <field name="x_premium_ends" invisible="not x_is_premium"/>
             </field>
         </field>
     </record>
