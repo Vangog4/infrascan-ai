@@ -22,3 +22,5 @@ addons/**/*.pyc
 
 # Прочее
 .DS_Store
+node_modules/
+package-lock.json

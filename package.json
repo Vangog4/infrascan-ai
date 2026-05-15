@@ -1,0 +1,25 @@
+{
+	"name": "infrascan-ai",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"prepare": "husky"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Vangog4/infrascan-ai.git"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/Vangog4/infrascan-ai/issues"
+	},
+	"homepage": "https://github.com/Vangog4/infrascan-ai#readme",
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"husky": "^9.1.7"
+	}
+}

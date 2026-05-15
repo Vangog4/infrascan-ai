@@ -1,0 +1,3 @@
+#!/bin/sh
+npx biome check --write --unsafe $(git diff --cached --name-only | grep -E "\.(ts|js|json)$" | tr "\n" " ") 2>/dev/null || true
+/root/infrascan-ai/.claude/session_end.sh
