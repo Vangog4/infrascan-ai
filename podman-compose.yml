@@ -45,7 +45,7 @@ services:
       - ./addons:/mnt/extra-addons:ro
     command: odoo --config /etc/odoo/odoo.conf
     environment:
-      HOST: db
+      HOST: infrascan-ai_db
       PORT: "5432"
       USER: odoo
       PASSWORD: odoo_db_password
