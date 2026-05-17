@@ -2,7 +2,7 @@ import logging
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Contact, Message
+from aiogram.types import Message
 
 from src.keyboards.menus import partner_menu
 from src.services import odoo

@@ -182,8 +182,6 @@ async def cmd_stats(message: Message) -> None:
     leads_count = 0
     odoo_status = "✅"
     try:
-        from datetime import date
-        today = date.today().isoformat()
         tc = await odoo._call("project.task", "search_count",
                               domain=[["project_id", "=", 1],
                                       ["name", "not ilike", "[Лид]"]])

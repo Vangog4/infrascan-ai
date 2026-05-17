@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 import redis.asyncio as aioredis
 
 from src.config import settings
-from src.services import roles
 
 logger = logging.getLogger(__name__)
 
