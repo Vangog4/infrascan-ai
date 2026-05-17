@@ -21,10 +21,7 @@ def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarku
             KeyboardButton(text="📊 Расчёт теплопотерь"),
         )
         if is_local:
-            kb.row(
-                KeyboardButton(text="🚗 Вызвать инженера"),
-                KeyboardButton(text="🤝 Стать партнёром"),
-            )
+            kb.row(KeyboardButton(text="🚗 Вызвать инженера"))
         else:
             kb.row(KeyboardButton(text="⭐️ Premium"))
     else:
@@ -32,16 +29,6 @@ def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarku
             KeyboardButton(text=BTN_PHOTO_EN),
             KeyboardButton(text="⭐️ Premium"),
         )
-    return kb.as_markup(resize_keyboard=True)
-
-
-def partner_menu() -> ReplyKeyboardMarkup:
-    kb = ReplyKeyboardBuilder()
-    kb.row(
-        KeyboardButton(text="➕ Передать лида"),
-        KeyboardButton(text="💰 Мой баланс"),
-    )
-    kb.row(KeyboardButton(text=BTN_PHOTO))
     return kb.as_markup(resize_keyboard=True)
 
 

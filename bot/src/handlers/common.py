@@ -8,10 +8,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.config import settings
-from src.keyboards.menus import client_menu, employee_menu, partner_menu
+from src.keyboards.menus import client_menu, employee_menu
 from src.services import premium as premium_svc
 from src.services.roles import Role
-from src.states.flows import AuditFlow, CalcFlow, LeadFlow, PartnerRegFlow
+from src.states.flows import AuditFlow, CalcFlow, LeadFlow
 
 logger = logging.getLogger(__name__)
 router = Router(name="common")
@@ -55,16 +55,6 @@ _EMPLOYEE_WELCOME = (
     "Выберите действие 👇"
 )
 
-_PARTNER_WELCOME = (
-    "🤝 <b>ИНФРАСКАН · КАБИНЕТ ПАРТНЁРА</b>\n"
-    + _SEP + "\n\n"
-    "<code>◉ СТАТУС        ПАРТНЁР\n"
-    "◉ КОМИССИЯ      10% с заказа\n"
-    "◉ ВЫПЛАТА       по запросу</code>\n\n"
-    + _SEP + "\n\n"
-    "Добро пожаловать, <b>{name}</b>!\n"
-    "Выберите действие 👇"
-)
 
 
 @router.message(CommandStart())
@@ -82,11 +72,6 @@ async def cmd_start(
         await message.answer(
             _EMPLOYEE_WELCOME.format(name=name),
             reply_markup=employee_menu(),
-        )
-    elif role == Role.PARTNER:
-        await message.answer(
-            _PARTNER_WELCOME.format(name=name),
-            reply_markup=partner_menu(),
         )
     else:
         is_prem = await premium_svc.is_premium(message.from_user.id)
@@ -111,8 +96,6 @@ async def cmd_cancel(
     await state.clear()
     if role == Role.EMPLOYEE:
         kb = employee_menu()
-    elif role == Role.PARTNER:
-        kb = partner_menu()
     else:
         kb = client_menu(locale, is_local)
     text = "Действие отменено." if locale == "ru" else "Action cancelled."
@@ -340,15 +323,6 @@ async def calc_wrong_input(message: Message) -> None:
     )
 
 
-@router.message(PartnerRegFlow.contact)
-async def partner_reg_wrong_input(message: Message) -> None:
-    await message.answer(
-        "📱 Нажмите кнопку <b>«Зарегистрироваться как партнёр»</b> — "
-        "это безопасно, Telegram передаёт только номер телефона.\n\n"
-        "Для отмены — /cancel"
-    )
-
-
 # ── Global fallback ───────────────────────────────────────────────────────────
 
 @router.message()
@@ -360,15 +334,9 @@ async def fallback(
 ) -> None:
     if role == Role.EMPLOYEE:
         kb = employee_menu()
-    elif role == Role.PARTNER:
-        kb = partner_menu()
+        hint = "Используйте кнопки меню ниже."
     else:
         kb = client_menu(locale, is_local)
-
-    hint = (
-        "Используйте кнопки меню ниже."
-        if role in (Role.EMPLOYEE, Role.PARTNER)
-        else ("Нажмите /start чтобы открыть главное меню." if locale == "ru"
-              else "Press /start to open the main menu.")
-    )
+        hint = ("Нажмите /start чтобы открыть главное меню." if locale == "ru"
+                else "Press /start to open the main menu.")
     await message.answer(f"🤖 {hint}", reply_markup=kb)

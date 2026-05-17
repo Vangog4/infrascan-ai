@@ -7,7 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
 from src.config import settings
-from src.handlers import client, common, employee, partner
+from src.handlers import client, common, employee
 from src.handlers import payments
 from src.services import odoo as odoo_svc
 from src.middlewares.dedupe import ContentDedupeMiddleware
@@ -41,7 +41,6 @@ async def main() -> None:
     # Routers (most specific first)
     dp.include_router(payments.router)   # Stars payment — before common to catch F.successful_payment
     dp.include_router(employee.router)
-    dp.include_router(partner.router)
     dp.include_router(client.router)
     dp.include_router(common.router)
 

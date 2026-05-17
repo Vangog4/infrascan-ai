@@ -15,7 +15,7 @@ from src.keyboards.menus import (
 )
 from src.services import gemini, odoo, roles
 from src.services import premium as premium_svc
-from src.states.flows import AuditFlow, CalcFlow, LeadFlow, PartnerRegFlow
+from src.states.flows import AuditFlow, CalcFlow, LeadFlow
 
 logger = logging.getLogger(__name__)
 router = Router(name="client")
@@ -251,46 +251,3 @@ async def lead_contact(
     )
 
 
-# ── Become Partner (local only) ───────────────────────────────────────────────
-
-@router.message(F.text == "🤝 Стать партнёром")
-async def partner_reg_start(message: Message, state: FSMContext) -> None:
-    await state.set_state(PartnerRegFlow.contact)
-    await message.answer(
-        "🤝 <b>Партнёрская программа ИнфраСкан</b>\n\n"
-        "Приводи клиентов — получай <b>10%</b> от стоимости каждого выполненного заказа.\n\n"
-        "Для регистрации поделитесь номером телефона:",
-        reply_markup=contact_kb("📱 Зарегистрироваться как партнёр"),
-    )
-
-
-@router.message(PartnerRegFlow.contact, F.contact)
-async def partner_reg_contact(
-    message: Message,
-    state: FSMContext,
-    locale: str = "ru",
-    is_local: bool = True,
-) -> None:
-    await state.clear()
-    contact: Contact = message.contact
-    phone = contact.phone_number
-    name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Партнёр"
-
-    await roles.set_phone(message.from_user.id, phone)
-
-    partner = await odoo.find_partner(phone)
-    if partner:
-        await odoo.mark_partner(partner["id"])
-    else:
-        await odoo.create_lead(name=name, phone=phone, description="Запрос на партнёрство")
-
-    from src.keyboards.menus import partner_menu
-    from src.services.roles import Role
-    await roles.set_role(message.from_user.id, Role.PARTNER)
-
-    await message.answer(
-        "✅ <b>Вы зарегистрированы как партнёр!</b>\n\n"
-        "Теперь вы можете передавать лиды и получать агентское вознаграждение.\n"
-        "Ваш кабинет 👇",
-        reply_markup=partner_menu(),
-    )
