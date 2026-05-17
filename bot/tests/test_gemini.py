@@ -103,29 +103,55 @@ async def test_calculate_losses_returns_text():
     assert "Потери" in result
 
 
+def _make_qc_json(verdict: str, score: int, reason=None, tip=None, obj="стена"):
+    import json
+    return _make_response(json.dumps({
+        "sharpness": score // 4, "exposure": score // 4,
+        "framing": score // 4, "relevance": score - 3 * (score // 4),
+        "total_score": score, "verdict": verdict,
+        "reason": reason, "tip": tip, "object": obj,
+    }))
+
+
 @pytest.mark.asyncio
 async def test_check_quality_accepted():
-    mock_response = _make_response("ПРИНЯТО")
+    mock_response = _make_qc_json("ПРИНЯТО", 85)
     with patch("src.services.gemini._get") as mock_get:
         mock_get.return_value.aio.models.generate_content = AsyncMock(return_value=mock_response)
-        ok, reason = await gemini.check_quality(b"fake")
-    assert ok is True
-    assert reason == ""
+        result = await gemini.check_quality(b"fake")
+    assert result["ok"] is True
+    assert result["verdict"] == "ПРИНЯТО"
+    assert result["score"] == 85
+    assert result["reason"] is None
 
 
 @pytest.mark.asyncio
 async def test_check_quality_rejected():
-    mock_response = _make_response("БРАК: изображение размыто")
+    mock_response = _make_qc_json("БРАК", 40, reason="изображение размыто", tip="Держи камеру неподвижно")
     with patch("src.services.gemini._get") as mock_get:
         mock_get.return_value.aio.models.generate_content = AsyncMock(return_value=mock_response)
-        ok, reason = await gemini.check_quality(b"fake")
-    assert ok is False
-    assert "размыто" in reason
+        result = await gemini.check_quality(b"fake")
+    assert result["ok"] is False
+    assert result["verdict"] == "БРАК"
+    assert "размыто" in result["reason"]
+    assert result["tip"] is not None
+
+
+@pytest.mark.asyncio
+async def test_check_quality_zamechanie():
+    mock_response = _make_qc_json("ЗАМЕЧАНИЕ", 62, reason="немного пересвечено", tip="Выключи боковой свет")
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        result = await gemini.check_quality(b"fake")
+    assert result["ok"] is True  # ЗАМЕЧАНИЕ is still accepted
+    assert result["verdict"] == "ЗАМЕЧАНИЕ"
+    assert result["score"] == 62
 
 
 @pytest.mark.asyncio
 async def test_check_quality_failopen_on_exception():
     with patch("src.services.gemini._get") as mock_get:
         mock_get.return_value.aio.models.generate_content = AsyncMock(side_effect=Exception("timeout"))
-        ok, reason = await gemini.check_quality(b"fake")
-    assert ok is True
+        result = await gemini.check_quality(b"fake")
+    assert result["ok"] is True
+    assert result["score"] == 75

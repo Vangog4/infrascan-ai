@@ -128,17 +128,34 @@ _CALC_PROMPT = """
 """.strip()
 
 _QC_PROMPT = """
-Ты — технический контролёр качества фотоотчётов инженерной компании.
-Оцени качество приложенного снимка для включения в профессиональный технический отчёт.
+Ты — строгий технический контролёр качества фотоотчётов инженерной компании «ИнфраСкан».
+Инженер прислал снимок объекта для включения в официальный технический отчёт.
 
-Критерии:
-1. Чёткость (не размыт ли снимок?)
-2. Освещённость (не пересвечен / не слишком тёмный?)
-3. Полнота кадра (виден ли объект целиком?)
+Оцени снимок по 4 критериям (0–25 баллов каждый):
+1. ЧЁТКОСТЬ — снимок резкий, нет смазанности или дрожания камеры?
+2. ОСВЕЩЁННОСТЬ — нормальная экспозиция? Не пересвечен, не слишком тёмный?
+   (для тепловизора: видна ли шкала температур и цветовой градиент?)
+3. ПОЛНОТА КАДРА — объект виден целиком? Правильный угол? Объект — главный в кадре?
+4. РЕЛЕВАНТНОСТЬ — это строительный/инженерный объект?
+   (окно, стена, щиток, кровля, фасад, труба, радиатор, фундамент и т.п.)
 
-Ответь СТРОГО в одном из двух форматов — без лишних слов:
-- ПРИНЯТО
-- БРАК: [причина одним предложением]
+Верни ТОЛЬКО валидный JSON без markdown и объяснений:
+{
+  "sharpness": <0-25>,
+  "exposure": <0-25>,
+  "framing": <0-25>,
+  "relevance": <0-25>,
+  "total_score": <сумма 0-100>,
+  "verdict": "<ПРИНЯТО|ЗАМЕЧАНИЕ|БРАК>",
+  "reason": "<причина отказа или замечания одним предложением, null если ПРИНЯТО>",
+  "tip": "<конкретный совет: отойди на X м, поверни камеру, выключи свет справа — null если total_score >= 80>",
+  "object": "<что видно на снимке, 3-5 слов>"
+}
+
+Пороги вердикта:
+- ПРИНЯТО: total_score >= 70
+- ЗАМЕЧАНИЕ: total_score 50–69 (принято, но есть замечание для инженера)
+- БРАК: total_score < 50 (пересъёмка обязательна)
 """.strip()
 
 
@@ -201,20 +218,38 @@ async def calculate_losses(area: float, heating: str, payment: float) -> str:
         return "⚠️ Не удалось выполнить расчёт. Попробуйте позже."
 
 
-async def check_quality(data: bytes, mime: str = "image/jpeg") -> tuple[bool, str]:
+async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
+    """QC check with score and actionable tip.
+
+    Returns:
+        ok      — True if ПРИНЯТО or ЗАМЕЧАНИЕ (photo is usable)
+        score   — 0-100
+        verdict — ПРИНЯТО | ЗАМЕЧАНИЕ | БРАК
+        reason  — why rejected/flagged (str or None)
+        tip     — specific improvement advice (str or None)
+        object  — what object was detected (str)
+    """
     try:
         r = await _get().aio.models.generate_content(
             model=settings.gemini_model,
             contents=[types.Part.from_bytes(data=data, mime_type=mime), _QC_PROMPT],
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        text = r.text.strip()
-        if text.startswith("ПРИНЯТО"):
-            return True, ""
-        reason = text.replace("БРАК:", "").replace("БРАК", "").strip()
-        return False, reason or "Качество снимка неприемлемо для отчёта"
+        parsed = json.loads(_strip_fences(r.text))
+        verdict = parsed.get("verdict", "ПРИНЯТО")
+        return {
+            "ok":      verdict in ("ПРИНЯТО", "ЗАМЕЧАНИЕ"),
+            "score":   min(100, max(0, int(parsed.get("total_score", 75)))),
+            "verdict": verdict,
+            "reason":  parsed.get("reason"),
+            "tip":     parsed.get("tip"),
+            "object":  parsed.get("object", ""),
+        }
     except Exception as e:
         logger.error("Gemini check_quality: %s", e)
-        return True, ""  # fail-open: don't block engineer on API error
+        # fail-open: don't block engineer when API is down
+        return {"ok": True, "score": 75, "verdict": "ПРИНЯТО",
+                "reason": None, "tip": None, "object": ""}
 
 
 # ── Formatters ────────────────────────────────────────────────────────────────

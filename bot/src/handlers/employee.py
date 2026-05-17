@@ -82,19 +82,29 @@ async def photo_task_selected(call: CallbackQuery, state: FSMContext) -> None:
 
 @router.message(EmployeePhotoFlow.photos, F.photo)
 async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
-    wait = await message.answer("🔎 Проверяю качество снимка...")
+    wait = await message.answer("🔎 Кибер-прораб проверяет качество снимка...")
     photo = message.photo[-1]
     file_io = await bot.download(photo)
     photo_bytes = file_io.read()
 
-    ok, reason = await gemini.check_quality(photo_bytes)
+    qc = await gemini.check_quality(photo_bytes)
 
-    if not ok:
+    if not qc["ok"]:
+        score = qc["score"]
+        reason = qc["reason"] or "Качество снимка недостаточно для технического отчёта"
+        tip = qc.get("tip")
+        obj = qc.get("object", "")
+
+        obj_line = f"🏗 <i>Объект: {obj}</i>\n" if obj else ""
+        tip_block = f"\n💡 <b>Совет:</b> {tip}" if tip else ""
+
         await wait.delete()
         await message.answer(
-            f"❌ <b>Фото не принято.</b>\n\n"
-            f"Причина: {reason}\n\n"
-            "Пересними объект и отправь снова."
+            f"❌ <b>Фото не принято</b>  <code>{score}/100</code>\n\n"
+            f"{obj_line}"
+            f"📋 {reason}"
+            f"{tip_block}\n\n"
+            "Пересними объект и отправь снова 👇"
         )
         return
 
@@ -115,10 +125,25 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
 
     await wait.delete()
 
+    score = qc["score"]
+    verdict = qc["verdict"]
+    obj = qc.get("object", "")
+
+    score_emoji = "🟢" if verdict == "ПРИНЯТО" else "🟡"
     status = "Прикреплено к задаче в системе." if att_id else "⚠️ Не удалось прикрепить к Odoo."
+
+    obj_line = f"🏗 <i>{obj}</i>\n" if obj else ""
+    warning_block = ""
+    if verdict == "ЗАМЕЧАНИЕ" and (qc.get("reason") or qc.get("tip")):
+        note = qc.get("tip") or qc.get("reason")
+        warning_block = f"\n⚠️ <i>Замечание: {note}</i>"
+
     await message.answer(
-        f"🟢 <b>Фото #{count} принято</b>\n{status}\n\n"
-        f"<b>🔬 Анализ:</b>\n{analysis}"
+        f"{score_emoji} <b>Фото #{count} принято</b>  <code>{score}/100</code>\n"
+        f"{obj_line}"
+        f"{status}"
+        f"{warning_block}\n\n"
+        f"<b>🔬 Анализ Кибер-прораба:</b>\n{analysis}"
     )
 
 
