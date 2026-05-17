@@ -2,7 +2,7 @@ import logging
 
 import redis.asyncio as aioredis
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -117,6 +117,58 @@ async def cmd_cancel(
         kb = client_menu(locale, is_local)
     text = "Действие отменено." if locale == "ru" else "Action cancelled."
     await message.answer(text, reply_markup=kb)
+
+
+# ── Admin: broadcast ─────────────────────────────────────────────────────────
+
+@router.message(Command("broadcast"))
+async def cmd_broadcast(message: Message, bot: Bot) -> None:
+    """Send a message to all tracked users.
+
+    Usage: /broadcast <text>
+    Users are tracked in Redis sorted set "users" by the RoleMiddleware.
+    """
+    if message.from_user.id not in settings.admin_ids:
+        return
+
+    text = message.text.removeprefix("/broadcast").strip()
+    if not text:
+        await message.answer(
+            "Usage: /broadcast <текст>\n\n"
+            "Сообщение будет отправлено всем пользователям бота."
+        )
+        return
+
+    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        user_ids_raw: list[str] = await r.zrangebyscore("users", "-inf", "+inf")
+    finally:
+        await r.aclose()
+
+    if not user_ids_raw:
+        await message.answer("⚠️ База пользователей пуста.")
+        return
+
+    status = await message.answer(f"📤 Отправляю {len(user_ids_raw)} пользователям…")
+
+    sent = failed = blocked = 0
+    for uid_str in user_ids_raw:
+        try:
+            await bot.send_message(int(uid_str), text)
+            sent += 1
+        except Exception as e:
+            err = str(e).lower()
+            if "blocked" in err or "deactivated" in err or "not found" in err:
+                blocked += 1
+            else:
+                failed += 1
+
+    await status.edit_text(
+        f"✅ Broadcast завершён\n\n"
+        f"📨 Доставлено: <b>{sent}</b>\n"
+        f"🚫 Заблокировали бота: <b>{blocked}</b>\n"
+        f"❌ Ошибок: <b>{failed}</b>"
+    )
 
 
 # ── Admin: grant premium manually ────────────────────────────────────────────

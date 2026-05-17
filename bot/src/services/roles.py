@@ -48,3 +48,12 @@ async def set_phone(user_id: int, phone: str) -> None:
 
 async def invalidate(user_id: int) -> None:
     await _r().delete(f"role:{user_id}", f"phone:{user_id}")
+
+
+async def track_user(user_id: int) -> None:
+    """Record user activity in a sorted set (score = unix timestamp).
+
+    Used by /broadcast to enumerate known users.
+    """
+    import time
+    await _r().zadd("users", {str(user_id): int(time.time())})

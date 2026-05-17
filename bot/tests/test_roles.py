@@ -45,3 +45,19 @@ async def test_invalidate_clears_role_and_phone():
     await roles.invalidate(4)
     assert await roles.get_role(4) == Role.CLIENT
     assert await roles.get_phone(4) is None
+
+
+@pytest.mark.asyncio
+async def test_track_user_stores_in_sorted_set(mock_redis):
+    await roles.track_user(42)
+    bucket = mock_redis._store.get("users", {})
+    assert "42" in bucket
+
+
+@pytest.mark.asyncio
+async def test_track_user_multiple_users(mock_redis):
+    await roles.track_user(10)
+    await roles.track_user(20)
+    bucket = mock_redis._store.get("users", {})
+    assert "10" in bucket
+    assert "20" in bucket

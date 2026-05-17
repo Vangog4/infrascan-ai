@@ -46,6 +46,9 @@ async def audit_start(
         )
 
 
+_MAX_PHOTO_BYTES = 20 * 1024 * 1024  # 20 MB — Gemini hard limit
+
+
 @router.message(AuditFlow.photo, F.photo)
 async def audit_photo(
     message: Message,
@@ -81,10 +84,20 @@ async def audit_photo(
                 )
             return
 
+    photo = message.photo[-1]
+    if photo.file_size and photo.file_size > _MAX_PHOTO_BYTES:
+        err = (
+            "⚠️ Фото слишком большое (максимум 20 МБ). Отправьте снимок меньшего размера."
+            if locale == "ru"
+            else "⚠️ Photo is too large (max 20 MB). Please send a smaller image."
+        )
+        await message.answer(err, reply_markup=client_menu(locale, is_local))
+        return
+
+    await bot.send_chat_action(message.chat.id, "upload_photo")
     wait_text = "🔍 Анализирую снимок..." if locale == "ru" else "🔍 Analyzing photo..."
     wait = await message.answer(wait_text)
 
-    photo = message.photo[-1]
     file_io = await bot.download(photo)
     result = await gemini.analyze_photo(file_io.read(), locale=locale)
 

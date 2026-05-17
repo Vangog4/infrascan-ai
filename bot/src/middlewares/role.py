@@ -18,6 +18,7 @@ class RoleMiddleware(BaseMiddleware):
     ) -> Any:
         user = data.get("event_from_user")
         if user:
+            await roles.track_user(user.id)
             role = await roles.get_role(user.id)
             if role == roles.Role.CLIENT:
                 if await odoo.is_employee(user.id):

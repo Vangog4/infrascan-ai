@@ -24,6 +24,7 @@ async def _run(user_id: int = 1, redis_role: str | None = None, is_employee: boo
         return Role.CLIENT
 
     with (
+        patch.object(roles, "track_user", AsyncMock()),
         patch.object(roles, "get_role", fake_get_role),
         patch.object(roles, "set_role", AsyncMock()),
         patch("src.middlewares.role.odoo.is_employee", AsyncMock(return_value=is_employee)),
@@ -58,6 +59,7 @@ async def test_employee_detected_via_odoo_and_cached():
     from src.services import roles
     set_role_mock = AsyncMock()
     with (
+        patch.object(roles, "track_user", AsyncMock()),
         patch.object(roles, "get_role", AsyncMock(return_value=Role.CLIENT)),
         patch.object(roles, "set_role", set_role_mock),
         patch("src.middlewares.role.odoo.is_employee", AsyncMock(return_value=True)),
@@ -85,6 +87,7 @@ async def test_handler_is_called():
     mw = RoleMiddleware()
     from src.services import roles
     with (
+        patch.object(roles, "track_user", AsyncMock()),
         patch.object(roles, "get_role", AsyncMock(return_value=Role.CLIENT)),
         patch.object(roles, "set_role", AsyncMock()),
         patch("src.middlewares.role.odoo.is_employee", AsyncMock(return_value=False)),

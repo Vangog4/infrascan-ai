@@ -33,6 +33,22 @@ class FakeRedis:
             self._store.pop(k, None)
             self._ttls.pop(k, None)
 
+    async def zadd(self, key: str, mapping: dict[str, float | int]) -> int:
+        if key not in self._store:
+            self._store[key] = {}  # type: ignore[assignment]
+        self._store[key].update({k: str(v) for k, v in mapping.items()})  # type: ignore[index]
+        return len(mapping)
+
+    async def zrangebyscore(
+        self, key: str, min: float | str, max: float | str
+    ) -> list[str]:
+        bucket = self._store.get(key, {})
+        if not isinstance(bucket, dict):
+            return []
+        lo = float("-inf") if min in ("-inf", float("-inf")) else float(min)
+        hi = float("+inf") if max in ("+inf", float("+inf")) else float(max)
+        return [k for k, v in bucket.items() if lo <= float(v) <= hi]
+
     async def scan_iter(self, pattern: str = "*"):
         import fnmatch
         for key in list(self._store):
