@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     odoo_db: str = ""
     odoo_username: str = ""
     odoo_password: str = ""
+    odoo_api_key: str = ""  # Bearer token for JSON-2 API (Odoo 19)
 
     redis_url: str = "redis://infrascan-ai_redis:6379/0"
 
