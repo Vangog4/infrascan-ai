@@ -123,3 +123,26 @@ async def test_scans_remaining_decrements(mock_redis):
 def test_seconds_until_midnight_is_positive():
     secs = svc._seconds_until_midnight_utc()
     assert 1 <= secs <= 86400
+
+
+def test_seconds_until_midnight_month_boundary_jan31():
+    """Regression: day+1 crashed on last day of month."""
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+    last_day = datetime(2026, 1, 31, 14, 0, 0, tzinfo=timezone.utc)
+    with patch("src.services.premium.datetime") as mock_dt:
+        mock_dt.now.return_value = last_day
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+        secs = svc._seconds_until_midnight_utc()
+    assert 1 <= secs <= 86400
+
+
+def test_seconds_until_midnight_month_boundary_dec31():
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+    last_day = datetime(2026, 12, 31, 23, 59, 0, tzinfo=timezone.utc)
+    with patch("src.services.premium.datetime") as mock_dt:
+        mock_dt.now.return_value = last_day
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+        secs = svc._seconds_until_midnight_utc()
+    assert 1 <= secs <= 120  # less than 2 min to next midnight

@@ -29,11 +29,10 @@ def _r() -> aioredis.Redis:
 
 
 def _seconds_until_midnight_utc() -> int:
+    from datetime import timedelta
     now = datetime.now(timezone.utc)
-    tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if tomorrow <= now:
-        tomorrow = tomorrow.replace(day=tomorrow.day + 1)
-    return max(1, int((tomorrow - now).total_seconds()))
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(1, int((midnight - now).total_seconds()))
 
 
 async def is_premium(user_id: int) -> bool:
