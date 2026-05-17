@@ -1,19 +1,7 @@
-"""
-Odoo JSON-2 API service (Odoo 19).
+"""Odoo JSON-2 REST API client (Odoo 19).
 
-Replaces XML-RPC with the native JSON-2 REST endpoint:
-  POST /json/2/{model}/{method}
-  Authorization: Bearer <api_key>
-
-API user permissions (api@infrascan-ai.ru):
-  ✅ res.partner          — read, write, create
-  ✅ project.task         — read, create, write
-  ✅ ir.attachment        — read, create
-  ❌ crm.lead             — needs Sales/User group in Odoo admin
-  ❌ hr.employee          — module not installed
-
-Lead fallback: create project.task in project_id=1 ("Выезд")
-Employee identification: EMPLOYEE_TG_IDS env var (set in .env)
+POST /json/2/{model}/{method}  •  Authorization: Bearer <api_key>
+Lead fallback: project.task in project_id=1 when crm.lead unavailable.
 """
 import logging
 from typing import Any
@@ -150,7 +138,7 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
     for t in (result or []):
         if t["name"].startswith("[Лид]"):
             continue
-        assigned = t.get("x_telegram_id") or ""
+        assigned = str(t.get("x_telegram_id") or "")
         if assigned and assigned.strip() != tg_str:
             continue
         tasks.append(t)
@@ -221,6 +209,13 @@ async def set_premium(telegram_id: int, days: int) -> bool:
                              "x_premium_ends": ends,
                          }])
     return isinstance(result, int)
+
+
+async def close() -> None:
+    global _client
+    if _client and not _client.is_closed:
+        await _client.aclose()
+    _client = None
 
 
 async def partner_balance(phone: str) -> float | None:

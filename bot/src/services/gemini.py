@@ -154,6 +154,7 @@ def _strip_fences(text: str) -> str:
 async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg") -> dict:
     """Return structured analysis dict. Callers use format_analysis_free/premium to render."""
     prompt = _AUDIT_PROMPT_RU if locale == "ru" else _AUDIT_PROMPT_EN
+    r = None
     try:
         r = await _get().aio.models.generate_content(
             model=settings.gemini_model,
@@ -162,9 +163,8 @@ async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg
         )
         return json.loads(_strip_fences(r.text))
     except json.JSONDecodeError:
-        # Gemini returned text instead of JSON — wrap it so callers can handle gracefully
         logger.warning("Gemini returned non-JSON, wrapping as fallback")
-        text = r.text if "r" in dir() else "Analysis unavailable"
+        text = r.text if r is not None else "Analysis unavailable"
         return {
             "object_type": "other",
             "risk_level": "MEDIUM",

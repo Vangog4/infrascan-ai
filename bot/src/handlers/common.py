@@ -156,7 +156,6 @@ async def cmd_stats(message: Message) -> None:
     wait = await message.answer("⏳ Собираю статистику...")
 
     from src.services import odoo
-    import redis.asyncio as aioredis
 
     r = aioredis.from_url(settings.redis_url, decode_responses=True)
 

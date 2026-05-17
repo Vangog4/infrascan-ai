@@ -9,6 +9,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from src.config import settings
 from src.handlers import client, common, employee, partner
 from src.handlers import payments
+from src.services import odoo as odoo_svc
 from src.middlewares.dedupe import ContentDedupeMiddleware
 from src.middlewares.geo import GeoMiddleware
 from src.middlewares.logging import LoggingMiddleware
@@ -43,6 +44,11 @@ async def main() -> None:
     dp.include_router(partner.router)
     dp.include_router(client.router)
     dp.include_router(common.router)
+
+    async def on_shutdown() -> None:
+        await odoo_svc.close()
+
+    dp.shutdown.register(on_shutdown)
 
     await bot.delete_webhook(drop_pending_updates=True)
     logging.getLogger(__name__).info("Bot started: @infrascan_ai_bot")
