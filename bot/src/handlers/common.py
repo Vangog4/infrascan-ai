@@ -146,6 +146,70 @@ async def cmd_revoke_premium(message: Message) -> None:
     await message.answer(f"✅ Premium revoked for {target_id}.")
 
 
+@router.message(Command("stats"))
+async def cmd_stats(message: Message) -> None:
+    if message.from_user.id not in settings.admin_ids:
+        return
+
+    wait = await message.answer("⏳ Собираю статистику...")
+
+    from src.services import odoo
+    import redis.asyncio as aioredis
+
+    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+
+    # ── Redis stats ──────────────────────────────────────────────────────────
+    scans_today = 0
+    active_users = 0
+    premium_users = 0
+
+    async for key in r.scan_iter("scans:*"):
+        val = await r.get(key)
+        if val:
+            scans_today += int(val)
+            active_users += 1
+
+    async for key in r.scan_iter("premium:*"):
+        val = await r.get(key)
+        if val == "1":
+            premium_users += 1
+
+    await r.aclose()
+
+    # ── Odoo stats ───────────────────────────────────────────────────────────
+    tasks_today = 0
+    leads_count = 0
+    odoo_status = "✅"
+    try:
+        from datetime import date
+        today = date.today().isoformat()
+        tc = await odoo._call("project.task", "search_count",
+                              domain=[["project_id", "=", 1],
+                                      ["name", "not ilike", "[Лид]"]])
+        tasks_today = tc or 0
+        lc = await odoo._call("project.task", "search_count",
+                              domain=[["project_id", "=", 1],
+                                      ["name", "ilike", "[Лид]"]])
+        leads_count = lc or 0
+    except Exception as e:
+        odoo_status = f"❌ {e}"
+
+    _SEP2 = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
+    text = (
+        f"📊 <b>Статистика InfraScan</b>\n{_SEP2}\n\n"
+        f"<b>Сегодня:</b>\n"
+        f"  🔍 Сканов: <b>{scans_today}</b>\n"
+        f"  👤 Активных пользователей: <b>{active_users}</b>\n\n"
+        f"<b>Всего в Redis:</b>\n"
+        f"  ⭐️ Premium-активных: <b>{premium_users}</b>\n\n"
+        f"<b>Odoo ({odoo_status}):</b>\n"
+        f"  🚗 Задач на выезд: <b>{tasks_today}</b>\n"
+        f"  📋 Лидов в очереди: <b>{leads_count}</b>\n"
+        f"\n{_SEP2}"
+    )
+    await wait.edit_text(text)
+
+
 # ── FSM nudge handlers ────────────────────────────────────────────────────────
 
 @router.message(AuditFlow.photo)
