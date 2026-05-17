@@ -40,6 +40,12 @@ TIMEOUT_SECS=$(( TIMEOUT_MINS * 60 ))
 # ── Helpers ──────────────────────────────────────────────────────────────────
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$RUN_LOG"; }
 
+confirm() {
+    local description="$1"
+    local timeout="${2:-180}"
+    python3 "$REPO_ROOT/hooks/confirm_bridge.py" "$description" "$timeout"
+}
+
 health_check() {
     local errors=""
     # Tests
@@ -65,6 +71,13 @@ log "   Задача: ${PROMPT:0:80}…"
 log "   Бюджет: $MAX_ITER итераций / ${TIMEOUT_MINS} мин"
 log "   Лог: $RUN_LOG"
 echo ""
+
+# Ask for permission before starting overnight run
+if ! confirm "Запустить overnight loop: ${BASE_PROMPT:0:200}" 120; then
+    log "❌ Запуск отменён администратором"
+    exit 1
+fi
+log "✅ Администратор разрешил запуск"
 
 while [[ $ITER -lt $MAX_ITER ]]; do
     ELAPSED=$(( $(date +%s) - START ))
@@ -110,8 +123,14 @@ while [[ $ITER -lt $MAX_ITER ]]; do
             "$BASE_PROMPT" "$ITER" "$ERRORS")"
 
         if [[ $CONSECUTIVE_FAIL -ge 5 ]]; then
-            log "🚫 5 подряд неудач — принудительное завершение (застрял)"
-            break
+            log "🚫 5 подряд неудач — запрашиваю инструкции администратора"
+            if confirm "Агент застрял (5 неудач). Продолжать попытки? Задача: ${BASE_PROMPT:0:150}" 300; then
+                log "✅ Администратор разрешил продолжить"
+                CONSECUTIVE_FAIL=0
+            else
+                log "❌ Администратор остановил цикл"
+                break
+            fi
         fi
     fi
 

@@ -1,9 +1,11 @@
 import logging
 
+import redis.asyncio as aioredis
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from src.config import settings
 from src.keyboards.menus import client_menu, employee_menu, partner_menu
@@ -208,6 +210,50 @@ async def cmd_stats(message: Message) -> None:
         f"\n{_SEP2}"
     )
     await wait.edit_text(text)
+
+
+# ── Confirmation Bridge callback ─────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("confirm:"))
+async def confirm_callback(call: CallbackQuery) -> None:
+    """Handle YES/NO from the Telegram Confirmation Bridge.
+
+    Callback data format: confirm:{confirm_id}:{yes|no}
+    Decision is written to Redis key confirm:{confirm_id} so the
+    confirm_bridge.py script can pick it up.
+    """
+    if call.from_user.id not in settings.admin_ids:
+        await call.answer("⛔ Только для администраторов", show_alert=True)
+        return
+
+    parts = call.data.split(":")
+    if len(parts) != 3:
+        await call.answer("❌ Неверный формат", show_alert=True)
+        return
+
+    _, confirm_id, decision = parts
+    if decision not in ("yes", "no"):
+        await call.answer("❌ Неизвестное решение", show_alert=True)
+        return
+
+    redis_key = f"confirm:{confirm_id}"
+    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        existing = await r.get(redis_key)
+        if existing is None:
+            await call.answer("⚠️ Запрос устарел или не найден", show_alert=True)
+            return
+        if existing != "pending":
+            await call.answer("ℹ️ Уже обработано", show_alert=True)
+            return
+        await r.set(redis_key, decision, ex=60)
+    finally:
+        await r.aclose()
+
+    emoji = "✅" if decision == "yes" else "❌"
+    label = "РАЗРЕШЕНО" if decision == "yes" else "ОТКЛОНЕНО"
+    await call.answer(f"{emoji} {label}", show_alert=False)
+    logger.info("confirm_bridge: %s → %s by admin %d", confirm_id, decision, call.from_user.id)
 
 
 # ── FSM nudge handlers ────────────────────────────────────────────────────────
