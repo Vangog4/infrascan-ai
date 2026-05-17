@@ -49,6 +49,32 @@ class FakeRedis:
         hi = float("+inf") if max in ("+inf", float("+inf")) else float(max)
         return [k for k, v in bucket.items() if lo <= float(v) <= hi]
 
+    async def ttl(self, key: str) -> int:
+        if key not in self._store:
+            return -2
+        if key in self._ttls:
+            return self._ttls[key]
+        return -1
+
+    async def exists(self, *keys: str) -> int:
+        return sum(1 for k in keys if k in self._store)
+
+    async def setnx(self, key: str, value: str) -> bool:
+        if key in self._store:
+            return False
+        self._store[key] = str(value)
+        return True
+
+    async def incrby(self, key: str, amount: int) -> int:
+        val = int(self._store.get(key, "0")) + amount
+        self._store[key] = str(val)
+        return val
+
+    async def decrby(self, key: str, amount: int) -> int:
+        val = int(self._store.get(key, "0")) - amount
+        self._store[key] = str(val)
+        return val
+
     async def scan_iter(self, pattern: str = "*"):
         import fnmatch
         for key in list(self._store):

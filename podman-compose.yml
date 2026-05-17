@@ -91,6 +91,7 @@ services:
       - ./bot/.env
     networks:
       - bot-net
+      - npm_network   # lets Nginx Proxy Manager route /bot/webhook → bot:8080
     healthcheck:
       test: ["CMD-SHELL", "uv run python -c 'import src.config' || exit 1"]
       interval: 60s

@@ -1,29 +1,18 @@
 import logging
 from enum import StrEnum
 
-import redis.asyncio as aioredis
-
-from src.config import settings
+from src.services.redis import get_redis as _r
 
 logger = logging.getLogger(__name__)
 
 _PARTNER_TTL = 30 * 24 * 3600  # 30 дней — роль партнёра переживает рестарты
 _EMPLOYEE_TTL = 300             # 5 мин — просто кэш, источник правды — env
 
-_redis: aioredis.Redis | None = None
-
 
 class Role(StrEnum):
     CLIENT = "client"
     PARTNER = "partner"
     EMPLOYEE = "employee"
-
-
-def _r() -> aioredis.Redis:
-    global _redis
-    if _redis is None:
-        _redis = aioredis.from_url(settings.redis_url, decode_responses=True)
-    return _redis
 
 
 async def get_role(user_id: int) -> Role:

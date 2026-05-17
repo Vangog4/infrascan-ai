@@ -1,15 +1,18 @@
 import logging
 
-import redis.asyncio as aioredis
-
 from aiogram import Bot, F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
 from src.keyboards.menus import client_menu, employee_menu
 from src.services import premium as premium_svc
+from src.services import referral as ref_svc
+from src.services.redis import get_redis, is_first_visit
 from src.services.roles import Role
 from src.states.flows import AuditFlow, CalcFlow, LeadFlow
 
@@ -55,6 +58,44 @@ _EMPLOYEE_WELCOME = (
     "Выберите действие 👇"
 )
 
+_ONBOARDING_RU = (
+    "🔬 <b>Добро пожаловать в InfraScan AI, {name}!</b>\n"
+    + _SEP + "\n\n"
+    "ИИ находит проблемы за <b>30 секунд</b>:\n\n"
+    "<code>"
+    "🌡  Теплопотери — окна, стены, кровля\n"
+    "⚡  Перегрев — щитки, проводка\n"
+    "💧  Мостики холода, зоны промерзания\n"
+    "🏗  Дефекты фасада и кровли"
+    "</code>\n\n"
+    + _SEP + "\n\n"
+    "<b>📷 Что отправить:</b>\n"
+    "✅ Окна изнутри (в холодное время)\n"
+    "✅ Внешние стены и углы комнат\n"
+    "✅ Электрощитки\n"
+    "✅ Крыша, чердак, фасад\n\n"
+    "<i>🎁 Вам начислено <b>{scans} бесплатных анализа</b> — начнём?</i>{bonus}"
+)
+
+_ONBOARDING_EN = (
+    "🔬 <b>Welcome to InfraScan AI, {name}!</b>\n"
+    + _SEP + "\n\n"
+    "AI finds issues in <b>30 seconds</b>:\n\n"
+    "<code>"
+    "🌡  Heat loss — windows, walls, roof\n"
+    "⚡  Overheating — panels, wiring\n"
+    "💧  Cold bridges, frost zones\n"
+    "🏗  Facade & roofing defects"
+    "</code>\n\n"
+    + _SEP + "\n\n"
+    "<b>📷 What to send:</b>\n"
+    "✅ Windows (from inside, in cold weather)\n"
+    "✅ Exterior walls and room corners\n"
+    "✅ Electrical panels\n"
+    "✅ Roof, attic, facade\n\n"
+    "<i>🎁 You have <b>{scans} free analyses</b> — ready to start?</i>{bonus}"
+)
+
 
 
 @router.message(CommandStart())
@@ -62,26 +103,85 @@ async def cmd_start(
     message: Message,
     state: FSMContext,
     role: Role,
+    command: CommandObject,
     locale: str = "ru",
     is_local: bool = True,
 ) -> None:
     await state.clear()
-    name = message.from_user.first_name or "пользователь"
+    name = message.from_user.first_name or ("пользователь" if locale == "ru" else "friend")
+    user_id = message.from_user.id
 
     if role == Role.EMPLOYEE:
         await message.answer(
             _EMPLOYEE_WELCOME.format(name=name),
             reply_markup=employee_menu(),
         )
+        return
+
+    # Handle referral deep link
+    bonus_notice = ""
+    if command.args and command.args.startswith("ref_"):
+        code = command.args[4:]
+        if await ref_svc.register_referral(user_id, code):
+            await ref_svc.add_bonus_scans(user_id, ref_svc.SCANS_PER_ACTIVATION)
+            bonus_notice = (
+                f"\n\n🎁 <b>+{ref_svc.SCANS_PER_ACTIVATION} бонусных анализов</b> — подарок от друга!"
+                if locale == "ru"
+                else f"\n\n🎁 <b>+{ref_svc.SCANS_PER_ACTIVATION} bonus analyses</b> — gift from your friend!"
+            )
+
+    is_new = await is_first_visit(user_id)
+
+    if is_new:
+        # Rich onboarding for first-time users
+        tpl = _ONBOARDING_RU if locale == "ru" else _ONBOARDING_EN
+        text = tpl.format(
+            name=name,
+            scans=settings.free_daily_scans,
+            bonus=bonus_notice,
+        )
+        # Inline "start now" button → triggers photo analysis flow
+        b = InlineKeyboardBuilder()
+        btn_label = "📸 Загрузить первое фото →" if locale == "ru" else "📸 Upload your first photo →"
+        b.row(InlineKeyboardButton(text=btn_label, callback_data="onboarding:photo"))
+        await message.answer(text, reply_markup=b.as_markup())
+        await message.answer(
+            "Или выберите действие в меню 👇" if locale == "ru" else "Or choose an action below 👇",
+            reply_markup=client_menu(locale, is_local),
+        )
     else:
-        is_prem = await premium_svc.is_premium(message.from_user.id)
+        # Compact returning-user welcome
+        is_prem = await premium_svc.is_premium(user_id)
         if locale == "ru":
             tier = "⭐️ PREMIUM" if is_prem else f"FREE ({settings.free_daily_scans} фото/день)"
             text = _WELCOME_RU.format(tier=tier)
         else:
             tier = "⭐️ PREMIUM" if is_prem else f"FREE ({settings.free_daily_scans} photos/day)"
             text = _WELCOME_EN.format(tier=tier)
-        await message.answer(text, reply_markup=client_menu(locale, is_local))
+        await message.answer(text + bonus_notice, reply_markup=client_menu(locale, is_local))
+
+
+@router.callback_query(F.data == "onboarding:photo")
+async def onboarding_photo_start(
+    call: CallbackQuery,
+    state: FSMContext,
+    locale: str = "ru",
+    is_local: bool = True,
+) -> None:
+    """Onboarding 'Upload first photo' button → enters photo analysis flow."""
+    await call.answer()
+    await state.set_state(AuditFlow.photo)
+    await state.update_data(locale=locale, is_local=is_local)
+    if locale == "ru":
+        await call.message.answer(
+            "📷 <b>Отлично!</b> Отправьте фото объекта — окно, стена, щиток, кровля или фасад.\n\n"
+            "<i>ИИ проанализирует снимок и выдаст заключение с уровнем риска за ~30 секунд.</i>"
+        )
+    else:
+        await call.message.answer(
+            "📷 <b>Great!</b> Send a photo — window, wall, panel, roof or facade.\n\n"
+            "<i>AI will analyze it and return a risk assessment in ~30 seconds.</i>"
+        )
 
 
 @router.message(Command("cancel"))
@@ -122,11 +222,8 @@ async def cmd_broadcast(message: Message, bot: Bot) -> None:
         )
         return
 
-    r = aioredis.from_url(settings.redis_url, decode_responses=True)
-    try:
-        user_ids_raw: list[str] = await r.zrangebyscore("users", "-inf", "+inf")
-    finally:
-        await r.aclose()
+    r = get_redis()
+    user_ids_raw: list[str] = await r.zrangebyscore("users", "-inf", "+inf")
 
     if not user_ids_raw:
         await message.answer("⚠️ База пользователей пуста.")
@@ -192,7 +289,7 @@ async def cmd_stats(message: Message) -> None:
 
     from src.services import odoo
 
-    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    r = get_redis()
 
     # ── Redis stats ──────────────────────────────────────────────────────────
     scans_today = 0
@@ -209,8 +306,6 @@ async def cmd_stats(message: Message) -> None:
         val = await r.get(key)
         if val == "1":
             premium_users += 1
-
-    await r.aclose()
 
     # ── Odoo stats ───────────────────────────────────────────────────────────
     tasks_today = 0
@@ -269,18 +364,15 @@ async def confirm_callback(call: CallbackQuery) -> None:
         return
 
     redis_key = f"confirm:{confirm_id}"
-    r = aioredis.from_url(settings.redis_url, decode_responses=True)
-    try:
-        existing = await r.get(redis_key)
-        if existing is None:
-            await call.answer("⚠️ Запрос устарел или не найден", show_alert=True)
-            return
-        if existing != "pending":
-            await call.answer("ℹ️ Уже обработано", show_alert=True)
-            return
-        await r.set(redis_key, decision, ex=60)
-    finally:
-        await r.aclose()
+    r = get_redis()
+    existing = await r.get(redis_key)
+    if existing is None:
+        await call.answer("⚠️ Запрос устарел или не найден", show_alert=True)
+        return
+    if existing != "pending":
+        await call.answer("ℹ️ Уже обработано", show_alert=True)
+        return
+    await r.set(redis_key, decision, ex=60)
 
     emoji = "✅" if decision == "yes" else "❌"
     label = "РАЗРЕШЕНО" if decision == "yes" else "ОТКЛОНЕНО"

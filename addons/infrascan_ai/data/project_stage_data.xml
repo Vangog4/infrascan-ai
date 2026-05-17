@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!--
+            Стадии для проекта "Выезд".
+            После установки: откройте проект "Выезд" → Kanban → добавьте колонки.
+        -->
+
+        <record id="stage_infrascan_new" model="project.task.type">
+            <field name="name">🆕 Новая</field>
+            <field name="sequence">10</field>
+            <field name="fold">False</field>
+        </record>
+
+        <record id="stage_infrascan_assigned" model="project.task.type">
+            <field name="name">👤 Назначена</field>
+            <field name="sequence">20</field>
+            <field name="fold">False</field>
+        </record>
+
+        <record id="stage_infrascan_en_route" model="project.task.type">
+            <field name="name">🚗 В пути</field>
+            <field name="sequence">30</field>
+            <field name="fold">False</field>
+        </record>
+
+        <record id="stage_infrascan_on_site" model="project.task.type">
+            <field name="name">🔧 На объекте</field>
+            <field name="sequence">40</field>
+            <field name="fold">False</field>
+        </record>
+
+        <record id="stage_infrascan_done" model="project.task.type">
+            <field name="name">✅ Выполнена</field>
+            <field name="sequence">50</field>
+            <field name="fold">False</field>
+        </record>
+
+        <record id="stage_infrascan_archive" model="project.task.type">
+            <field name="name">🗃 Архив</field>
+            <field name="sequence">60</field>
+            <field name="fold">True</field>
+        </record>
+
+    </data>
+</odoo>

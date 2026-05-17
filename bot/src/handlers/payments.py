@@ -21,6 +21,7 @@ from aiogram.types import (
 from src.config import settings
 from src.keyboards.menus import client_menu, premium_kb
 from src.services import premium as premium_svc
+from src.services import referral as ref_svc
 
 logger = logging.getLogger(__name__)
 router = Router(name="payments")
@@ -121,6 +122,7 @@ async def pre_checkout(query: PreCheckoutQuery, bot: Bot) -> None:
 @router.message(F.successful_payment)
 async def payment_success(
     message: Message,
+    bot: Bot,
     locale: str = "ru",
     is_local: bool = True,
 ) -> None:
@@ -134,6 +136,7 @@ async def payment_success(
     )
 
     await premium_svc.grant_premium(user_id, days)
+    await ref_svc.reward_premium_purchase(user_id, bot)
 
     if locale == "ru":
         text = (

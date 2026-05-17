@@ -11,8 +11,9 @@ COPY pyproject.toml uv.lock* ./
 # Install dependencies without the project itself
 RUN uv sync --frozen --no-install-project
 
-# Copy source
+# Copy source and static assets
 COPY src/ ./src/
+COPY assets/ ./assets/
 
 # Sync with project installed
 RUN uv sync --frozen

@@ -9,23 +9,13 @@ Keys:
 import logging
 from datetime import datetime, timezone
 
-import redis.asyncio as aioredis
-
 from src.config import settings
+from src.services.redis import get_redis as _r
 
 logger = logging.getLogger(__name__)
 
 _PREMIUM_KEY = "premium:{}"
 _SCANS_KEY = "scans:{}"
-
-_redis: aioredis.Redis | None = None
-
-
-def _r() -> aioredis.Redis:
-    global _redis
-    if _redis is None:
-        _redis = aioredis.from_url(settings.redis_url, decode_responses=True)
-    return _redis
 
 
 def _seconds_until_midnight_utc() -> int:
@@ -83,3 +73,8 @@ async def increment_scan(user_id: int) -> int:
 async def scans_remaining(user_id: int) -> int:
     used = await get_scans_today(user_id)
     return max(0, settings.free_daily_scans - used)
+
+
+async def premium_ttl(user_id: int) -> int:
+    """Seconds until Premium key expires. Negative means absent/expired."""
+    return await _r().ttl(_PREMIUM_KEY.format(user_id))

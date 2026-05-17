@@ -2,12 +2,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import src.services.redis as redis_mod
 from src.services import premium as svc
 
 
 @pytest.fixture(autouse=True)
 def mock_redis(monkeypatch, fake_redis):
-    monkeypatch.setattr(svc, "_redis", fake_redis)
+    monkeypatch.setattr(redis_mod, "_redis", fake_redis)
     yield fake_redis
 
 

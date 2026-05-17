@@ -25,5 +25,11 @@ class Settings(BaseSettings):
     premium_price_stars: int = 150  # ~$1.5/month
     premium_duration_days: int = 30
 
+    # Webhook (leave empty to use long-polling)
+    webhook_url: str = ""            # e.g. https://infrascan-ai.ru/bot/webhook
+    webhook_path: str = "/bot/webhook"
+    webhook_secret: str = ""         # random string; required when webhook_url is set
+    webhook_port: int = 8080
+
 
 settings = Settings()

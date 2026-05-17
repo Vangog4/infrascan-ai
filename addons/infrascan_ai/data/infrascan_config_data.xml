@@ -22,5 +22,13 @@
             <field name="key">infrascan_ai.telegram_admin_ids</field>
             <field name="value">REPLACE_WITH_ADMIN_TG_IDS</field>
         </record>
+        <!--
+            ID проекта "Выезд" в Odoo.
+            Проверить: Проект → "Выезд" → URL содержит /project/{id}/
+        -->
+        <record id="param_leads_project_id" model="ir.config_parameter">
+            <field name="key">infrascan_ai.leads_project_id</field>
+            <field name="value">1</field>
+        </record>
     </data>
 </odoo>

@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "google-genai>=1.0.0",
     "redis>=5.0.0",
+    "fpdf2>=2.8.0",
 ]
 
 [project.scripts]

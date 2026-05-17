@@ -1,14 +1,14 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(*)",
-      "Edit(*)",
-      "Write(*)",
-      "Read(*)",
-      "WebFetch(*)",
-      "WebSearch(*)",
-      "Agent(*)"
-    ]
-  },
-  "mcpServers": {}
+	"permissions": {
+		"allow": [
+			"Bash(*)",
+			"Edit(*)",
+			"Write(*)",
+			"Read(*)",
+			"WebFetch(*)",
+			"WebSearch(*)",
+			"Agent(*)"
+		]
+	},
+	"mcpServers": {}
 }

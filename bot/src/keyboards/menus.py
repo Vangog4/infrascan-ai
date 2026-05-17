@@ -9,8 +9,22 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 remove_kb = ReplyKeyboardRemove()
 
-BTN_PHOTO = "📸 Анализ фото ИИ"
+# ── Button label constants (used in handlers as F.text targets) ───────────────
+
+BTN_PHOTO    = "📸 Анализ фото ИИ"
 BTN_PHOTO_EN = "📸 AI Photo Analysis"
+
+BTN_CALC     = "📊 Расчёт теплопотерь"
+BTN_CALC_EN  = "📊 Heat Loss Calc"
+
+BTN_INVITE    = "🎁 Позвать друга"
+BTN_INVITE_EN = "🎁 Invite Friend"
+
+BTN_ACCOUNT    = "👤 Мой кабинет"
+BTN_ACCOUNT_EN = "👤 My Account"
+
+BTN_HELP    = "❓ Помощь"
+BTN_HELP_EN = "❓ Help"
 
 
 def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarkup:
@@ -18,16 +32,34 @@ def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarku
     if locale == "ru":
         kb.row(
             KeyboardButton(text=BTN_PHOTO),
-            KeyboardButton(text="📊 Расчёт теплопотерь"),
+            KeyboardButton(text=BTN_CALC),
+        )
+        kb.row(
+            KeyboardButton(text="⭐️ Premium"),
+            KeyboardButton(text=BTN_INVITE),
         )
         if is_local:
-            kb.row(KeyboardButton(text="🚗 Вызвать инженера"))
+            kb.row(
+                KeyboardButton(text="🚗 Вызвать инженера"),
+                KeyboardButton(text=BTN_ACCOUNT),
+            )
         else:
-            kb.row(KeyboardButton(text="⭐️ Premium"))
+            kb.row(
+                KeyboardButton(text=BTN_ACCOUNT),
+                KeyboardButton(text=BTN_HELP),
+            )
     else:
         kb.row(
             KeyboardButton(text=BTN_PHOTO_EN),
+            KeyboardButton(text=BTN_CALC_EN),
+        )
+        kb.row(
             KeyboardButton(text="⭐️ Premium"),
+            KeyboardButton(text=BTN_INVITE_EN),
+        )
+        kb.row(
+            KeyboardButton(text=BTN_ACCOUNT_EN),
+            KeyboardButton(text=BTN_HELP_EN),
         )
     return kb.as_markup(resize_keyboard=True)
 
@@ -80,6 +112,30 @@ def premium_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMarkup:
         b.row(InlineKeyboardButton(
             text=f"⭐️ Get Premium — {stars} Stars/month",
             callback_data="premium:buy",
+        ))
+    return b.as_markup()
+
+
+def account_upgrade_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMarkup:
+    """Inline actions shown on the account screen for free users."""
+    b = InlineKeyboardBuilder()
+    if locale == "ru":
+        b.row(InlineKeyboardButton(
+            text=f"⭐️ Подключить Premium — {stars} Stars/мес",
+            callback_data="premium:buy",
+        ))
+        b.row(InlineKeyboardButton(
+            text="🎁 Пригласить друга (+5 бонусных анализов)",
+            callback_data="action:invite",
+        ))
+    else:
+        b.row(InlineKeyboardButton(
+            text=f"⭐️ Get Premium — {stars} Stars/month",
+            callback_data="premium:buy",
+        ))
+        b.row(InlineKeyboardButton(
+            text="🎁 Invite a Friend (+5 bonus analyses)",
+            callback_data="action:invite",
         ))
     return b.as_markup()
 

@@ -133,13 +133,22 @@ async def test_pre_checkout_answers_ok():
 
 # ── payment_success ───────────────────────────────────────────────────────────
 
+def _fake_bot() -> MagicMock:
+    bot = MagicMock()
+    bot.send_message = AsyncMock()
+    return bot
+
+
 @pytest.mark.asyncio
 async def test_payment_success_grants_premium():
     from src.config import settings
     msg = _msg()
     msg.successful_payment = MagicMock(total_amount=150, invoice_payload="premium_30days")
-    with patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()) as mock_grant:
-        await payment_success(msg, locale="ru", is_local=True)
+    with (
+        patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()) as mock_grant,
+        patch("src.handlers.payments.ref_svc.reward_premium_purchase", AsyncMock()),
+    ):
+        await payment_success(msg, _fake_bot(), locale="ru", is_local=True)
     mock_grant.assert_called_once_with(123, settings.premium_duration_days)
 
 
@@ -147,8 +156,11 @@ async def test_payment_success_grants_premium():
 async def test_payment_success_sends_confirmation_ru():
     msg = _msg()
     msg.successful_payment = MagicMock(total_amount=150, invoice_payload="premium_30days")
-    with patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()):
-        await payment_success(msg, locale="ru", is_local=True)
+    with (
+        patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()),
+        patch("src.handlers.payments.ref_svc.reward_premium_purchase", AsyncMock()),
+    ):
+        await payment_success(msg, _fake_bot(), locale="ru", is_local=True)
     text = msg.answer.call_args[0][0]
     assert "Premium активирован" in text
     assert "150" in text
@@ -158,7 +170,10 @@ async def test_payment_success_sends_confirmation_ru():
 async def test_payment_success_sends_confirmation_en():
     msg = _msg()
     msg.successful_payment = MagicMock(total_amount=150, invoice_payload="premium_30days")
-    with patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()):
-        await payment_success(msg, locale="en", is_local=True)
+    with (
+        patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()),
+        patch("src.handlers.payments.ref_svc.reward_premium_purchase", AsyncMock()),
+    ):
+        await payment_success(msg, _fake_bot(), locale="en", is_local=True)
     text = msg.answer.call_args[0][0]
     assert "Premium activated" in text
