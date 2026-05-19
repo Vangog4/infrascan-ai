@@ -15,6 +15,7 @@ Redis schema:
   ref_month:{uid}:{YYYYMM}   → int  (monthly activation counter, TTL 35 days)
   bonus_scans:{user_id}      → int  (accumulated bonus scans, permanent)
 """
+
 import hashlib
 import logging
 import time
@@ -115,7 +116,7 @@ async def reward_first_scan(new_user_id: int, bot: "Bot") -> None:
             referrer_id,
             f"🎉 <b>Ваш друг сделал первый анализ!</b>\n\n"
             f"Вам начислено <b>+{SCANS_PER_ACTIVATION} бонусных сканов</b>.\n"
-            f"/ref — посмотреть статистику"
+            f"/ref — посмотреть статистику",
         )
     except Exception as e:
         logger.warning("referral: cannot notify referrer %d: %s", referrer_id, e)
@@ -141,7 +142,7 @@ async def reward_premium_purchase(buyer_user_id: int, bot: "Bot") -> None:
             referrer_id,
             f"🔥 <b>Ваш друг купил Premium!</b>\n\n"
             f"Вам начислено <b>+{PREMIUM_DAYS_PER_PURCHASE} дней Premium</b> в подарок!\n"
-            f"/ref — посмотреть статистику"
+            f"/ref — посмотреть статистику",
         )
     except Exception as e:
         logger.warning("referral: cannot notify referrer %d of premium: %s", referrer_id, e)

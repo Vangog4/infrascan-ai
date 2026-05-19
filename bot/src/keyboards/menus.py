@@ -11,19 +11,19 @@ remove_kb = ReplyKeyboardRemove()
 
 # ── Button label constants (used in handlers as F.text targets) ───────────────
 
-BTN_PHOTO    = "📸 Анализ фото ИИ"
+BTN_PHOTO = "📸 Анализ фото ИИ"
 BTN_PHOTO_EN = "📸 AI Photo Analysis"
 
-BTN_CALC     = "📊 Расчёт теплопотерь"
-BTN_CALC_EN  = "📊 Heat Loss Calc"
+BTN_CALC = "📊 Расчёт теплопотерь"
+BTN_CALC_EN = "📊 Heat Loss Calc"
 
-BTN_INVITE    = "🎁 Позвать друга"
+BTN_INVITE = "🎁 Позвать друга"
 BTN_INVITE_EN = "🎁 Invite Friend"
 
-BTN_ACCOUNT    = "👤 Мой кабинет"
+BTN_ACCOUNT = "👤 Мой кабинет"
 BTN_ACCOUNT_EN = "👤 My Account"
 
-BTN_HELP    = "❓ Помощь"
+BTN_HELP = "❓ Помощь"
 BTN_HELP_EN = "❓ Help"
 
 
@@ -94,25 +94,31 @@ def heating_kb() -> InlineKeyboardMarkup:
 def order_kb(locale: str = "ru") -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     if locale == "ru":
-        b.row(InlineKeyboardButton(
-            text="🚗 Заказать профессиональный выезд",
-            callback_data="action:order",
-        ))
+        b.row(
+            InlineKeyboardButton(
+                text="🚗 Заказать профессиональный выезд",
+                callback_data="action:order",
+            )
+        )
     return b.as_markup()
 
 
 def premium_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     if locale == "ru":
-        b.row(InlineKeyboardButton(
-            text=f"⭐️ Купить Premium — {stars} Stars/мес",
-            callback_data="premium:buy",
-        ))
+        b.row(
+            InlineKeyboardButton(
+                text=f"⭐️ Купить Premium — {stars} Stars/мес",
+                callback_data="premium:buy",
+            )
+        )
     else:
-        b.row(InlineKeyboardButton(
-            text=f"⭐️ Get Premium — {stars} Stars/month",
-            callback_data="premium:buy",
-        ))
+        b.row(
+            InlineKeyboardButton(
+                text=f"⭐️ Get Premium — {stars} Stars/month",
+                callback_data="premium:buy",
+            )
+        )
     return b.as_markup()
 
 
@@ -120,31 +126,41 @@ def account_upgrade_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMa
     """Inline actions shown on the account screen for free users."""
     b = InlineKeyboardBuilder()
     if locale == "ru":
-        b.row(InlineKeyboardButton(
-            text=f"⭐️ Подключить Premium — {stars} Stars/мес",
-            callback_data="premium:buy",
-        ))
-        b.row(InlineKeyboardButton(
-            text="🎁 Пригласить друга (+5 бонусных анализов)",
-            callback_data="action:invite",
-        ))
+        b.row(
+            InlineKeyboardButton(
+                text=f"⭐️ Подключить Premium — {stars} Stars/мес",
+                callback_data="premium:buy",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text="🎁 Пригласить друга (+5 бонусных анализов)",
+                callback_data="action:invite",
+            )
+        )
     else:
-        b.row(InlineKeyboardButton(
-            text=f"⭐️ Get Premium — {stars} Stars/month",
-            callback_data="premium:buy",
-        ))
-        b.row(InlineKeyboardButton(
-            text="🎁 Invite a Friend (+5 bonus analyses)",
-            callback_data="action:invite",
-        ))
+        b.row(
+            InlineKeyboardButton(
+                text=f"⭐️ Get Premium — {stars} Stars/month",
+                callback_data="premium:buy",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text="🎁 Invite a Friend (+5 bonus analyses)",
+                callback_data="action:invite",
+            )
+        )
     return b.as_markup()
 
 
 def tasks_kb(tasks: list[dict]) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     for t in tasks:
-        b.row(InlineKeyboardButton(
-            text=t["name"][:48],
-            callback_data=f"task:{t['id']}",
-        ))
+        b.row(
+            InlineKeyboardButton(
+                text=t["name"][:48],
+                callback_data=f"task:{t['id']}",
+            )
+        )
     return b.as_markup()

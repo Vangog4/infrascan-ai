@@ -31,3 +31,18 @@
 ## Безопасность
 - Секреты только в `bot/.env` (не в git)
 - Токены в MCP конфигах — только в `~/.claude/settings.json` (не в проектном settings)
+
+## Hook Pipeline (глобальный — всегда активен, нельзя обойти)
+
+| Момент | Хук | Действие |
+|---|---|---|
+| PreToolUse Bash | `safety_guard.py` | Блокирует rm -rf /, fork bomb, dd if=disk, overwrite /etc/* |
+| PreToolUse Write/Edit | `skill_vetter.py` | Блокирует eval(input()), shell injection, prompt injection в коде |
+| PostToolUse Edit/Write | `run_pytest.sh` | pytest после каждого .py — exit 2 если тесты упали |
+| PostToolUse Bash/Edit/Write | `stuck_detector.py` | 3 одинаковых ошибки → exit 2 → "смени подход" |
+| Stop | `auto_journal.py` | Запись в Logseq журнал (автоматически) |
+| Stop | `retrospective.py` | Gemini Red Team review если есть git diff → DECISIONS.md |
+| Stop | `self_improving_agent.py` | Dry-run анализ паттернов ошибок |
+
+Хуки встроены в `~/.claude/settings.json` — работают для ВСЕХ проектов на VDS.
+При срабатывании exit 2 — операция заблокирована. Не пытаться обойти.

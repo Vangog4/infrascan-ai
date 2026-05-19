@@ -3,6 +3,7 @@
 A single connection is reused across premium, roles, and referral services
 instead of maintaining three separate lazy singletons.
 """
+
 import redis.asyncio as aioredis
 
 from src.config import settings

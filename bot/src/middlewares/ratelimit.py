@@ -1,17 +1,18 @@
 import logging
 import time
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import Message, TelegramObject
 
 logger = logging.getLogger(__name__)
 
-RATELIMIT_MESSAGES = 5   # max messages per window
-RATELIMIT_WINDOW = 5.0   # seconds
+RATELIMIT_MESSAGES = 5  # max messages per window
+RATELIMIT_WINDOW = 5.0  # seconds
 RATELIMIT_COOLDOWN = 30.0  # seconds after violation
 
-_BUCKET_TTL = 3600.0     # evict inactive users after 1 hour
+_BUCKET_TTL = 3600.0  # evict inactive users after 1 hour
 _EVICTION_INTERVAL = 200  # check every N processed messages
 
 
@@ -48,8 +49,7 @@ class RateLimitMiddleware(BaseMiddleware):
 
         self._calls += 1
         if self._calls % _EVICTION_INTERVAL == 0:
-            stale = [uid for uid, b in self._buckets.items()
-                     if now - b.last_active > _BUCKET_TTL]
+            stale = [uid for uid, b in self._buckets.items() if now - b.last_active > _BUCKET_TTL]
             for uid in stale:
                 del self._buckets[uid]
 
@@ -68,7 +68,9 @@ class RateLimitMiddleware(BaseMiddleware):
         if len(bucket.timestamps) > RATELIMIT_MESSAGES:
             bucket.cooldown_until = now + RATELIMIT_COOLDOWN
             bucket.timestamps.clear()
-            logger.warning("ratelimit: user %d exceeded limit, cooldown %ds", user_id, int(RATELIMIT_COOLDOWN))
+            logger.warning(
+                "ratelimit: user %d exceeded limit, cooldown %ds", user_id, int(RATELIMIT_COOLDOWN)
+            )
             return None
 
         return await handler(event, data)

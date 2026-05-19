@@ -3,9 +3,7 @@ import logging
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
-
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
@@ -22,53 +20,45 @@ router = Router(name="common")
 _SEP = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
 
 _WELCOME_RU = (
-    "🔬 <b>ИНФРАСКАН · НЕЙРО-ДИАГНОСТИКА</b>\n"
-    + _SEP + "\n\n"
+    "🔬 <b>ИНФРАСКАН · НЕЙРО-ДИАГНОСТИКА</b>\n" + _SEP + "\n\n"
     "<code>◉ СТАТУС        ОНЛАЙН\n"
     "◉ ИИ-МОДЕЛЬ     Gemini Vision\n"
     "◉ АНАЛИЗ        ГОТОВ\n"
-    "◉ ТАРИФ         {tier}</code>\n\n"
-    + _SEP + "\n\n"
+    "◉ ТАРИФ         {tier}</code>\n\n" + _SEP + "\n\n"
     "Загрузите фото — ИИ выявит скрытые теплопотери "
     "и дефекты за 30 секунд.\n\n"
     "Выберите действие 👇"
 )
 
 _WELCOME_EN = (
-    "🔬 <b>INFRASCAN · AI DIAGNOSTICS</b>\n"
-    + _SEP + "\n\n"
+    "🔬 <b>INFRASCAN · AI DIAGNOSTICS</b>\n" + _SEP + "\n\n"
     "<code>◉ STATUS        ONLINE\n"
     "◉ AI MODEL      Gemini Vision\n"
     "◉ ANALYSIS      READY\n"
-    "◉ PLAN          {tier}</code>\n\n"
-    + _SEP + "\n\n"
+    "◉ PLAN          {tier}</code>\n\n" + _SEP + "\n\n"
     "Upload a photo — AI detects hidden heat losses "
     "and defects in 30 seconds.\n\n"
     "Choose an action 👇"
 )
 
 _EMPLOYEE_WELCOME = (
-    "🔧 <b>ИНФРАСКАН · ТЕРМИНАЛ ИНЖЕНЕРА</b>\n"
-    + _SEP + "\n\n"
+    "🔧 <b>ИНФРАСКАН · ТЕРМИНАЛ ИНЖЕНЕРА</b>\n" + _SEP + "\n\n"
     "<code>◉ ДОСТУП        РАЗРЕШЁН\n"
     "◉ РОЛЬ          ИНЖЕНЕР\n"
-    "◉ QC-КОНТРОЛЬ   АКТИВЕН</code>\n\n"
-    + _SEP + "\n\n"
+    "◉ QC-КОНТРОЛЬ   АКТИВЕН</code>\n\n" + _SEP + "\n\n"
     "Добро пожаловать, <b>{name}</b>!\n"
     "Выберите действие 👇"
 )
 
 _ONBOARDING_RU = (
-    "🔬 <b>Добро пожаловать в InfraScan AI, {name}!</b>\n"
-    + _SEP + "\n\n"
+    "🔬 <b>Добро пожаловать в InfraScan AI, {name}!</b>\n" + _SEP + "\n\n"
     "ИИ находит проблемы за <b>30 секунд</b>:\n\n"
     "<code>"
     "🌡  Теплопотери — окна, стены, кровля\n"
     "⚡  Перегрев — щитки, проводка\n"
     "💧  Мостики холода, зоны промерзания\n"
     "🏗  Дефекты фасада и кровли"
-    "</code>\n\n"
-    + _SEP + "\n\n"
+    "</code>\n\n" + _SEP + "\n\n"
     "<b>📷 Что отправить:</b>\n"
     "✅ Окна изнутри (в холодное время)\n"
     "✅ Внешние стены и углы комнат\n"
@@ -78,16 +68,14 @@ _ONBOARDING_RU = (
 )
 
 _ONBOARDING_EN = (
-    "🔬 <b>Welcome to InfraScan AI, {name}!</b>\n"
-    + _SEP + "\n\n"
+    "🔬 <b>Welcome to InfraScan AI, {name}!</b>\n" + _SEP + "\n\n"
     "AI finds issues in <b>30 seconds</b>:\n\n"
     "<code>"
     "🌡  Heat loss — windows, walls, roof\n"
     "⚡  Overheating — panels, wiring\n"
     "💧  Cold bridges, frost zones\n"
     "🏗  Facade & roofing defects"
-    "</code>\n\n"
-    + _SEP + "\n\n"
+    "</code>\n\n" + _SEP + "\n\n"
     "<b>📷 What to send:</b>\n"
     "✅ Windows (from inside, in cold weather)\n"
     "✅ Exterior walls and room corners\n"
@@ -95,7 +83,6 @@ _ONBOARDING_EN = (
     "✅ Roof, attic, facade\n\n"
     "<i>🎁 You have <b>{scans} free analyses</b> — ready to start?</i>{bonus}"
 )
-
 
 
 @router.message(CommandStart())
@@ -142,7 +129,9 @@ async def cmd_start(
         )
         # Inline "start now" button → triggers photo analysis flow
         b = InlineKeyboardBuilder()
-        btn_label = "📸 Загрузить первое фото →" if locale == "ru" else "📸 Upload your first photo →"
+        btn_label = (
+            "📸 Загрузить первое фото →" if locale == "ru" else "📸 Upload your first photo →"
+        )
         b.row(InlineKeyboardButton(text=btn_label, callback_data="onboarding:photo"))
         await message.answer(text, reply_markup=b.as_markup())
         await message.answer(
@@ -204,6 +193,7 @@ async def cmd_cancel(
 
 # ── Admin: broadcast ─────────────────────────────────────────────────────────
 
+
 @router.message(Command("broadcast"))
 async def cmd_broadcast(message: Message, bot: Bot) -> None:
     """Send a message to all tracked users.
@@ -217,8 +207,7 @@ async def cmd_broadcast(message: Message, bot: Bot) -> None:
     text = message.text.removeprefix("/broadcast").strip()
     if not text:
         await message.answer(
-            "Usage: /broadcast <текст>\n\n"
-            "Сообщение будет отправлено всем пользователям бота."
+            "Usage: /broadcast <текст>\n\nСообщение будет отправлено всем пользователям бота."
         )
         return
 
@@ -252,6 +241,7 @@ async def cmd_broadcast(message: Message, bot: Bot) -> None:
 
 
 # ── Admin: grant premium manually ────────────────────────────────────────────
+
 
 @router.message(Command("grant_premium"))
 async def cmd_grant_premium(message: Message) -> None:
@@ -312,20 +302,24 @@ async def cmd_stats(message: Message) -> None:
     leads_count = 0
     odoo_status = "✅"
     try:
-        tc = await odoo._call("project.task", "search_count",
-                              domain=[["project_id", "=", 1],
-                                      ["name", "not ilike", "[Лид]"]])
+        tc = await odoo._call(
+            "project.task",
+            "search_count",
+            domain=[["project_id", "=", 1], ["name", "not ilike", "[Лид]"]],
+        )
         tasks_today = tc or 0
-        lc = await odoo._call("project.task", "search_count",
-                              domain=[["project_id", "=", 1],
-                                      ["name", "ilike", "[Лид]"]])
+        lc = await odoo._call(
+            "project.task",
+            "search_count",
+            domain=[["project_id", "=", 1], ["name", "ilike", "[Лид]"]],
+        )
         leads_count = lc or 0
     except Exception as e:
         odoo_status = f"❌ {e}"
 
-    _SEP2 = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
+    _sep2 = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
     text = (
-        f"📊 <b>Статистика InfraScan</b>\n{_SEP2}\n\n"
+        f"📊 <b>Статистика InfraScan</b>\n{_sep2}\n\n"
         f"<b>Сегодня:</b>\n"
         f"  🔍 Сканов: <b>{scans_today}</b>\n"
         f"  👤 Активных пользователей: <b>{active_users}</b>\n\n"
@@ -334,12 +328,13 @@ async def cmd_stats(message: Message) -> None:
         f"<b>Odoo ({odoo_status}):</b>\n"
         f"  🚗 Задач на выезд: <b>{tasks_today}</b>\n"
         f"  📋 Лидов в очереди: <b>{leads_count}</b>\n"
-        f"\n{_SEP2}"
+        f"\n{_sep2}"
     )
     await wait.edit_text(text)
 
 
 # ── Confirmation Bridge callback ─────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("confirm:"))
 async def confirm_callback(call: CallbackQuery) -> None:
@@ -382,6 +377,7 @@ async def confirm_callback(call: CallbackQuery) -> None:
 
 # ── FSM nudge handlers ────────────────────────────────────────────────────────
 
+
 @router.message(AuditFlow.photo)
 async def audit_wrong_input(message: Message, locale: str = "ru") -> None:
     if locale == "ru":
@@ -417,6 +413,7 @@ async def calc_wrong_input(message: Message) -> None:
 
 # ── Global fallback ───────────────────────────────────────────────────────────
 
+
 @router.message()
 async def fallback(
     message: Message,
@@ -429,6 +426,9 @@ async def fallback(
         hint = "Используйте кнопки меню ниже."
     else:
         kb = client_menu(locale, is_local)
-        hint = ("Нажмите /start чтобы открыть главное меню." if locale == "ru"
-                else "Press /start to open the main menu.")
+        hint = (
+            "Нажмите /start чтобы открыть главное меню."
+            if locale == "ru"
+            else "Press /start to open the main menu."
+        )
     await message.answer(f"🤖 {hint}", reply_markup=kb)

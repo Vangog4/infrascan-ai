@@ -24,10 +24,17 @@ except Exception:
 " 2>/dev/null)
 
 if echo "$FILE" | grep -qE "/bot/(src|tests)/.*\.py$"; then
-    echo "🧪 Запускаю тесты (изменён $(basename "$FILE"))..."
     cd /root/infrascan-ai/bot
+
+    echo "🔍 ruff check $FILE..."
+    if ! uvx ruff check "$FILE" 2>&1; then
+        echo "❌ ruff нашёл ошибки — исправь перед продолжением"
+        exit 2
+    fi
+
+    echo "🧪 Запускаю все тесты в tests/ (после изменений в $(basename "$FILE"))..."
     if uv run pytest tests/ -q --tb=short -x 2>&1; then
-        echo "✅ Все тесты прошли"
+        echo "✅ ruff + тесты прошли"
     else
         echo ""
         echo "❌ Тесты упали — исправь перед продолжением (hook exit 2)"

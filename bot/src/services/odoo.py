@@ -3,6 +3,7 @@
 POST /json/2/{model}/{method}  •  Authorization: Bearer <api_key>
 Lead fallback: project.task in project_id=1 when crm.lead unavailable.
 """
+
 import logging
 from typing import Any
 
@@ -45,8 +46,7 @@ async def _call(model: str, method: str, **kwargs: Any) -> Any:
         resp = await client.post(f"/json/2/{model}/{method}", json=kwargs)
         if resp.status_code == 200:
             return resp.json()
-        logger.warning("Odoo %s.%s → HTTP %d: %s", model, method, resp.status_code,
-                       resp.text[:300])
+        logger.warning("Odoo %s.%s → HTTP %d: %s", model, method, resp.status_code, resp.text[:300])
         return None
     except Exception as e:
         logger.warning("Odoo %s.%s: %s", model, method, e)
@@ -55,22 +55,28 @@ async def _call(model: str, method: str, **kwargs: Any) -> Any:
 
 # ─── Public API (same signatures as before) ──────────────────────────────────
 
+
 async def create_lead(name: str, phone: str, description: str = "") -> int | None:
     task_desc = f"📞 Телефон: {phone}\n\n{description}"
 
     # Primary: crm.lead
-    result = await _call("crm.lead", "create",
-                         vals_list=[{"name": name, "phone": phone,
-                                     "description": description, "type": "lead"}])
+    result = await _call(
+        "crm.lead",
+        "create",
+        vals_list=[{"name": name, "phone": phone, "description": description, "type": "lead"}],
+    )
     if isinstance(result, int):
         logger.info("CRM lead created: id=%d phone=%s", result, phone)
         return result
 
     # Fallback: project.task
-    result = await _call("project.task", "create",
-                         vals_list=[{"name": f"[Лид] {name}",
-                                     "project_id": _LEADS_PROJECT_ID,
-                                     "description": task_desc}])
+    result = await _call(
+        "project.task",
+        "create",
+        vals_list=[
+            {"name": f"[Лид] {name}", "project_id": _LEADS_PROJECT_ID, "description": task_desc}
+        ],
+    )
     if isinstance(result, int):
         logger.info("Lead task created (fallback): id=%d phone=%s", result, phone)
     else:
@@ -79,10 +85,13 @@ async def create_lead(name: str, phone: str, description: str = "") -> int | Non
 
 
 async def find_partner(phone: str) -> dict | None:
-    result = await _call("res.partner", "search_read",
-                         domain=[["phone", "=", phone]],
-                         fields=["id", "name", "phone", "email", "category_id"],
-                         limit=1)
+    result = await _call(
+        "res.partner",
+        "search_read",
+        domain=[["phone", "=", phone]],
+        fields=["id", "name", "phone", "email", "category_id"],
+        limit=1,
+    )
     return result[0] if result else None
 
 
@@ -90,20 +99,19 @@ async def mark_partner(partner_id: int) -> bool:
     tag_id = await _get_or_create_tag("Партнёр")
     if not tag_id:
         return False
-    result = await _call("res.partner", "write",
-                         ids=[partner_id],
-                         vals={"category_id": [(4, tag_id)]})
+    result = await _call(
+        "res.partner", "write", ids=[partner_id], vals={"category_id": [(4, tag_id)]}
+    )
     return bool(result)
 
 
 async def _get_or_create_tag(name: str) -> int | None:
-    existing = await _call("res.partner.category", "search_read",
-                           domain=[["name", "=", name]],
-                           fields=["id"], limit=1)
+    existing = await _call(
+        "res.partner.category", "search_read", domain=[["name", "=", name]], fields=["id"], limit=1
+    )
     if existing:
         return existing[0]["id"]
-    result = await _call("res.partner.category", "create",
-                         vals_list=[{"name": name}])
+    result = await _call("res.partner.category", "create", vals_list=[{"name": name}])
     return result if isinstance(result, int) else None
 
 
@@ -119,23 +127,32 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
     Leads ([Лид] prefix) are excluded.
     """
     from datetime import date
+
     today = date.today().isoformat()
 
     result = await _call(
-        "project.task", "search_read",
+        "project.task",
+        "search_read",
         domain=[
             ["project_id", "=", _LEADS_PROJECT_ID],
             "|",
             ["date_deadline", "=", today],
             ["date_deadline", "=", False],
         ],
-        fields=["id", "name", "project_id", "stage_id", "description",
-                "date_deadline", "x_telegram_id"],
+        fields=[
+            "id",
+            "name",
+            "project_id",
+            "stage_id",
+            "description",
+            "date_deadline",
+            "x_telegram_id",
+        ],
         limit=50,
     )
     tasks = []
     tg_str = str(telegram_id)
-    for t in (result or []):
+    for t in result or []:
         if t["name"].startswith("[Лид]"):
             continue
         assigned = str(t.get("x_telegram_id") or "")
@@ -146,24 +163,28 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
 
 
 async def save_analysis_report(task_id: int, report: str) -> bool:
-    result = await _call("project.task", "write",
-                         ids=[task_id],
-                         vals={"description": report})
+    result = await _call("project.task", "write", ids=[task_id], vals={"description": report})
     if result:
         logger.info("Saved analysis report to task %d", task_id)
     return bool(result)
 
 
-async def attach_photo(task_id: int, filename: str, data_b64: str,
-                       mime: str = "image/jpeg") -> int | None:
-    result = await _call("ir.attachment", "create",
-                         vals_list=[{
-                             "name": filename,
-                             "datas": data_b64,
-                             "res_model": "project.task",
-                             "res_id": task_id,
-                             "mimetype": mime,
-                         }])
+async def attach_photo(
+    task_id: int, filename: str, data_b64: str, mime: str = "image/jpeg"
+) -> int | None:
+    result = await _call(
+        "ir.attachment",
+        "create",
+        vals_list=[
+            {
+                "name": filename,
+                "datas": data_b64,
+                "res_model": "project.task",
+                "res_id": task_id,
+                "mimetype": mime,
+            }
+        ],
+    )
     if isinstance(result, int):
         logger.info("Attached %s to task %d (att_id=%d)", filename, task_id, result)
         return result
@@ -172,9 +193,11 @@ async def attach_photo(task_id: int, filename: str, data_b64: str,
 
 async def get_premium_status(telegram_id: int) -> bool:
     from datetime import date
+
     today = date.today().isoformat()
     result = await _call(
-        "res.partner", "search_read",
+        "res.partner",
+        "search_read",
         domain=[
             ["x_telegram_id", "=", str(telegram_id)],
             ["x_is_premium", "=", True],
@@ -190,24 +213,37 @@ async def get_premium_status(telegram_id: int) -> bool:
 
 async def set_premium(telegram_id: int, days: int) -> bool:
     from datetime import date, timedelta
+
     ends = (date.today() + timedelta(days=days)).isoformat()
 
-    existing = await _call("res.partner", "search_read",
-                           domain=[["x_telegram_id", "=", str(telegram_id)]],
-                           fields=["id"], limit=1)
+    existing = await _call(
+        "res.partner",
+        "search_read",
+        domain=[["x_telegram_id", "=", str(telegram_id)]],
+        fields=["id"],
+        limit=1,
+    )
     if existing:
-        result = await _call("res.partner", "write",
-                             ids=[existing[0]["id"]],
-                             vals={"x_is_premium": True, "x_premium_ends": ends})
+        result = await _call(
+            "res.partner",
+            "write",
+            ids=[existing[0]["id"]],
+            vals={"x_is_premium": True, "x_premium_ends": ends},
+        )
         return bool(result)
 
-    result = await _call("res.partner", "create",
-                         vals_list=[{
-                             "name": f"TG:{telegram_id}",
-                             "x_telegram_id": str(telegram_id),
-                             "x_is_premium": True,
-                             "x_premium_ends": ends,
-                         }])
+    result = await _call(
+        "res.partner",
+        "create",
+        vals_list=[
+            {
+                "name": f"TG:{telegram_id}",
+                "x_telegram_id": str(telegram_id),
+                "x_is_premium": True,
+                "x_premium_ends": ends,
+            }
+        ],
+    )
     return isinstance(result, int)
 
 
@@ -222,9 +258,7 @@ async def partner_balance(phone: str) -> float | None:
     partner = await find_partner(phone)
     if not partner:
         return None
-    result = await _call("res.partner", "read",
-                         ids=[partner["id"]],
-                         fields=["x_partner_balance"])
+    result = await _call("res.partner", "read", ids=[partner["id"]], fields=["x_partner_balance"])
     if not result:
         return 0.0
     raw = result[0].get("x_partner_balance")

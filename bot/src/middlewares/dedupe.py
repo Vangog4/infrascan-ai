@@ -1,15 +1,16 @@
 import hashlib
 import logging
 import time
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import Message, TelegramObject
 
 logger = logging.getLogger(__name__)
 
-DEDUPE_WINDOW = 30.0   # seconds
-DEDUPE_MAX_HITS = 3    # identical messages allowed per window
+DEDUPE_WINDOW = 30.0  # seconds
+DEDUPE_MAX_HITS = 3  # identical messages allowed per window
 
 
 def _text_hash(text: str) -> str:

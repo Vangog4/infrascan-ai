@@ -6,8 +6,9 @@ Keys:
   premium:{user_id}  → "1" | "0",  TTL = subscription remaining seconds
   scans:{user_id}    → int counter, TTL = seconds until midnight UTC
 """
+
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.config import settings
 from src.services.redis import get_redis as _r
@@ -20,7 +21,8 @@ _SCANS_KEY = "scans:{}"
 
 def _seconds_until_midnight_utc() -> int:
     from datetime import timedelta
-    now = datetime.now(timezone.utc)
+
+    now = datetime.now(UTC)
     midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return max(1, int((midnight - now).total_seconds()))
 
@@ -32,6 +34,7 @@ async def is_premium(user_id: int) -> bool:
     # Redis miss: check Odoo (slow path, cache result)
     try:
         from src.services import odoo
+
         ok = await odoo.get_premium_status(user_id)
     except Exception as e:
         logger.warning("premium Odoo fallback failed for %d: %s", user_id, e)
@@ -48,6 +51,7 @@ async def grant_premium(user_id: int, days: int | None = None) -> None:
     # Best-effort write to Odoo for billing records
     try:
         from src.services import odoo
+
         await odoo.set_premium(user_id, days)
     except Exception as e:
         logger.warning("premium Odoo write failed for %d: %s", user_id, e)

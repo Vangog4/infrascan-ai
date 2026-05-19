@@ -1,4 +1,5 @@
 """Account status screen — 👤 Мой кабинет / My Account."""
+
 import asyncio
 import logging
 
@@ -45,12 +46,10 @@ async def cmd_account(
     if locale == "ru":
         if is_prem:
             plan_str = "⭐️ PREMIUM"
-            scans_str = "♾  Безлимит"
             if ttl > 0:
                 plan_str += f"  (ещё {_fmt_duration(ttl, locale)})"
         else:
             plan_str = f"FREE  ({remaining} из {settings.free_daily_scans} сегодня)"
-            scans_str = f"{remaining} из {settings.free_daily_scans}"
 
         text = (
             f"👤 <b>МОЙ КАБИНЕТ</b>\n{_SEP}\n\n"
@@ -62,7 +61,7 @@ async def cmd_account(
             f"{_SEP}"
         )
         if not is_prem and bonus > 0:
-            text += f"\n\n<i>💡 Бонусные анализы расходуются автоматически, когда дневной лимит исчерпан.</i>"
+            text += "\n\n<i>💡 Бонусные анализы расходуются автоматически, когда дневной лимит исчерпан.</i>"
     else:
         if is_prem:
             plan_str = "⭐️ PREMIUM"
@@ -81,9 +80,11 @@ async def cmd_account(
             f"{_SEP}"
         )
         if not is_prem and bonus > 0:
-            text += f"\n\n<i>💡 Bonus analyses are used automatically when your daily limit runs out.</i>"
+            text += "\n\n<i>💡 Bonus analyses are used automatically when your daily limit runs out.</i>"
 
     if is_prem:
         await message.answer(text, reply_markup=client_menu(locale, is_local))
     else:
-        await message.answer(text, reply_markup=account_upgrade_kb(locale, settings.premium_price_stars))
+        await message.answer(
+            text, reply_markup=account_upgrade_kb(locale, settings.premium_price_stars)
+        )

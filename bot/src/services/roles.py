@@ -6,7 +6,7 @@ from src.services.redis import get_redis as _r
 logger = logging.getLogger(__name__)
 
 _PARTNER_TTL = 30 * 24 * 3600  # 30 дней — роль партнёра переживает рестарты
-_EMPLOYEE_TTL = 300             # 5 мин — просто кэш, источник правды — env
+_EMPLOYEE_TTL = 300  # 5 мин — просто кэш, источник правды — env
 
 
 class Role(StrEnum):
@@ -45,4 +45,5 @@ async def track_user(user_id: int) -> None:
     Used by /broadcast to enumerate known users.
     """
     import time
+
     await _r().zadd("users", {str(user_id): int(time.time())})

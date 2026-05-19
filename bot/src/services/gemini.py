@@ -4,6 +4,7 @@ Gemini Vision service.
 analyze_photo() returns a raw dict (JSON from Gemini).
 Use format_analysis_free() / format_analysis_premium() to render for Telegram.
 """
+
 import json
 import logging
 import re
@@ -38,15 +39,21 @@ _RISK_LABEL = {
 }
 _OBJECT_LABEL = {
     "ru": {
-        "window": "Окно / проём", "wall": "Стена / перекрытие",
-        "roof": "Кровля", "electrical": "Электрощит / проводка",
-        "facade": "Фасад / наружная стена", "floor": "Пол / стяжка",
+        "window": "Окно / проём",
+        "wall": "Стена / перекрытие",
+        "roof": "Кровля",
+        "electrical": "Электрощит / проводка",
+        "facade": "Фасад / наружная стена",
+        "floor": "Пол / стяжка",
         "other": "Строительный объект",
     },
     "en": {
-        "window": "Window / frame", "wall": "Wall / slab",
-        "roof": "Roof", "electrical": "Electrical panel / wiring",
-        "facade": "Facade / exterior wall", "floor": "Floor / screed",
+        "window": "Window / frame",
+        "wall": "Wall / slab",
+        "roof": "Roof",
+        "electrical": "Electrical panel / wiring",
+        "facade": "Facade / exterior wall",
+        "floor": "Floor / screed",
         "other": "Building element",
     },
 }
@@ -161,10 +168,11 @@ _QC_PROMPT = """
 
 # ── Core API calls ────────────────────────────────────────────────────────────
 
+
 def _strip_fences(text: str) -> str:
     text = text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
     return text.strip()
 
 
@@ -238,21 +246,28 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
         parsed = json.loads(_strip_fences(r.text))
         verdict = parsed.get("verdict", "ПРИНЯТО")
         return {
-            "ok":      verdict in ("ПРИНЯТО", "ЗАМЕЧАНИЕ"),
-            "score":   min(100, max(0, int(parsed.get("total_score", 75)))),
+            "ok": verdict in ("ПРИНЯТО", "ЗАМЕЧАНИЕ"),
+            "score": min(100, max(0, int(parsed.get("total_score", 75)))),
             "verdict": verdict,
-            "reason":  parsed.get("reason"),
-            "tip":     parsed.get("tip"),
-            "object":  parsed.get("object", ""),
+            "reason": parsed.get("reason"),
+            "tip": parsed.get("tip"),
+            "object": parsed.get("object", ""),
         }
     except Exception as e:
         logger.error("Gemini check_quality: %s", e)
         # fail-open: don't block engineer when API is down
-        return {"ok": True, "score": 75, "verdict": "ПРИНЯТО",
-                "reason": None, "tip": None, "object": ""}
+        return {
+            "ok": True,
+            "score": 75,
+            "verdict": "ПРИНЯТО",
+            "reason": None,
+            "tip": None,
+            "object": "",
+        }
 
 
 # ── Formatters ────────────────────────────────────────────────────────────────
+
 
 def format_analysis_free(result: dict, locale: str = "ru", stars: int = 150) -> str:
     if "error" in result:
@@ -273,9 +288,7 @@ def format_analysis_free(result: dict, locale: str = "ru", stars: int = 150) -> 
             f"🔬 <b>Анализ снимка</b>\n{_SEP}\n\n"
             f"🏠 <b>Объект:</b> {obj_lbl}\n"
             f"📊 <b>Риск:</b> {emoji} {risk_lbl}\n\n"
-            f"{verdict}\n\n"
-            + (f"💡 {rec}\n\n" if rec else "")
-            + f"{_SEP}\n"
+            f"{verdict}\n\n" + (f"💡 {rec}\n\n" if rec else "") + f"{_SEP}\n"
             f"🔒 <b>Premium-анализ выявил больше:</b>\n"
             f"<i>{teaser}</i>\n\n"
             f"⭐️ Разблокировать за <b>{stars} Stars</b> (~$1.5/мес)\n"
@@ -286,9 +299,7 @@ def format_analysis_free(result: dict, locale: str = "ru", stars: int = 150) -> 
             f"🔬 <b>Photo Analysis</b>\n{_SEP}\n\n"
             f"🏠 <b>Object:</b> {obj_lbl}\n"
             f"📊 <b>Risk:</b> {emoji} {risk_lbl}\n\n"
-            f"{verdict}\n\n"
-            + (f"💡 {rec}\n\n" if rec else "")
-            + f"{_SEP}\n"
+            f"{verdict}\n\n" + (f"💡 {rec}\n\n" if rec else "") + f"{_SEP}\n"
             f"🔒 <b>Premium analysis found more:</b>\n"
             f"<i>{teaser}</i>\n\n"
             f"⭐️ Unlock for <b>{stars} Stars</b> (~$1.5/month)\n"
@@ -317,7 +328,9 @@ def format_analysis_premium(result: dict, locale: str = "ru") -> str:
         p_lines = ""
         for i, p in enumerate(problems[:5], 1):
             sev = _SEV_EMOJI.get(p.get("severity", "medium"), "🟠")
-            p_lines += f"\n{i}. {sev} <b>{p.get('description', '')}</b>\n   📍 {p.get('location', '')}\n"
+            p_lines += (
+                f"\n{i}. {sev} <b>{p.get('description', '')}</b>\n   📍 {p.get('location', '')}\n"
+            )
 
         t_lines = "\n".join(f"• {t}" for t in temp_obs[:3])
         r_lines = "\n".join(f"• {r}" for r in recs[:5])
@@ -335,7 +348,9 @@ def format_analysis_premium(result: dict, locale: str = "ru") -> str:
         p_lines = ""
         for i, p in enumerate(problems[:5], 1):
             sev = _SEV_EMOJI.get(p.get("severity", "medium"), "🟠")
-            p_lines += f"\n{i}. {sev} <b>{p.get('description', '')}</b>\n   📍 {p.get('location', '')}\n"
+            p_lines += (
+                f"\n{i}. {sev} <b>{p.get('description', '')}</b>\n   📍 {p.get('location', '')}\n"
+            )
 
         t_lines = "\n".join(f"• {t}" for t in temp_obs[:3])
         r_lines = "\n".join(f"• {r}" for r in recs[:5])

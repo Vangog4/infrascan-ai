@@ -1,5 +1,20 @@
 # CLAUDE.md — infrascan-ai
 
+## Pre-Session Checklist (выполнять перед каждой сессией)
+```bash
+python3 /root/infrascan-ai/hooks/process_watch.py   # все сервисы up?
+git -C /root/infrascan-ai status                    # нет незакоммиченного мусора?
+df -h /                                             # диск > 10% свободно?
+```
+Если диск < 10% → сначала: `podman image prune -f` (безопасно)
+
+## Guardrails (абсолютные запреты)
+- **НИКОГДА** `podman system prune -a` без `confirm_bridge.py`
+- **НИКОГДА** редактировать `bot/.env` напрямую — только через переменные окружения
+- **НИКОГДА** `git push --force` на main
+- **НИКОГДА** удалять volume `*_db_data` — это данные баз
+- Необратимые операции: всегда через `confirm_bridge.py "описание"` → Telegram-подтверждение
+
 ## Sandbox Rules (MANDATORY — no exceptions)
 - Container runtime: **podman** and **podman-compose** ONLY
 - Python tooling: **uv** ONLY (`uv run`, `uv pip`, `uv tool install`)
@@ -112,6 +127,7 @@ ODOO_PASSWORD=...
 3. Скрипты Python: `uv run <script>.py` (в папке `bot/`)
 4. Никогда не коммитить `bot/.env` и `admin_passwd`
 5. Website builder: workers ≥ 2 и `proxy_mode = True` (уже настроено)
+6. **Перед коммитом:** `./judge.sh` → exit 0 обязателен (ruff + pytest + health)
 
 ## Режимы работы (Spec-Driven Development)
 Объявлять режим в начале каждого ответа:
@@ -137,59 +153,127 @@ ODOO_PASSWORD=...
 
 ---
 
-## Autonomous Agent Stack (YOLO-режим)
+## Multi-Agent Orchestration Architecture
 
-Стек для полностью автономной работы без ручного подтверждения.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     CLAUDE (Orchestrator)                        │
+│   PreToolUse          Core Logic          PostToolUse + Stop     │
+│  ┌──────────┐      ┌───────────┐        ┌──────────────────┐    │
+│  │safety_   │      │  router   │        │run_pytest.sh     │    │
+│  │guard.py  │      │  .py      │        │stuck_detector.py │    │
+│  │(Bash)    │      │           │        │auto_journal.py   │    │
+│  ├──────────┤      │  claude?  │        │retrospective.py  │    │
+│  │skill_    │      │  gemini?  │        └──────────────────┘    │
+│  │vetter.py │      └─────┬─────┘                                │
+│  │(Write/   │            │ delegate                             │
+│  │Edit)     │            ▼                                       │
+│  └──────────┘    ┌───────────────┐                              │
+│                  │ GEMINI CLI    │                               │
+│                  │ (Subagent)    │                               │
+│                  │ 2M ctx window │                               │
+│                  │ + web access  │                               │
+│                  │               │                               │
+│                  │ modes:        │                               │
+│                  │ review        │                               │
+│                  │ analyze       │                               │
+│                  │ research      │                               │
+│                  │ redteam       │                               │
+│                  │ retrospective │                               │
+│                  └───────────────┘                              │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### Слои защиты и автоматизации
-
-| Слой | Реализация | Файл |
-|---|---|---|
-| Permissions bypass | `.claude/settings.json` → `permissions.allow: [*]` | `.claude/settings.json` |
-| Self-healing tests | PostToolUse Edit/Write → pytest, exit 2 on fail | `hooks/run_pytest.sh` |
-| Stuck detection | PostToolUse Bash/Edit/Write → 3 одинаковых ошибки → выход | `hooks/stuck_detector.py` |
-| Overnight loop | Budget-loop: claude headless + health check + error feedback | `hooks/loop_orchestrator.sh` |
-| Browser (fetch) | MCP `fetch` → uvx mcp-server-fetch (доступен в сессии) | `~/.claude/settings.json` |
-| Gemini cross-review | Headless Gemini CLI (2M контекст) | `hooks/gemini_agent.sh` |
-| Журнал сессий | Stop hook → Logseq journal | `hooks/auto_journal.py` |
-
-### Запуск overnight loop
+### Agent Registry (Lazy Loading)
+Gemini запускается ТОЛЬКО когда `router.py` решает делегировать:
+- файл > 8KB → Gemini (2M контекст)
+- задача содержит: image/photo/thermal → Gemini Vision
+- задача содержит: research/погугли → Gemini (веб-доступ)
+- задача содержит: security audit/red team → Gemini RedTeam
+- иначе → Claude обрабатывает напрямую
 
 ```bash
-# Простая задача с бюджетом
-./hooks/loop_orchestrator.sh "Добавь тесты для handlers/payments.py до 90% покрытия" 30 120
+# Явный запрос решения роутера:
+bash hooks/gemini_agent.sh route "проанализируй тепловые снимки"
+# → {"engine": "gemini", "mode": "analyze", "reason": "..."}
+```
+
+### Слои безопасности (Hook Pipeline)
+
+| Момент | Хук | Что делает | Действие |
+|---|---|---|---|
+| **PreToolUse** Bash | `safety_guard.py` | Блокирует `rm -rf /`, fork bomb, `dd if=`, mkfs | exit 2 = BLOCK |
+| **PreToolUse** Write/Edit | `skill_vetter.py` | Аудит на RCE, injection, prompt injection | exit 2 = BLOCK |
+| **PostToolUse** Edit/Write | `run_pytest.sh` | pytest после изменений .py файлов | exit 2 = BLOCK |
+| **PostToolUse** Bash/Edit/Write | `stuck_detector.py` | 3 одинаковых ошибки → смени подход | exit 2 = BLOCK |
+| **Stop** | `auto_journal.py` | Запись в Logseq журнал | info only |
+| **Stop** | `retrospective.py` | Gemini Red Team review если есть git diff | info only |
+
+### Retrospective Loop (Compound Engineering)
+
+Каждая сессия заканчивается автоматической ретроспективой:
+1. `retrospective.py` проверяет `git diff --stat HEAD`
+2. Если изменения есть → вызывает `gemini_agent.sh review`
+3. Результат пишется в `DECISIONS.md` с timestamp
+4. Накапливается долгосрочная инженерная экспертиза
+
+Ручной запуск полного ретро (нужно для "ночного" цикла):
+```bash
+bash hooks/gemini_agent.sh retrospective
+```
+
+### Overnight Autonomous Loop
+
+```bash
+# Автономная работа с бюджетом
+./hooks/loop_orchestrator.sh "Покрой bot/src/ тестами до 90%" 30 120
 
 # Из файла задачи
 echo "Задача: ..." > /tmp/task.md
 ./hooks/loop_orchestrator.sh --file /tmp/task.md 50 240
 
-# Следить за прогрессом
+# Мониторинг
 tail -f /tmp/loop_*.log
 ```
 
-### Как работает stuck detection
-
-1. Каждый вызов Bash/Edit/Write с ошибкой → хешируется (tool + команда + tail ошибки)
-2. Если тот же хеш появляется **3 раза** в окне последних 12 вызовов → exit 2
-3. Агент получает сообщение "STUCK — смени подход" и **обязан** изменить стратегию
-4. После срабатывания счётчик этого хеша сбрасывается (нет спама)
+Как работает `stuck_detector.py`:
+1. Хешируется: tool_name + команда/файл + tail(stderr)
+2. Тот же хеш ≥ 3 раз в окне 12 вызовов → exit 2 → "STUCK — смени подход"
+3. После срабатывания счётчик сбрасывается
 
 ### MCP инструменты в сессии
 
 | Сервер | Что делает |
 |---|---|
-| `fetch` | Загружает URL страниц (браузер-lite) |
-| `odoo-infrascan` | Прямой доступ к InfraScan_bd через XML-RPC |
+| `fetch` | Загружает URL страниц |
+| `odoo-infrascan` | Прямой доступ к InfraScan_bd (XML-RPC) |
 | `odoo-dev-mcp` | 300+ страниц документации Odoo 19 |
 | `telegram-bot-mcp` | Отправка сообщений через бота |
+| `visual-qa` | Screenshot QA для amanita_odoo |
+| `visual-qa-pepito` | Screenshot QA для pepito |
 
-### Подключение Sandboxing (Podman)
+### Sandboxing (Podman)
 
-Весь стек уже изолирован в Podman-контейнерах. Claude Code работает на хосте,
-но все опасные операции с данными проходят через контейнеры.
-Для полной изоляции агента (VERY UNSAFE tasks) — запускай claude внутри контейнера:
+Весь стек изолирован в Podman-контейнерах.
+Для полной изоляции агента (VERY UNSAFE tasks):
 ```bash
 podman run --rm -it -v /root/infrascan-ai:/workspace \
   localhost/infrascan-ai-bot:latest \
   claude --dangerously-skip-permissions -p "задача"
 ```
+
+### Gemini Subagent Quick Reference
+
+```bash
+bash hooks/gemini_agent.sh review          # code review git diff
+bash hooks/gemini_agent.sh analyze <file>  # deep file analysis
+bash hooks/gemini_agent.sh research "..."  # web search
+bash hooks/gemini_agent.sh health          # stack diagnostics
+bash hooks/gemini_agent.sh redteam         # adversarial security audit
+bash hooks/gemini_agent.sh retrospective   # session retrospective
+bash hooks/gemini_agent.sh route "задача"  # routing decision
+```
+
+Конфигурация агентов: `config/collaboration.yaml`
+Логи safety guard: `/tmp/safety_guard.log`
+Логи skill vetter: `/tmp/skill_vetter.log`
