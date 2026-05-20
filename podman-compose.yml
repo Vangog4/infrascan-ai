@@ -89,6 +89,8 @@ services:
         condition: service_healthy
     env_file:
       - ./bot/.env
+    environment:
+      - GEMINI_STUB=true
     networks:
       - bot-net
       - npm_network   # lets Nginx Proxy Manager route /bot/webhook → bot:8080
@@ -108,6 +110,7 @@ volumes:
     external: true
   redis_data:
     name: infrascan-ai_redis_data
+    external: true
 
 networks:
   odoo-internal:
