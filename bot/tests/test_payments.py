@@ -4,11 +4,11 @@ import pytest
 from aiogram.types import Message
 
 from src.handlers.payments import (
-    cmd_premium,
     btn_premium,
     cb_premium_buy,
-    pre_checkout,
+    cmd_premium,
     payment_success,
+    pre_checkout,
 )
 
 

@@ -128,7 +128,7 @@ def get_stats(days: int = 7) -> dict:
     conn.close()
     return {
         "days": days,
-        "daily": [dict(zip(["date","calls","tokens","gemini","claude","errors"], r)) for r in rows],
+        "daily": [dict(zip(["date","calls","tokens","gemini","claude","errors"], r, strict=False)) for r in rows],
         "total_calls": total[0] or 0,
         "total_tokens": total[1] or 0,
         "avg_latency_ms": total[2] or 0,
@@ -137,7 +137,7 @@ def get_stats(days: int = 7) -> dict:
 
 def print_report() -> None:
     stats = get_stats(30)
-    print(f"📊 LLM Usage — last 30 days")
+    print("📊 LLM Usage — last 30 days")
     print(f"   Total calls : {stats['total_calls']}")
     print(f"   Total tokens: {stats['total_tokens']:,}")
     print(f"   Avg latency : {stats['avg_latency_ms']}ms")

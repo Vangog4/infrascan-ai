@@ -1,9 +1,10 @@
-from odoo import api, fields, models
-from odoo.exceptions import UserError
-import requests
 import logging
 import re
 from datetime import date, datetime, timedelta
+
+import requests
+from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -425,20 +426,20 @@ class ProjectTask(models.Model):
         ])
         # Filter out leads already in done stage
         stale_leads = [
-            l for l in stale_leads
-            if not any(kw in (l.stage_id.name or '').lower() for kw in done_kw)
+            lead for lead in stale_leads
+            if not any(kw in (lead.stage_id.name or '').lower() for kw in done_kw)
         ]
 
         if not stale_leads:
             return
 
         lines = []
-        for l in stale_leads[:8]:
-            age_h = int((datetime.now() - l.create_date).total_seconds() // 3600)
-            desc_clean = re.sub(r'<[^>]+>', '', l.description or '').strip()
+        for lead in stale_leads[:8]:
+            age_h = int((datetime.now() - lead.create_date).total_seconds() // 3600)
+            desc_clean = re.sub(r'<[^>]+>', '', lead.description or '').strip()
             phone_match = re.search(r'\+?[\d\s\-]{10,}', desc_clean)
             phone = phone_match.group().strip() if phone_match else '—'
-            lines.append(f"• {l.name} | 📞 {phone} | ⏱ {age_h}ч без ответа")
+            lines.append(f"• {lead.name} | 📞 {phone} | ⏱ {age_h}ч без ответа")
 
         text = (
             f"⏰ <b>Необработанные лиды ({len(stale_leads)})</b>\n\n"

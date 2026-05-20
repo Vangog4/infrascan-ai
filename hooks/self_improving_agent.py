@@ -16,7 +16,6 @@ import argparse
 import datetime
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path("/root/infrascan-ai")
@@ -120,7 +119,7 @@ def main() -> None:
         entry = f"\n## Reflect — {now}\n{result}\n\n---\n"
         with open(DECISIONS_MD, "a", encoding="utf-8") as f:
             f.write(entry)
-        print(f"\n✅ Reflection сохранена в DECISIONS.md")
+        print("\n✅ Reflection сохранена в DECISIONS.md")
         return
 
     print("🧠 Self-Improving Agent: анализирую паттерны ошибок...")

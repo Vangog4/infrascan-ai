@@ -16,8 +16,8 @@ Output JSON:
 """
 from __future__ import annotations
 
+import contextlib
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -66,10 +66,8 @@ CLAUDE_OVERRIDE = [
 def _total_file_size(files: list[str]) -> int:
     total = 0
     for p in files:
-        try:
+        with contextlib.suppress(Exception):
             total += Path(p).stat().st_size
-        except Exception:
-            pass
     return total
 
 

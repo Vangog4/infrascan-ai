@@ -1,4 +1,4 @@
-{
+{  # noqa: B018 — Odoo manifest is a bare dict expression by framework convention
     'name': 'InfraScan AI Core',
     'summary': 'AI Thermal Diagnostics — auto-notifications, cron digests, Gemini analysis',
     'version': '1.3',

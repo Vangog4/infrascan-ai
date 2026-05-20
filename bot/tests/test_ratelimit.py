@@ -5,11 +5,10 @@ import pytest
 from aiogram.types import Message
 
 from src.middlewares.ratelimit import (
-    RateLimitMiddleware,
-    RATELIMIT_MESSAGES,
-    RATELIMIT_COOLDOWN,
     _BUCKET_TTL,
     _EVICTION_INTERVAL,
+    RATELIMIT_MESSAGES,
+    RateLimitMiddleware,
 )
 
 

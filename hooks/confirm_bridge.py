@@ -19,8 +19,8 @@ Integration with loop_orchestrator.sh:
     exit 1
   fi
 """
+import contextlib
 import json
-import os
 import subprocess
 import sys
 import time
@@ -85,13 +85,11 @@ def _redis_get(key: str) -> str | None:
 
 
 def _redis_del(key: str) -> None:
-    try:
+    with contextlib.suppress(Exception):
         subprocess.run(
             ["podman", "exec", "infrascan-ai_redis", "redis-cli", "DEL", key],
             capture_output=True, timeout=5,
         )
-    except Exception:
-        pass
 
 
 def main() -> int:

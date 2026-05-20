@@ -135,7 +135,6 @@ async def test_consume_bonus_scan_empty(r):
 async def test_reward_first_scan_credits_referrer(r):
     from src.services.referral import (
         SCANS_PER_ACTIVATION,
-        add_bonus_scans,
         get_bonus_scans,
         get_or_create_code,
         register_referral,
@@ -186,6 +185,8 @@ async def test_reward_first_scan_no_referrer(r):
 
 @pytest.mark.asyncio
 async def test_reward_first_scan_monthly_limit(r):
+    import time
+
     from src.services.referral import (
         MONTHLY_REFERRAL_LIMIT,
         get_bonus_scans,
@@ -193,7 +194,6 @@ async def test_reward_first_scan_monthly_limit(r):
         register_referral,
         reward_first_scan,
     )
-    import time
     bot = _make_bot()
     month_key = f"ref_month:1:{time.strftime('%Y%m')}"
     with _patch_redis(r):

@@ -12,7 +12,6 @@ memory_hygiene.py — прореживает долгосрочную памят
 """
 import argparse
 import hashlib
-import os
 import re
 import sys
 from datetime import datetime, timedelta

@@ -6,12 +6,13 @@
 # ]
 # ///
 """Загружает файл на Google Drive в указанную папку."""
-import sys
 import os
+import sys
 from pathlib import Path
+
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.oauth2 import service_account
 
 KEY_FILE = Path(__file__).parent / "secrets" / "gdrive-key.json"
 FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "")

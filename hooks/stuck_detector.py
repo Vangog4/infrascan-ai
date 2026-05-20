@@ -11,7 +11,6 @@ State is stored in /tmp/infrascan_stuck_state.json (session-scoped).
 import hashlib
 import json
 import sys
-import time
 from pathlib import Path
 
 STUCK_THRESHOLD = 3

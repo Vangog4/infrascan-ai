@@ -85,10 +85,7 @@ def main() -> int:
     is_env = file_path.endswith(".env") or "/.env" in file_path
 
     content: str
-    if tool_name == "Write":
-        content = ti.get("content", "")
-    else:
-        content = ti.get("new_string", "")
+    content = ti.get("content", "") if tool_name == "Write" else ti.get("new_string", "")
 
     if not content.strip():
         return 0

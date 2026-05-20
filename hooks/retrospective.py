@@ -8,6 +8,7 @@ appends findings to DECISIONS.md for long-term knowledge accumulation.
 
 Designed to be lightweight: skips Gemini call if no changes detected.
 """
+import contextlib
 import datetime
 import json
 import subprocess
@@ -77,10 +78,8 @@ def _append_decisions(stat: str, review: str) -> None:
 
 
 def main() -> int:
-    try:
-        payload = json.loads(sys.stdin.read())
-    except Exception:
-        payload = {}
+    with contextlib.suppress(Exception):
+        json.loads(sys.stdin.read())
 
     stat = _git_diff_stat()
     if not stat:
