@@ -1,0 +1,124 @@
+# Agent Collaboration Registry — infrascan-ai
+# Defines agent capabilities, routing rules, and safety constraints.
+# Used by hooks/router.py and hooks/gemini_agent.sh.
+
+version: "1.0"
+
+agents:
+  claude:
+    role: orchestrator
+    description: >
+      Primary reasoning engine. Handles code edits, architecture decisions,
+      quick fixes, config changes, and all tasks not requiring large context
+      or live web access. Routes to Gemini when beneficial.
+    strengths:
+      - precise code editing
+      - architectural reasoning
+      - safety-first decision making
+      - hook orchestration
+    token_limit: 200_000
+    cost_tier: medium
+
+  gemini:
+    role: subagent
+    description: >
+      Specialist subagent. Invoked lazily only when Claude's strengths are
+      insufficient. Has 2M token context window and live internet access.
+    binary: gemini
+    model: gemini-2.5-flash
+    script: hooks/gemini_agent.sh
+    strengths:
+      - large codebase analysis (2M tokens)
+      - vision / image analysis (thermal scans)
+      - live web research
+      - red team adversarial review
+      - independent code review (second opinion)
+    token_limit: 2_000_000
+    cost_tier: low
+    modes:
+      - review        # git diff code review
+      - analyze       # deep file/dir analysis
+      - research      # web search & docs
+      - health        # system diagnostics
+      - redteam       # adversarial security audit
+      - retrospective # nightly session review
+
+routing:
+  # Gemini is invoked when ANY of these conditions match
+  delegate_to_gemini_when:
+    - keyword_matches:
+        - image, photo, фото, thermal, термограмм, vision, картинк, скриншот
+        → mode: analyze
+        reason: "multimodal task requiring Gemini Vision"
+
+    - keyword_matches:
+        - research, найди в интернете, погугли, latest docs, актуальн, changelog
+        → mode: research
+        reason: "live web access required"
+
+    - keyword_matches:
+        - security audit, уязвимост, red team, pentest, CVE, exploit
+        → mode: redteam
+        reason: "independent adversarial security review"
+
+    - keyword_matches:
+        - code review, проверь весь проект, полный анализ, весь репозиторий
+        → mode: review
+        reason: "large-context full project review"
+
+    - file_size_bytes: "> 8000"
+      → mode: analyze
+      reason: "file too large for Claude's focused editing mode"
+
+    - total_context_bytes: "> 20000"
+      → mode: analyze
+      reason: "context exceeds optimal Claude editing window"
+
+  # Override: always use Claude for these regardless of above
+  force_claude_when:
+    - task contains: быстрое исправление, quick fix, опечатк, typo, rename, поменяй строку
+    - task contains: config, конфиг изменить
+
+safety:
+  hooks:
+    PreToolUse:
+      - matcher: Bash
+        script: hooks/safety_guard.py
+        action: block_on_exit_2
+        description: "Blocks destructive shell commands (rm -rf /, fork bomb, disk wipe)"
+
+      - matcher: "Write|Edit"
+        script: hooks/skill_vetter.py
+        action: block_on_exit_2
+        description: "Audits code for RCE, injection, prompt injection before save"
+
+    PostToolUse:
+      - matcher: "Edit|Write"
+        script: hooks/run_pytest.sh
+        action: block_on_exit_2
+        description: "Runs pytest after Python file changes; blocks if tests fail"
+
+      - matcher: "Bash|Edit|Write"
+        script: hooks/stuck_detector.py
+        action: block_on_exit_2
+        description: "Detects repetitive failure loops; forces strategy change"
+
+    Stop:
+      - script: hooks/auto_journal.py
+        description: "Writes session end marker to Logseq journal"
+
+      - script: hooks/retrospective.py
+        description: "Triggers Gemini Red Team review if git diff is non-empty"
+
+  sandboxing:
+    runtime: podman
+    networks:
+      - odoo-internal    # isolated: db ↔ odoo only
+      - bot-net          # bridge: bot ↔ odoo, internet (Telegram)
+      - npm_network      # external: nginx proxy → odoo
+
+  confirmation_gateway: hooks/confirm_bridge.py
+  confirmation_required_for:
+    - overnight loop start
+    - 5+ consecutive test failures
+    - any manual system operation outside normal workflow

@@ -1,4 +1,5 @@
 """Referral program handler — /ref command and 🎁 invite button."""
+
 import logging
 from urllib.parse import quote
 

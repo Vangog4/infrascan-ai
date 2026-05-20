@@ -12,7 +12,7 @@
         </record>
         <record id="param_gemini_model" model="ir.config_parameter">
             <field name="key">infrascan_ai.gemini_model</field>
-            <field name="value">gemini-2.0-flash</field>
+            <field name="value">gemini-2.5-flash</field>
         </record>
         <record id="param_telegram_bot_token" model="ir.config_parameter">
             <field name="key">infrascan_ai.telegram_bot_token</field>

@@ -5,8 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from src.keyboards.menus import partner_menu
-from src.services import odoo
-from src.services import roles
+from src.services import odoo, roles
 from src.services.roles import Role
 from src.states.flows import PartnerLeadFlow
 
@@ -20,15 +19,13 @@ def _is_partner(role: Role) -> bool:
 
 # ─── Submit Lead ─────────────────────────────────────────────────────────────
 
+
 @router.message(F.text == "➕ Передать лида")
 async def lead_start(message: Message, state: FSMContext, role: Role) -> None:
     if not _is_partner(role):
         return
     await state.set_state(PartnerLeadFlow.phone)
-    await message.answer(
-        "➕ Введите номер телефона вашего клиента.\n"
-        "<i>Пример: +79991234567</i>"
-    )
+    await message.answer("➕ Введите номер телефона вашего клиента.\n<i>Пример: +79991234567</i>")
 
 
 @router.message(PartnerLeadFlow.phone, F.text)
@@ -53,6 +50,7 @@ async def lead_phone(message: Message, state: FSMContext) -> None:
 
 
 # ─── Balance ─────────────────────────────────────────────────────────────────
+
 
 @router.message(F.text == "💰 Мой баланс")
 async def my_balance(message: Message, role: Role) -> None:

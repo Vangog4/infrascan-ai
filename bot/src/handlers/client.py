@@ -1,17 +1,15 @@
 import logging
+from datetime import UTC
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Contact, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Contact, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
 
 from src.config import settings
 from src.keyboards.menus import (
     BTN_CALC,
     BTN_CALC_EN,
-    BTN_INVITE,
-    BTN_INVITE_EN,
     BTN_PHOTO,
     BTN_PHOTO_EN,
     client_menu,
@@ -19,9 +17,10 @@ from src.keyboards.menus import (
     heating_kb,
     order_kb,
 )
-from src.services import gemini, odoo, referral as ref_svc, roles
-from src.services.redis import get_last_report, save_last_report
+from src.services import gemini, odoo, roles
 from src.services import premium as premium_svc
+from src.services import referral as ref_svc
+from src.services.redis import get_last_report, save_last_report
 from src.states.flows import AuditFlow, CalcFlow, LeadFlow
 
 logger = logging.getLogger(__name__)
@@ -31,6 +30,7 @@ _SEP = "━━━━━━━━━━━━━━━━━━━━━"
 
 
 # ── Photo Audit ───────────────────────────────────────────────────────────────
+
 
 @router.message(F.text.in_({BTN_PHOTO, BTN_PHOTO_EN}))
 async def audit_start(
@@ -148,15 +148,19 @@ async def audit_photo(
         pdf_label = "📄 Скачать PDF-отчёт" if locale == "ru" else "📄 Download PDF report"
         b.row(InlineKeyboardButton(text=pdf_label, callback_data="report:pdf"))
         if is_local:
-            b.row(InlineKeyboardButton(
-                text="🚗 Заказать профессиональный выезд" if locale == "ru"
-                     else "🚗 Order professional inspection",
-                callback_data="action:order",
-            ))
+            b.row(
+                InlineKeyboardButton(
+                    text="🚗 Заказать профессиональный выезд"
+                    if locale == "ru"
+                    else "🚗 Order professional inspection",
+                    callback_data="action:order",
+                )
+            )
         await message.answer(text, reply_markup=b.as_markup())
 
 
 # ── Heat Loss Calculator ──────────────────────────────────────────────────────
+
 
 @router.message(F.text.in_({BTN_CALC, BTN_CALC_EN}))
 async def calc_start(message: Message, state: FSMContext, locale: str = "ru") -> None:
@@ -224,6 +228,7 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
 
 
 # ── Lead Capture (local only) ─────────────────────────────────────────────────
+
 
 @router.message(F.text == "🚗 Вызвать инженера")
 async def lead_start(message: Message, state: FSMContext) -> None:
@@ -295,6 +300,7 @@ async def lead_contact(
 
 # ── PDF Report download ───────────────────────────────────────────────────────
 
+
 @router.callback_query(F.data == "report:pdf")
 async def download_pdf(call: CallbackQuery, locale: str = "ru") -> None:
     user_id = call.from_user.id
@@ -311,24 +317,22 @@ async def download_pdf(call: CallbackQuery, locale: str = "ru") -> None:
 
     await call.answer("⏳ Генерирую PDF..." if locale == "ru" else "⏳ Generating PDF...")
 
+    from datetime import datetime
+
     from src.services.pdf import generate_report
-    from datetime import datetime, timezone
 
     pdf_bytes = generate_report(report_text, locale)
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    date_str = datetime.now(UTC).strftime("%Y%m%d_%H%M")
     filename = f"InfraScan_{date_str}.pdf"
 
     caption = (
         "📄 <b>PDF-отчёт готов!</b>\n\n"
         "<i>Документ содержит полный результат ИИ-анализа с уровнем риска.</i>"
         if locale == "ru"
-        else
-        "📄 <b>PDF report ready!</b>\n\n"
+        else "📄 <b>PDF report ready!</b>\n\n"
         "<i>The document contains the full AI analysis with risk level.</i>"
     )
     await call.message.answer_document(
         document=BufferedInputFile(pdf_bytes, filename=filename),
         caption=caption,
     )
-
-

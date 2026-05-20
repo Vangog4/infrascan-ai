@@ -1,0 +1,30 @@
+==================================================
+  infrascan-ai — Judge Run: 2026-05-19_09-48-56
+==================================================
+
+=== 1. Python syntax — bot/src/** ===
+  [PASS] All Python files compile clean
+
+=== 2. Ruff lint + format ===
+All checks passed!
+  [PASS] ruff lint
+31 files already formatted
+  [PASS] ruff format
+
+=== 3. Odoo addons — Python syntax ===
+  [PASS] Odoo addons compile clean
+
+=== 4. Unit tests ===
+........................................................................ [ 38%]
+........................................................................ [ 76%]
+............................................                             [100%]
+188 passed in 4.41s
+
+=== 5. Container health ===
+  [PASS] infrascan-ai_bot running
+  [PASS] Odoo web responding
+
+=== Summary ===
+Passed: 7  Failed: 0  Skipped: 0
+Log: artifacts/judge-2026-05-19_09-48-56.log
+EXIT 0 — safe to commit

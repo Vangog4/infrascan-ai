@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 from datetime import datetime
@@ -23,6 +24,7 @@ def _is_employee(role: Role) -> bool:
 
 # ─── Today's Tasks ───────────────────────────────────────────────────────────
 
+
 @router.message(F.text == "🚗 Мои выезды на сегодня")
 async def today_tasks(message: Message, role: Role) -> None:
     if not _is_employee(role):
@@ -30,8 +32,7 @@ async def today_tasks(message: Message, role: Role) -> None:
     tasks = await odoo.get_today_tasks(message.from_user.id)
     if not tasks:
         await message.answer(
-            "📋 На сегодня выездов не запланировано.\n"
-            "Если это ошибка — свяжитесь с диспетчером.",
+            "📋 На сегодня выездов не запланировано.\nЕсли это ошибка — свяжитесь с диспетчером.",
             reply_markup=employee_menu(),
         )
         return
@@ -47,6 +48,7 @@ async def today_tasks(message: Message, role: Role) -> None:
 
 
 # ─── Submit Photos ───────────────────────────────────────────────────────────
+
 
 @router.message(F.text == "📤 Сдать фото по объекту")
 async def photo_select_task(message: Message, state: FSMContext, role: Role) -> None:
@@ -150,7 +152,7 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
 async def _attach_and_analyze(
     task_id: int, filename: str, data_b64: str, photo_bytes: bytes
 ) -> tuple[int | None, str]:
-    import asyncio
+
     result_dict, att_id = await asyncio.gather(
         gemini.analyze_photo(photo_bytes, locale="ru"),
         odoo.attach_photo(task_id, filename, data_b64),
@@ -204,6 +206,7 @@ def _build_report(task_name: str, analyses: list[dict]) -> str:
 
 
 # ─── SOS ─────────────────────────────────────────────────────────────────────
+
 
 @router.message(F.text == "🆘 SOS")
 async def sos(message: Message, bot: Bot, role: Role) -> None:

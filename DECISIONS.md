@@ -573,3 +573,1071 @@ CLAUDE.md                         | 140 ++++++++--
 _Gemini review недоступен_
 
 ---
+
+## Retrospective — 2026-05-19 09:30
+
+### Изменения в сессии
+```
+bot/logseq/journals/2026_05_17.md |  3 +++
+ bot/src/bot.py                    | 32 +++++++++++++++++---------------
+ bot/src/config.py                 |  4 ++--
+ bot/src/handlers/client.py        | 38 +++++++++++++++++++++-----------------
+ bot/src/handlers/employee.py      |  7 +++++--
+ bot/src/handlers/help.py          | 14 +-------------
+ bot/src/handlers/partner.py       | 10 ++++------
+ bot/src/handlers/payments.py      | 10 +++++++---
+ bot/src/handlers/referral.py      |  1 +
+ bot/src/keyboards/menus.py        |  7 +++++++
+ 10 files changed, 68 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 09:40
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 22 ++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |  3 +++
+ bot/src/bot.py                    | 32 +++++++++++++++++---------------
+ bot/src/config.py                 |  4 ++--
+ bot/src/handlers/client.py        | 38 +++++++++++++++++++++-----------------
+ bot/src/handlers/employee.py      |  7 +++++--
+ bot/src/handlers/help.py          | 14 +-------------
+ bot/src/handlers/partner.py       | 10 ++++------
+ bot/src/handlers/payments.py      | 10 +++++++---
+ bot/src/handlers/referral.py      |  1 +
+ bot/src/keyboards/menus.py        |  7 +++++++
+ 11 files changed, 90 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 09:51
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 45 +++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |  3 +++
+ bot/src/bot.py                    | 32 +++++++++++++++-------------
+ bot/src/config.py                 |  4 ++--
+ bot/src/handlers/client.py        | 38 ++++++++++++++++++---------------
+ bot/src/handlers/employee.py      |  7 ++++--
+ bot/src/handlers/help.py          | 14 +-----------
+ bot/src/handlers/partner.py       | 10 ++++-----
+ bot/src/handlers/payments.py      | 10 ++++++---
+ bot/src/handlers/referral.py      |  1 +
+ bot/src/keyboards/menus.py        |  7 ++++++
+ 11 files changed, 113 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 09:52
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 68 +++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |  3 ++
+ bot/src/bot.py                    | 32 +++++++++---------
+ bot/src/config.py                 |  4 +--
+ bot/src/handlers/client.py        | 38 ++++++++++++----------
+ bot/src/handlers/employee.py      |  7 ++--
+ bot/src/handlers/help.py          | 14 +-------
+ bot/src/handlers/partner.py       | 10 +++---
+ bot/src/handlers/payments.py      | 10 ++++--
+ bot/src/handlers/referral.py      |  1 +
+ bot/src/keyboards/menus.py        |  7 ++++
+ 11 files changed, 136 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 10:51
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 91 +++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |  3 ++
+ bot/src/bot.py                    | 32 +++++++-------
+ bot/src/config.py                 |  4 +-
+ bot/src/handlers/client.py        | 38 ++++++++--------
+ bot/src/handlers/employee.py      |  7 ++-
+ bot/src/handlers/help.py          | 14 +-----
+ bot/src/handlers/partner.py       | 10 ++---
+ bot/src/handlers/payments.py      | 10 +++--
+ bot/src/handlers/referral.py      |  1 +
+ bot/src/keyboards/menus.py        |  7 +++
+ 11 files changed, 159 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 11:58
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 114 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++++++-----
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++++++------
+ bot/src/handlers/employee.py      |   7 ++-
+ bot/src/handlers/help.py          |  14 +----
+ bot/src/handlers/partner.py       |  10 ++--
+ bot/src/handlers/payments.py      |  10 +++-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +++
+ 11 files changed, 182 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 12:10
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 137 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++++-----
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++++++-----
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +---
+ bot/src/handlers/partner.py       |  10 ++-
+ bot/src/handlers/payments.py      |  10 ++-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 ++
+ 11 files changed, 205 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 12:21
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 160 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++++----
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++++----
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +---
+ bot/src/handlers/partner.py       |  10 +--
+ bot/src/handlers/payments.py      |  10 ++-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 ++
+ 11 files changed, 228 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 12:46
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 183 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +++----
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++++----
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +--
+ bot/src/handlers/partner.py       |  10 +--
+ bot/src/handlers/payments.py      |  10 ++-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 ++
+ 11 files changed, 251 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 12:49
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 206 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +++---
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++----
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +--
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 ++
+ 11 files changed, 274 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 13:10
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 229 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +++---
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++++---
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +--
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 ++
+ 11 files changed, 297 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:08
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 252 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++---
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++---
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +--
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 ++
+ 11 files changed, 320 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:16
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 275 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++---
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++---
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 343 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:18
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 298 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++---
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 366 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:32
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 321 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 389 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:39
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 344 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 412 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:42
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 367 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 435 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 14:57
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 390 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 458 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 15:07
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 413 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 481 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 15:20
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 436 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 504 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 15:28
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 459 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 527 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 15:33
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 482 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 550 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 15:47
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 505 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 573 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 16:17
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 528 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 596 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 16:39
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 551 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +--
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 619 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 16:41
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 574 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 ++-
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 642 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 16:44
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 597 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 665 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 16:48
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 620 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 +--
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 688 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 17:04
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 643 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   4 +-
+ bot/src/handlers/client.py        |  38 ++-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ 11 files changed, 711 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 17:25
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 666 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 ++-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 +++++
+ 12 files changed, 814 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 17:41
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 690 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 ++-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 +++++
+ 12 files changed, 838 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 17:52
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 714 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 +++++
+ 12 files changed, 862 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 18:19
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 738 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 886 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 18:55
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 762 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 910 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:03
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 786 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 934 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:12
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 810 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 958 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:18
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 834 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   7 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 982 insertions(+), 58 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:25
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 858 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   9 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 1007 insertions(+), 59 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## LLM Council — 2026-05-19 19:30
+
+**Вопрос:** Проанализируй астрологический Telegram-бот AstroTara (@AstroTaraAI_bot) и дай конкретные рекомендации как сделать его продуктом уровня 'миллион пользователей'.
+
+ТЕКУЩИЙ СТЕК: aiogram 3.x, SQLite, Redis, Python. Функции: Натальная карта (мандала), Таро дня (AI-изображение), Прогноз транзитов, Прогноз на дату, Аура (Premium), Карма/прошлые жизни (Premium), Синастрия, Чат с AI-оракулом (free: 1 вопрос), Голос TTS, PDF 'Книга Судьбы', Астро-календарь .ics, Астро-Радар (группы), Рефералы. Монетизация: Premium 1000 Stars (~13 USD/мес). Языки: RU/EN/HI/ZH.
+
+ПРОБЛЕМЫ: 1) Онбординг — 3 шага без прогресс-бара и кнопок 2) Меню — 7 рядов, перегружено 3) Премиум дорогой для знакомства 4) free_requests=1 — сразу пейволл 5) Нет daily retention 6) Нет пуш о транзитах 7) Чат-выход только текстом 'Выход' 8) Повторная регистрация существующих юзеров 9) Нет onboarding tour 10) Нет аналитики.
+
+Дай приоритизированный список: А) Критические UX-фиксы (неделя 1) Б) Retention механики (неделя 2-3) В) Монетизация и рост (месяц 2) Г) Killer-фичи которых нет у конкурентов (Co-Star, Nebula, Pattern)
+
+**Claude:** [Claude headless недоступен]
+
+**Gemini:** [Gemini ошибка: Command '['bash', '/root/infrascan-ai/hooks/gemini_agent.sh', 'research', "Проанализируй астрологический Telegram-бот AstroTara (@AstroTaraAI_bot) и дай конкретные рекомендации как сделать его продуктом уровня 'миллион пользователей'.\n\nТЕКУЩИЙ СТЕК: aiogram 3.x, SQLite, Redis, Python. Функции: Натальная карта (мандала), Таро дня (AI-изображение), Прогноз транзитов, Прогноз на дату, Аура (Premium), Карма/прошлые жизни (Premium), Синастрия, Чат с AI-оракулом (free: 1 вопрос), Гол
+
+**Синтез:** [Gemini ошибка: Command '['bash', '/root/infrascan-ai/hooks/gemini_agent.sh', 'research', 'Два эксперта дали разные ответы на вопрос: \'Проанализируй астрологический Telegram-бот AstroTara (@AstroTaraAI_bot) и дай конкретные рекомендации как сделать его продуктом уровня \'миллион пользователей\'.\n\nТЕКУЩИЙ СТЕК: aiogram 3.x, SQLite, Redi\'\n\nЭксперт 1 (Claude): [Claude headless недоступен]\n\nЭксперт 2 (Gemini): [Gemini ошибка: Command \'[\'bash\', \'/root/infrascan-ai/hooks/gemini_agent.sh\',
+
+---
+
+## Retrospective — 2026-05-19 19:33
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 900 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   9 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 1049 insertions(+), 59 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:37
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 924 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   9 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   7 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 1073 insertions(+), 59 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:39
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 948 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   9 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   8 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 1098 insertions(+), 59 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-19 19:45
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 972 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   9 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   8 +
+ bot/src/services/gemini.py        |  79 ++++
+ 12 files changed, 1122 insertions(+), 59 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-20 02:27
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 996 ++++++++++++++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_17.md |   3 +
+ bot/src/bot.py                    |  32 +-
+ bot/src/config.py                 |   5 +-
+ bot/src/handlers/client.py        |  38 +-
+ bot/src/handlers/employee.py      |   9 +-
+ bot/src/handlers/help.py          |  14 +-
+ bot/src/handlers/partner.py       |  10 +-
+ bot/src/handlers/payments.py      |  10 +-
+ bot/src/handlers/referral.py      |   1 +
+ bot/src/keyboards/menus.py        |   8 +
+ bot/src/services/gemini.py        |  79 +++
+ 12 files changed, 1146 insertions(+), 59 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## [2026-05-20] Аудит Odoo-модуля и архитектуры проекта
+
+**Дата:** 2026-05-20
+**Тип:** Плановый аудит (senior Odoo 19 review)
+
+### Состояние Odoo-модуля `infrascan_ai` — УДОВЛЕТВОРИТЕЛЬНО с замечаниями
+
+**Модели:** только `_inherit` (project.task, res.partner) — новые модели не создаются, ir.model.access.csv НЕ ТРЕБУЕТСЯ.
+
+**Поля:** все имеют `string=`, нет compute-полей, нет рисков отсутствия `depends=`. ✅
+
+**XML views:** синтаксически корректны. ✅
+
+**Находки:**
+
+1. ИСПРАВЛЕНО — Расхождение версии Gemini-модели в config_data.xml:
+   - Было: `gemini-2.0-flash` (устаревший)
+   - Стало: `gemini-2.5-flash` (согласовано с bot/.env и fallback в project_task.py)
+   - В prod: обновить вручную в Odoo → Технические → Системные параметры → `infrascan_ai.gemini_model` (noupdate=1 блокирует автообновление)
+
+2. АРХИТЕКТУРНОЕ ЗАМЕЧАНИЕ — Блокирующие HTTP в ORM (requests.post в write/create/cron):
+   - `_send_telegram()` timeout=5s, `_gemini_generate()` timeout=15s, `action_analyze_thermal_image()` timeout=30s
+   - Блокируют Odoo worker на время запроса. При workers=2 допустимо, но при масштабировании — риск.
+   - Рекомендация: рассмотреть вынос в queue.job или ir.mail.thread при росте нагрузки.
+
+3. НАБЛЮДЕНИЕ — `EMPLOYEE_TG_IDS=[]` в bot/.env: функционал инженера недоступен ни одному пользователю. Требует ручного заполнения.
+
+4. НАБЛЮДЕНИЕ — `ir_cron.xml` noupdate=0 со статической датой nextcall (2026-05-18): при обновлении модуля cron-записи перезаписываются, nextcall сбрасывается. Не критично.
+
+5. НАБЛЮДЕНИЕ — redis_data volume не помечен external: при `podman-compose down -v` данные Redis будут удалены. Рекомендуется: сделать external аналогично db_data и web_data.
+
+### Подключение к Odoo
+
+- XML-RPC: UID=7 (api@infrascan-ai.ru), аутентификация OK ✅
+- JSON-2 REST API: _configured()=True, search_read работает ✅
+- Кастомные поля x_telegram_id, x_partner_balance зарегистрированы в схеме Odoo ✅
+
+### Контейнеры (2026-05-20)
+
+Все 4 контейнера: Up, healthy. db — 3 days, redis — 3 days, web — 3 days, bot — 28 hours.
+
+### Открытые задачи
+
+- [2026-05-15] mcp-server-logseq: требует LOGSEQ_API_TOKEN — НЕ ЗАКРЫТО
+- Gemini CLI недоступен в hook pipeline (retrospective review не работает) — требует диагностики
+
+**Статус:** ✅ аудит завершён, критических блокирующих проблем нет

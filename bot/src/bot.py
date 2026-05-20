@@ -7,15 +7,15 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
 from src.config import settings
-from src.handlers import account, client, common, employee, help as help_handler, referral
-from src.handlers import payments
-from src.services import odoo as odoo_svc
-from src.services.redis import close_redis, get_redis
+from src.handlers import account, client, common, employee, payments, referral
+from src.handlers import help as help_handler
 from src.middlewares.dedupe import ContentDedupeMiddleware
 from src.middlewares.geo import GeoMiddleware
 from src.middlewares.logging import LoggingMiddleware
 from src.middlewares.ratelimit import RateLimitMiddleware
 from src.middlewares.role import RoleMiddleware
+from src.services import odoo as odoo_svc
+from src.services.redis import close_redis, get_redis
 
 log = logging.getLogger(__name__)
 
@@ -28,8 +28,8 @@ def _build_dispatcher() -> tuple[Bot, Dispatcher]:
     dp = Dispatcher(storage=RedisStorage(get_redis()))
 
     # Outer middlewares (run for all update types, in registration order)
-    dp.update.outer_middleware(RoleMiddleware())   # injects: role
-    dp.update.outer_middleware(GeoMiddleware())    # injects: locale, is_local
+    dp.update.outer_middleware(RoleMiddleware())  # injects: role
+    dp.update.outer_middleware(GeoMiddleware())  # injects: locale, is_local
 
     # Inner message middlewares
     dp.message.middleware(RateLimitMiddleware())
@@ -37,7 +37,9 @@ def _build_dispatcher() -> tuple[Bot, Dispatcher]:
     dp.message.middleware(LoggingMiddleware())
 
     # Routers (most specific first)
-    dp.include_router(payments.router)    # Stars payment — before common to catch F.successful_payment
+    dp.include_router(
+        payments.router
+    )  # Stars payment — before common to catch F.successful_payment
     dp.include_router(employee.router)
     dp.include_router(referral.router)
     dp.include_router(account.router)
@@ -52,20 +54,20 @@ async def _set_commands(bot: Bot) -> None:
     from aiogram.types import BotCommand, BotCommandScopeDefault
 
     commands_ru = [
-        BotCommand(command="start",   description="Главное меню"),
+        BotCommand(command="start", description="Главное меню"),
         BotCommand(command="account", description="Мой кабинет — план, бонусы, рефералы"),
         BotCommand(command="premium", description="Подключить Premium"),
-        BotCommand(command="ref",     description="Пригласить друга (+бонусы)"),
-        BotCommand(command="help",    description="Частые вопросы"),
-        BotCommand(command="cancel",  description="Отменить текущее действие"),
+        BotCommand(command="ref", description="Пригласить друга (+бонусы)"),
+        BotCommand(command="help", description="Частые вопросы"),
+        BotCommand(command="cancel", description="Отменить текущее действие"),
     ]
     commands_en = [
-        BotCommand(command="start",   description="Main menu"),
+        BotCommand(command="start", description="Main menu"),
         BotCommand(command="account", description="My account — plan, bonus, referrals"),
         BotCommand(command="premium", description="Get Premium"),
-        BotCommand(command="ref",     description="Invite friends (+bonuses)"),
-        BotCommand(command="help",    description="FAQ"),
-        BotCommand(command="cancel",  description="Cancel current action"),
+        BotCommand(command="ref", description="Invite friends (+bonuses)"),
+        BotCommand(command="help", description="FAQ"),
+        BotCommand(command="cancel", description="Cancel current action"),
     ]
     scope = BotCommandScopeDefault()
     await bot.set_my_commands(commands_ru, scope=scope)

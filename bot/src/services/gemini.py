@@ -26,6 +26,79 @@ def _get() -> genai.Client:
     return _client
 
 
+# ── Stubs (GEMINI_STUB=true) ──────────────────────────────────────────────────
+
+_STUB_ANALYSIS = {
+    "object_type": "wall",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.58,
+    "temperature_observations": [
+        "Перепад температур в зоне откоса: +4°C относительно основной плоскости",
+        "Равномерный фон стены 18–19°C, аномалия в верхнем левом углу",
+    ],
+    "problems": [
+        {
+            "type": "thermal_bridge",
+            "location": "верхний левый угол",
+            "severity": "medium",
+            "description": "Мостик холода в узле примыкания стены к перекрытию",
+        },
+        {
+            "type": "moisture",
+            "location": "откос окна",
+            "severity": "low",
+            "description": "Следы капиллярного увлажнения, характерные для нарушения герметизации",
+        },
+    ],
+    "free_verdict": (
+        "На снимке — наружная стена с признаками мостика холода в зоне перекрытия. "
+        "Уровень риска СРЕДНИЙ: дефект не критичен, но при отсутствии мер приведёт "
+        "к образованию конденсата и плесени в течение 1–2 сезонов."
+    ),
+    "premium_analysis": (
+        "Тепловизионная картина указывает на разрыв теплового контура в узле «стена–плита». "
+        "Корневая причина — недостаточное утепление торца плиты перекрытия при строительстве. "
+        "При температуре наружного воздуха ниже −10°C точка росы смещается внутрь стены, "
+        "что создаёт условия для роста плесени и постепенного разрушения штукатурного слоя. "
+        "Вторичный риск: намокание минераловатного утеплителя снижает его R-значение на 30–50%."
+    ),
+    "recommendations_brief": "Утеплить торец плиты перекрытия с устройством «тёплого» откоса.",
+    "recommendations_detailed": [
+        "Шаг 1: вскрыть откос, проверить герметизацию монтажной пеной",
+        "Шаг 2: нанести PIR-плиту 30 мм на торец плиты перекрытия",
+        "Шаг 3: оштукатурить по стеклосетке, восстановить пароизоляционную плёнку",
+        "Материалы: PIR 30 мм (λ=0.022), дюбели-грибки 8×120, штукатурка Ceresit CT 85",
+    ],
+    "premium_teaser": "Выявлен ещё один скрытый дефект в зоне радиатора — возможна протечка.",
+    "_stub": True,
+}
+
+_STUB_QC = {
+    "ok": True,
+    "score": 82,
+    "verdict": "ПРИНЯТО",
+    "reason": None,
+    "tip": None,
+    "object": "наружная стена, откос окна",
+    "_stub": True,
+}
+
+_STUB_LOSSES = (
+    "━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "<b>📉 Расчётные теплопотери</b>\n"
+    "• Скрытые потери: <b>18–24%</b> от общего потребления\n"
+    "• Ежемесячные потери: ~<b>1 800 руб.</b> в холодный период\n"
+    "• Потери в год: ~<b>7 200 руб.</b>\n\n"
+    "<b>💰 Окупаемость диагностики</b>\n"
+    "• Стоимость обследования: от <b>4 000 руб.</b>\n"
+    "• Срок окупаемости: <b>7 месяцев</b>\n"
+    "• Потенциальная экономия: ~<b>7 200 руб./год</b> после устранения утечек\n\n"
+    "<b>📊 Вывод</b>\n"
+    "Диагностика окупится уже в первый отопительный сезон — закажите выезд специалиста сейчас.\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━"
+)
+
+
 # ── Constants ────────────────────────────────────────────────────────────────
 
 _SEP = "━━━━━━━━━━━━━━━━━━━━━"
@@ -178,6 +251,8 @@ def _strip_fences(text: str) -> str:
 
 async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg") -> dict:
     """Return structured analysis dict. Callers use format_analysis_free/premium to render."""
+    if settings.gemini_stub:
+        return _STUB_ANALYSIS
     prompt = _AUDIT_PROMPT_RU if locale == "ru" else _AUDIT_PROMPT_EN
     r = None
     try:
@@ -214,6 +289,8 @@ async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg
 
 
 async def calculate_losses(area: float, heating: str, payment: float) -> str:
+    if settings.gemini_stub:
+        return _STUB_LOSSES
     try:
         prompt = _CALC_PROMPT.format(area=area, heating=heating, payment=payment)
         r = await _get().aio.models.generate_content(
@@ -237,6 +314,8 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
         tip     — specific improvement advice (str or None)
         object  — what object was detected (str)
     """
+    if settings.gemini_stub:
+        return _STUB_QC
     try:
         r = await _get().aio.models.generate_content(
             model=settings.gemini_model,

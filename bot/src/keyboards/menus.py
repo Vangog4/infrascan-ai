@@ -64,6 +64,14 @@ def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarku
     return kb.as_markup(resize_keyboard=True)
 
 
+def partner_menu() -> ReplyKeyboardMarkup:
+    kb = ReplyKeyboardBuilder()
+    kb.row(KeyboardButton(text="➕ Передать лида"))
+    kb.row(KeyboardButton(text="💰 Мой баланс"))
+    kb.adjust(1)
+    return kb.as_markup(resize_keyboard=True)
+
+
 def employee_menu() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
     kb.row(KeyboardButton(text="🚗 Мои выезды на сегодня"))

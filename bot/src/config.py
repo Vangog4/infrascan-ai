@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    gemini_stub: bool = False  # True → return hardcoded demo responses (no API call)
 
     odoo_url: str = ""
     odoo_db: str = ""
@@ -26,9 +27,9 @@ class Settings(BaseSettings):
     premium_duration_days: int = 30
 
     # Webhook (leave empty to use long-polling)
-    webhook_url: str = ""            # e.g. https://infrascan-ai.ru/bot/webhook
+    webhook_url: str = ""  # e.g. https://infrascan-ai.ru/bot/webhook
     webhook_path: str = "/bot/webhook"
-    webhook_secret: str = ""         # random string; required when webhook_url is set
+    webhook_secret: str = ""  # random string; required when webhook_url is set
     webhook_port: int = 8080
 
 

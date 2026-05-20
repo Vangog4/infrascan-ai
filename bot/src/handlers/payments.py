@@ -7,6 +7,7 @@ Setup required in BotFather:
 Flow:
   /premium or ⭐️ button → send_invoice (XTR) → pre_checkout_query → successful_payment
 """
+
 import logging
 
 from aiogram import Bot, F, Router
@@ -30,6 +31,7 @@ _PAYLOAD = "premium_30days"
 
 
 # ── /premium command + ⭐️ button ────────────────────────────────────────────
+
 
 async def _show_premium_offer(message: Message, locale: str, is_local: bool) -> None:
     stars = settings.premium_price_stars
@@ -76,8 +78,7 @@ async def cmd_premium(
             )
         else:
             await message.answer(
-                "✅ <b>You already have Premium!</b>\n"
-                "Analyze as many photos as you want.",
+                "✅ <b>You already have Premium!</b>\nAnalyze as many photos as you want.",
                 reply_markup=client_menu(locale, is_local),
             )
         return
@@ -114,6 +115,7 @@ async def cb_premium_buy(call: CallbackQuery, bot: Bot, locale: str = "ru") -> N
 
 # ── Checkout ─────────────────────────────────────────────────────────────────
 
+
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery, bot: Bot) -> None:
     await bot.answer_pre_checkout_query(query.id, ok=True)
@@ -132,7 +134,9 @@ async def payment_success(
 
     logger.info(
         "Stars payment confirmed: user=%d stars=%d payload=%s",
-        user_id, payment.total_amount, payment.invoice_payload,
+        user_id,
+        payment.total_amount,
+        payment.invoice_payload,
     )
 
     await premium_svc.grant_premium(user_id, days)
