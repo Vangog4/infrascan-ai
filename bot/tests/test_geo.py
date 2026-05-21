@@ -42,15 +42,15 @@ async def test_uk_lang_locale_ru():
 
 
 @pytest.mark.asyncio
-async def test_kk_lang_locale_ru():
+async def test_kk_lang_locale_kk():
     data = await _run(lang="kk")
-    assert data["locale"] == "ru"
+    assert data["locale"] == "kk"
 
 
 @pytest.mark.asyncio
-async def test_de_lang_locale_en():
+async def test_de_lang_locale_de():
     data = await _run(lang="de")
-    assert data["locale"] == "en"
+    assert data["locale"] == "de"
 
 
 @pytest.mark.asyncio

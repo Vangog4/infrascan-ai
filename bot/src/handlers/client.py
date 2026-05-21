@@ -21,6 +21,7 @@ from src.services import gemini, odoo, roles
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
 from src.services.comparison import format_comparison
+from src.services.i18n import t
 from src.services.redis import (
     get_last_analysis,
     get_last_report,
@@ -47,16 +48,7 @@ async def audit_start(
 ) -> None:
     await state.set_state(AuditFlow.photo)
     await state.update_data(locale=locale, is_local=is_local)
-    if locale == "ru":
-        await message.answer(
-            "📷 Отправьте фото объекта — окно, стена, щиток, кровля или фасад.\n\n"
-            "<i>ИИ проанализирует снимок и выдаст заключение с уровнем риска за 30 секунд.</i>"
-        )
-    else:
-        await message.answer(
-            "📷 Send a photo of the object — window, wall, electrical panel, roof or facade.\n\n"
-            "<i>AI will analyze it and return a risk assessment in ~30 seconds.</i>"
-        )
+    await message.answer(t("audit_prompt", locale))
 
 
 _MAX_PHOTO_BYTES = 20 * 1024 * 1024  # 20 MB — Gemini hard limit
@@ -111,8 +103,7 @@ async def audit_photo(
         return
 
     await bot.send_chat_action(message.chat.id, "upload_photo")
-    wait_text = "🔍 Анализирую снимок..." if locale == "ru" else "🔍 Analyzing photo..."
-    wait = await message.answer(wait_text)
+    wait = await message.answer(t("analyzing", locale))
 
     file_io = await bot.download(photo)
     result = await gemini.analyze_photo(file_io.read(), locale=locale)
