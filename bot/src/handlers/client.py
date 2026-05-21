@@ -161,10 +161,14 @@ async def audit_photo(
     else:
         text = gemini.format_analysis_premium(result, locale)
         await save_last_report(user_id, text)
-        # Build keyboard: PDF download + optional order button
+        # Build keyboard: PDF + Voice + optional order button
         b = InlineKeyboardBuilder()
         pdf_label = "📄 Скачать PDF-отчёт" if locale == "ru" else "📄 Download PDF report"
-        b.row(InlineKeyboardButton(text=pdf_label, callback_data="report:pdf"))
+        voice_label = "🎤 Голосовое заключение" if locale == "ru" else "🎤 Voice summary"
+        b.row(
+            InlineKeyboardButton(text=pdf_label, callback_data="report:pdf"),
+            InlineKeyboardButton(text=voice_label, callback_data="report:voice"),
+        )
         if is_local:
             b.row(
                 InlineKeyboardButton(
@@ -353,4 +357,40 @@ async def download_pdf(call: CallbackQuery, locale: str = "ru") -> None:
     await call.message.answer_document(
         document=BufferedInputFile(pdf_bytes, filename=filename),
         caption=caption,
+    )
+
+
+# ── Voice Report ──────────────────────────────────────────────────────────────
+
+
+@router.callback_query(F.data == "report:voice")
+async def download_voice(call: CallbackQuery, locale: str = "ru") -> None:
+    user_id = call.from_user.id
+    report_text = await get_last_report(user_id)
+
+    if not report_text:
+        msg = (
+            "⚠️ Отчёт не найден — анализ устарел (хранится 24 ч). Сделайте новый анализ."
+            if locale == "ru"
+            else "⚠️ Report not found — it expired (stored for 24 h). Run a new analysis."
+        )
+        await call.answer(msg, show_alert=True)
+        return
+
+    await call.answer(
+        "⏳ Генерирую голосовое заключение..."
+        if locale == "ru"
+        else "⏳ Generating voice summary..."
+    )
+
+    from src.services.tts import generate_voice
+
+    mp3_bytes = await generate_voice(report_text, locale)
+    await call.message.answer_voice(
+        voice=BufferedInputFile(mp3_bytes, filename="InfraScan_report.mp3"),
+        caption=(
+            "🎤 <b>Голосовое заключение готово</b>"
+            if locale == "ru"
+            else "🎤 <b>Voice summary ready</b>"
+        ),
     )
