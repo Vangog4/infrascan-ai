@@ -3,7 +3,14 @@ from datetime import UTC
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Contact, InlineKeyboardButton, Message
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    Contact,
+    InlineKeyboardButton,
+    Message,
+    WebAppInfo,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
@@ -160,6 +167,8 @@ async def audit_photo(
             InlineKeyboardButton(text=pdf_label, callback_data="report:pdf"),
             InlineKeyboardButton(text=voice_label, callback_data="report:voice"),
         )
+        map_label = "🗺 Карта рисков" if locale == "ru" else "🗺 Risk map"
+        b.row(InlineKeyboardButton(text=map_label, web_app=WebAppInfo(url=settings.webapp_url)))
         if is_local:
             b.row(
                 InlineKeyboardButton(

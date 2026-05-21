@@ -32,5 +32,8 @@ class Settings(BaseSettings):
     webhook_secret: str = ""  # random string; required when webhook_url is set
     webhook_port: int = 8080
 
+    # Telegram WebApp URL (served via Odoo static or CDN)
+    webapp_url: str = "https://infrascan-ai.ru/infrascan_ai/static/src/webapp/index.html"
+
 
 settings = Settings()

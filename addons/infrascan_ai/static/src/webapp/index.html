@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>InfraScan — Карта рисков</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #0e1117;
+      --card: #1a1f2e;
+      --accent: #4f8ef7;
+      --low: #34d058;
+      --medium: #f0a500;
+      --high: #e05c4b;
+      --critical: #cc0000;
+      --text: #e8eaf0;
+      --muted: #8892a4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    header img { width: 32px; height: 32px; border-radius: 8px; }
+    header h1 { font-size: 18px; font-weight: 700; }
+    header span { font-size: 12px; color: var(--muted); }
+
+    /* Risk summary bar */
+    .summary {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .summary h2 { font-size: 13px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    .risk-score {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .score-circle {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .score-info h3 { font-size: 17px; font-weight: 700; }
+    .score-info p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .progress-bar {
+      height: 6px;
+      background: #2a2f3e;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+
+    /* Zones grid */
+    .zones { margin-bottom: 16px; }
+    .zones h2 { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+    .zone-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .zone-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color .2s;
+    }
+    .zone-card.active { border-color: var(--accent); }
+    .zone-icon { font-size: 24px; margin-bottom: 8px; }
+    .zone-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .zone-risk {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      display: inline-block;
+    }
+    .risk-LOW { background: rgba(52,208,88,.15); color: var(--low); }
+    .risk-MEDIUM { background: rgba(240,165,0,.15); color: var(--medium); }
+    .risk-HIGH { background: rgba(224,92,75,.15); color: var(--high); }
+    .risk-CRITICAL { background: rgba(204,0,0,.2); color: var(--critical); }
+
+    /* Detail panel */
+    .detail {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .detail.visible { display: block; }
+    .detail h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+    .detail-item {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .detail-item .dot { flex-shrink: 0; margin-top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+    /* Action button */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn-primary:active { opacity: .8; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="background:var(--accent);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔬</div>
+    <div>
+      <h1>InfraScan AI</h1>
+      <span id="scan-date">Карта рисков</span>
+    </div>
+  </header>
+
+  <div class="summary">
+    <h2>Общий риск объекта</h2>
+    <div class="risk-score">
+      <div class="score-circle" id="score-circle">—</div>
+      <div class="score-info">
+        <h3 id="risk-label">Загрузка...</h3>
+        <p id="risk-desc">Получаю данные анализа</p>
+      </div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="zones">
+    <h2>Зоны объекта</h2>
+    <div class="zone-grid" id="zone-grid"></div>
+  </div>
+
+  <div class="detail" id="detail-panel">
+    <h3 id="detail-title"></h3>
+    <div id="detail-content"></div>
+  </div>
+
+  <button class="btn-primary" id="cta-btn" onclick="orderInspection()">
+    🚗 Заказать выезд инженера
+  </button>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // Parse analysis data passed via initData or startParam
+    const params = new URLSearchParams(tg.initData || window.location.search.slice(1));
+    let analysis = {};
+    try {
+      const raw = tg.initDataUnsafe?.start_param || params.get('data');
+      if (raw) analysis = JSON.parse(decodeURIComponent(raw));
+    } catch (_) {}
+
+    // Fallback demo data
+    if (!analysis.risk_level) {
+      analysis = {
+        risk_level: 'MEDIUM',
+        risk_score: 54,
+        object_type: 'Фасад здания',
+        zones: [
+          { name: 'Кровля', icon: '🏠', risk: 'HIGH', issues: ['Намокание утеплителя', 'Расслоение материала'] },
+          { name: 'Окна', icon: '🪟', risk: 'MEDIUM', issues: ['Продувание угловых стыков', 'Износ уплотнителя'] },
+          { name: 'Стены', icon: '🧱', risk: 'LOW', issues: ['Незначительные трещины'] },
+          { name: 'Подвал', icon: '⬇️', risk: 'CRITICAL', issues: ['Промерзание фундамента', 'Конденсат на трубах'] },
+        ],
+        scan_date: new Date().toLocaleDateString('ru-RU'),
+      };
+    }
+
+    const riskColors = { LOW: '#34d058', MEDIUM: '#f0a500', HIGH: '#e05c4b', CRITICAL: '#cc0000' };
+    const riskLabels = { LOW: 'Низкий', MEDIUM: 'Средний', HIGH: 'Высокий', CRITICAL: 'Критический' };
+    const riskDescs = {
+      LOW: 'Объект в удовлетворительном состоянии',
+      MEDIUM: 'Требуется плановый ремонт',
+      HIGH: 'Необходимо срочное устранение дефектов',
+      CRITICAL: 'Аварийное состояние — немедленные меры',
+    };
+
+    // Render summary
+    const score = analysis.risk_score || 0;
+    const level = analysis.risk_level || 'LOW';
+    const color = riskColors[level];
+
+    document.getElementById('score-circle').textContent = score + '%';
+    document.getElementById('score-circle').style.background = color + '22';
+    document.getElementById('score-circle').style.color = color;
+    document.getElementById('risk-label').textContent = riskLabels[level] + ' риск';
+    document.getElementById('risk-desc').textContent = riskDescs[level];
+    document.getElementById('progress-fill').style.width = score + '%';
+    document.getElementById('progress-fill').style.background = color;
+    document.getElementById('scan-date').textContent = analysis.scan_date || analysis.object_type || 'Карта рисков';
+
+    // Render zones
+    const grid = document.getElementById('zone-grid');
+    (analysis.zones || []).forEach((zone, i) => {
+      const card = document.createElement('div');
+      card.className = 'zone-card';
+      card.innerHTML = `
+        <div class="zone-icon">${zone.icon}</div>
+        <div class="zone-name">${zone.name}</div>
+        <span class="zone-risk risk-${zone.risk}">${riskLabels[zone.risk]}</span>
+      `;
+      card.onclick = () => showDetail(zone, card);
+      grid.appendChild(card);
+    });
+
+    let activeCard = null;
+    function showDetail(zone, card) {
+      if (activeCard) activeCard.classList.remove('active');
+      if (activeCard === card) {
+        activeCard = null;
+        document.getElementById('detail-panel').classList.remove('visible');
+        return;
+      }
+      activeCard = card;
+      card.classList.add('active');
+      document.getElementById('detail-title').textContent = zone.icon + ' ' + zone.name;
+      const content = document.getElementById('detail-content');
+      content.innerHTML = (zone.issues || []).map(issue =>
+        `<div class="detail-item"><div class="dot"></div><span>${issue}</span></div>`
+      ).join('');
+      document.getElementById('detail-panel').classList.add('visible');
+      tg.HapticFeedback.impactOccurred('light');
+    }
+
+    function orderInspection() {
+      tg.sendData(JSON.stringify({ action: 'order_inspection', risk_level: level }));
+    }
+  </script>
+</body>
+</html>
