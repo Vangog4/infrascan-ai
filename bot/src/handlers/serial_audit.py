@@ -12,14 +12,20 @@ MAX_PHOTOS = 5
 def _serial_kb(count: int) -> InlineKeyboardMarkup:
     rows = []
     if count < MAX_PHOTOS:
-        rows.append([InlineKeyboardButton(
-            text=f"📸 Добавить ещё ({count}/{MAX_PHOTOS})",
-            callback_data="serial_add_hint"
-        )])
-    rows.append([InlineKeyboardButton(
-        text=f"✅ Анализировать все {count} фото",
-        callback_data="serial_done"
-    )])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"📸 Добавить ещё ({count}/{MAX_PHOTOS})", callback_data="serial_add_hint"
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=f"✅ Анализировать все {count} фото", callback_data="serial_done"
+            )
+        ]
+    )
     rows.append([InlineKeyboardButton(text="❌ Отмена", callback_data="serial_cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -93,9 +99,7 @@ async def serial_done(callback: CallbackQuery, state: FSMContext):
             verdict = (analysis.get("free_verdict") or "")[:200]
             icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}.get(risk, "⚪")
             results.append(
-                f"📸 <b>Фото {i}</b> — {obj}\n"
-                f"{icon} Риск: <b>{risk}</b>\n"
-                f"<i>{verdict}</i>"
+                f"📸 <b>Фото {i}</b> — {obj}\n{icon} Риск: <b>{risk}</b>\n<i>{verdict}</i>"
             )
         except Exception as e:
             results.append(f"📸 Фото {i}: ошибка — {e}")

@@ -18,7 +18,7 @@ def get_redis() -> aioredis.Redis:
     return _redis
 
 
-_REPORT_TTL = 24 * 3600       # report text cache
+_REPORT_TTL = 24 * 3600  # report text cache
 _ANALYSIS_TTL = 90 * 24 * 3600  # structured analysis — 90 days for before/after
 
 
@@ -32,11 +32,13 @@ async def get_last_report(user_id: int) -> str | None:
 
 async def save_last_analysis(user_id: int, analysis: dict) -> None:
     import json
+
     await get_redis().set(f"analysis:{user_id}", json.dumps(analysis), ex=_ANALYSIS_TTL)
 
 
 async def get_last_analysis(user_id: int) -> dict | None:
     import json
+
     raw = await get_redis().get(f"analysis:{user_id}")
     return json.loads(raw) if raw else None
 

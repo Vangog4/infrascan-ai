@@ -272,14 +272,16 @@ async def save_report(client_tg_id: str, analysis: dict) -> bool:
     result = await _call(
         "infrascan.bot.report",
         "create",
-        vals_list=[{
-            "client_tg_id": str(client_tg_id),
-            "object_type": analysis.get("object_type", ""),
-            "risk_level": analysis.get("risk_level", "MEDIUM"),
-            "risk_score": float(analysis.get("risk_score", 0.0)),
-            "verdict": analysis.get("free_verdict", ""),
-            "is_premium": False,
-        }],
+        vals_list=[
+            {
+                "client_tg_id": str(client_tg_id),
+                "object_type": analysis.get("object_type", ""),
+                "risk_level": analysis.get("risk_level", "MEDIUM"),
+                "risk_score": float(analysis.get("risk_score", 0.0)),
+                "verdict": analysis.get("free_verdict", ""),
+                "is_premium": False,
+            }
+        ],
     )
     if isinstance(result, int):
         logger.info("Saved bot report id=%d for tg_id=%s", result, client_tg_id)
