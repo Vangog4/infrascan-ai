@@ -20,7 +20,13 @@ from src.keyboards.menus import (
 from src.services import gemini, odoo, roles
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
-from src.services.redis import get_last_report, save_last_report
+from src.services.comparison import format_comparison
+from src.services.redis import (
+    get_last_analysis,
+    get_last_report,
+    save_last_analysis,
+    save_last_report,
+)
 from src.states.flows import AuditFlow, CalcFlow, LeadFlow
 
 logger = logging.getLogger(__name__)
@@ -112,6 +118,13 @@ async def audit_photo(
     result = await gemini.analyze_photo(file_io.read(), locale=locale)
 
     await wait.delete()
+
+    # Before/After comparison
+    prev = await get_last_analysis(user_id)
+    if prev:
+        cmp_text = format_comparison(prev, result, locale)
+        await message.answer(cmp_text, parse_mode="HTML")
+    await save_last_analysis(user_id, result)
 
     # Save to report history (fire-and-forget, non-blocking)
     import asyncio as _asyncio
