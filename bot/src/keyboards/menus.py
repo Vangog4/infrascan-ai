@@ -116,16 +116,24 @@ def premium_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMarkup:
     if locale == "ru":
         b.row(
             InlineKeyboardButton(
-                text=f"⭐️ Купить Premium — {stars} Stars/мес",
+                text=f"⭐️ Premium — {stars} Stars/мес (безлимит)",
                 callback_data="premium:buy",
             )
+        )
+        b.row(
+            InlineKeyboardButton(text="📦 3 анализа — 300 Stars", callback_data="pack:3"),
+            InlineKeyboardButton(text="📦 10 анализов — 800 Stars", callback_data="pack:10"),
         )
     else:
         b.row(
             InlineKeyboardButton(
-                text=f"⭐️ Get Premium — {stars} Stars/month",
+                text=f"⭐️ Premium — {stars} Stars/month (unlimited)",
                 callback_data="premium:buy",
             )
+        )
+        b.row(
+            InlineKeyboardButton(text="📦 3 analyses — 300 Stars", callback_data="pack:3"),
+            InlineKeyboardButton(text="📦 10 analyses — 800 Stars", callback_data="pack:10"),
         )
     return b.as_markup()
 

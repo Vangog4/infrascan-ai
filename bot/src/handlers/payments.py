@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 router = Router(name="payments")
 
 _PAYLOAD = "premium_30days"
+_PACK_PRICES = {3: 300, 10: 800}  # scans → Stars
 
 
 # ── /premium command + ⭐️ button ────────────────────────────────────────────
@@ -113,6 +114,32 @@ async def cb_premium_buy(call: CallbackQuery, bot: Bot, locale: str = "ru") -> N
     await call.answer()
 
 
+# ── Scan Packs ───────────────────────────────────────────────────────────────
+
+
+@router.callback_query(F.data.in_({"pack:3", "pack:10"}))
+async def cb_pack_buy(call: CallbackQuery, bot: Bot, locale: str = "ru") -> None:
+    count = int(call.data.split(":")[1])
+    stars = _PACK_PRICES[count]
+    if locale == "ru":
+        title = f"Пакет {count} анализов"
+        description = f"{count} AI-анализов фото без срока действия"
+        label = f"{count} анализа" if count == 3 else f"{count} анализов"  # noqa: S105
+    else:
+        title = f"Pack of {count} analyses"
+        description = f"{count} AI photo analyses, no expiry"
+        label = f"{count} analyses"
+    await bot.send_invoice(
+        chat_id=call.from_user.id,
+        title=title,
+        description=description,
+        payload=f"pack_{count}_scans",
+        currency="XTR",
+        prices=[LabeledPrice(label=label, amount=stars)],
+    )
+    await call.answer()
+
+
 # ── Checkout ─────────────────────────────────────────────────────────────────
 
 
@@ -130,15 +157,39 @@ async def payment_success(
 ) -> None:
     user_id = message.from_user.id
     payment = message.successful_payment
-    days = settings.premium_duration_days
+    payload = payment.invoice_payload
 
     logger.info(
         "Stars payment confirmed: user=%d stars=%d payload=%s",
         user_id,
         payment.total_amount,
-        payment.invoice_payload,
+        payload,
     )
 
+    if payload.startswith("pack_") and payload.endswith("_scans"):
+        count = int(payload.split("_")[1])
+        await ref_svc.add_bonus_scans(user_id, count)
+        bonus_left = await ref_svc.get_bonus_scans(user_id)
+        if locale == "ru":
+            text = (
+                f"📦 <b>Пакет активирован!</b>\n\n"
+                f"Спасибо за {payment.total_amount} ⭐️\n"
+                f"Добавлено <b>{count} анализов</b> — они не сгорают.\n\n"
+                f"Итого бонусных анализов: <b>{bonus_left}</b>\n"
+                f"Отправляйте фото!"
+            )
+        else:
+            text = (
+                f"📦 <b>Pack activated!</b>\n\n"
+                f"Thank you for {payment.total_amount} ⭐️\n"
+                f"Added <b>{count} analyses</b> — they never expire.\n\n"
+                f"Total bonus analyses: <b>{bonus_left}</b>\n"
+                f"Send your photos!"
+            )
+        await message.answer(text, reply_markup=client_menu(locale, is_local))
+        return
+
+    days = settings.premium_duration_days
     await premium_svc.grant_premium(user_id, days)
     await ref_svc.reward_premium_purchase(user_id, bot)
 
