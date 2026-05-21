@@ -239,13 +239,20 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
         await message.answer("⚠️ Введите сумму в рублях, например: <b>3800</b>")
         return
     data = await state.get_data()
+    locale: str = data.get("locale", "ru")
     await state.clear()
-    wait = await message.answer("⚙️ Считаю теплопотери...")
-    result = await gemini.calculate_losses(data["area"], data["heating"], payment)
+    wait = await message.answer(
+        "⚙️ Считаю теплопотери..." if locale == "ru" else "⚙️ Calculating heat losses..."
+    )
+
+    from src.services.weather import get_weather_context
+
+    weather_ctx = await get_weather_context()
+    result = await gemini.calculate_losses(data["area"], data["heating"], payment, weather_ctx)
     await wait.delete()
     await message.answer(
         f"🧮 <b>Расчёт теплопотерь</b>\n{_SEP}\n\n{result}",
-        reply_markup=order_kb("ru"),
+        reply_markup=order_kb(locale),
     )
 
 

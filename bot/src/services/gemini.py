@@ -183,6 +183,7 @@ _CALC_PROMPT = """
 - Площадь: {area} м²
 - Тип отопления: {heating}
 - Расходы на отопление (самый холодный месяц): {payment} руб.
+{weather_ctx}
 
 Ответь СТРОГО в формате ниже.
 Разрешённые HTML-теги: только <b> и <i>. Список — символ «•».
@@ -288,11 +289,15 @@ async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg
         return {"error": "api_error", "free_verdict": msg}
 
 
-async def calculate_losses(area: float, heating: str, payment: float) -> str:
+async def calculate_losses(
+    area: float, heating: str, payment: float, weather_ctx: str = ""
+) -> str:
     if settings.gemini_stub:
         return _STUB_LOSSES
     try:
-        prompt = _CALC_PROMPT.format(area=area, heating=heating, payment=payment)
+        prompt = _CALC_PROMPT.format(
+            area=area, heating=heating, payment=payment, weather_ctx=weather_ctx
+        )
         r = await _get().aio.models.generate_content(
             model=settings.gemini_model,
             contents=prompt,
