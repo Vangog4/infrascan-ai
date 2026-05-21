@@ -5,6 +5,7 @@
     'author': 'InfraScan',
     'depends': ['project', 'website'],
     'data': [
+        'security/ir.model.access.csv',
         'data/infrascan_config_data.xml',
         'data/project_stage_data.xml',
         'data/ir_cron.xml',

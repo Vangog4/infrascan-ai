@@ -26,3 +26,7 @@ class PartnerLeadFlow(StatesGroup):
 class EmployeePhotoFlow(StatesGroup):
     task = State()
     photos = State()
+
+
+class SerialAuditFlow(StatesGroup):
+    collecting = State()

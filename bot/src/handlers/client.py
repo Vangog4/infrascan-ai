@@ -113,6 +113,10 @@ async def audit_photo(
 
     await wait.delete()
 
+    # Save to report history (fire-and-forget, non-blocking)
+    import asyncio as _asyncio
+    _asyncio.create_task(odoo.save_report(str(message.from_user.id), result))
+
     # Referral first-scan reward (idempotent, fires once per new user)
     await ref_svc.reward_first_scan(user_id, bot)
 

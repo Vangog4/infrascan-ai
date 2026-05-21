@@ -22,6 +22,10 @@ class ProjectTask(models.Model):
         string='Telegram ID инженера',
         help='Telegram user ID исполнителя. Задача показывается только ему в боте.',
     )
+    x_client_tg_id = fields.Char(
+        string='Client Telegram ID',
+        help='Telegram ID клиента для уведомлений о статусе заявки.',
+    )
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
@@ -91,6 +95,33 @@ class ProjectTask(models.Model):
                         task._notify_admin_task_done()
                     elif task.x_telegram_id:
                         task._notify_engineer_stage_change(old_name, task.stage_id.name)
+                    # Notify client on stage change
+                    if task.x_client_tg_id:
+                        stage_lower = task.stage_id.name.lower()
+                        if any(kw in stage_lower for kw in ('назначен', 'assigned')):
+                            client_msg = (
+                                f"👷 <b>Инженер назначен!</b>\n\n"
+                                f"🏗 {task.name}\n"
+                                f"Специалист назначен на вашу заявку. Ожидайте звонка."
+                            )
+                        elif any(kw in stage_lower for kw in ('выехал', 'в пути', 'en route')):
+                            client_msg = (
+                                f"🚗 <b>Инженер выехал!</b>\n\n"
+                                f"🏗 {task.name}\n"
+                                f"Специалист уже едет к вам."
+                            )
+                        elif any(kw in stage_lower for kw in ('выполнена', 'done', 'завершена', 'готово')):
+                            client_msg = (
+                                f"✅ <b>Работа выполнена!</b>\n\n"
+                                f"🏗 {task.name}\n"
+                                f"Отчёт доступен в боте: /myreports"
+                            )
+                        else:
+                            client_msg = (
+                                f"📋 Статус вашей заявки: <b>{task.stage_id.name}</b>\n"
+                                f"🏗 {task.name}"
+                            )
+                        task._send_telegram([task.x_client_tg_id], client_msg)
 
         return result
 

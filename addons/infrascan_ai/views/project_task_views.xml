@@ -13,6 +13,7 @@
                 <field name="x_telegram_id"
                        placeholder="Telegram ID инженера, напр. 123456789"
                        widget="char"/>
+                <field name="x_client_tg_id" placeholder="Telegram ID клиента"/>
             </field>
 
             <!-- Кнопки в шапке формы -->

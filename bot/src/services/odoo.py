@@ -263,3 +263,39 @@ async def partner_balance(phone: str) -> float | None:
         return 0.0
     raw = result[0].get("x_partner_balance")
     return float(raw) if raw not in (None, False) else 0.0
+
+
+async def save_report(client_tg_id: str, analysis: dict) -> bool:
+    """Save analysis result to Odoo infrascan.bot.report."""
+    if analysis.get("_stub"):
+        return True
+    result = await _call(
+        "infrascan.bot.report",
+        "create",
+        vals_list=[{
+            "client_tg_id": str(client_tg_id),
+            "object_type": analysis.get("object_type", ""),
+            "risk_level": analysis.get("risk_level", "MEDIUM"),
+            "risk_score": float(analysis.get("risk_score", 0.0)),
+            "verdict": analysis.get("free_verdict", ""),
+            "is_premium": False,
+        }],
+    )
+    if isinstance(result, int):
+        logger.info("Saved bot report id=%d for tg_id=%s", result, client_tg_id)
+        return True
+    logger.warning("save_report failed for tg_id=%s: %s", client_tg_id, result)
+    return False
+
+
+async def get_reports(client_tg_id: str, limit: int = 5) -> list:
+    """Get last N analysis reports for a client."""
+    result = await _call(
+        "infrascan.bot.report",
+        "search_read",
+        domain=[["client_tg_id", "=", str(client_tg_id)]],
+        fields=["object_type", "risk_level", "risk_score", "verdict", "create_date"],
+        limit=limit,
+        order="create_date desc",
+    )
+    return result or []

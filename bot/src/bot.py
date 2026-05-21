@@ -7,7 +7,17 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
 from src.config import settings
-from src.handlers import account, client, common, employee, payments, referral
+from src.handlers import (
+    account,
+    client,
+    common,
+    employee,
+    onboarding,
+    payments,
+    referral,
+    reports,
+    serial_audit,
+)
 from src.handlers import help as help_handler
 from src.middlewares.dedupe import ContentDedupeMiddleware
 from src.middlewares.geo import GeoMiddleware
@@ -44,6 +54,9 @@ def _build_dispatcher() -> tuple[Bot, Dispatcher]:
     dp.include_router(referral.router)
     dp.include_router(account.router)
     dp.include_router(help_handler.router)
+    dp.include_router(reports.router)
+    dp.include_router(serial_audit.router)
+    dp.include_router(onboarding.router)
     dp.include_router(client.router)
     dp.include_router(common.router)
 
