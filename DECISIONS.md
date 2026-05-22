@@ -1789,3 +1789,537 @@ DECISIONS.md                                     | 116 +++++++++++++++++++++++
 _Gemini review недоступен_
 
 ---
+
+## Retrospective — 2026-05-21 12:52
+
+### Изменения в сессии
+```
+bot/logseq/journals/2026_05_21.md | 3 +++
+ 1 file changed, 3 insertions(+)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-21 13:16
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 13 +++++++++++++
+ bot/logseq/journals/2026_05_21.md |  3 +++
+ 2 files changed, 16 insertions(+)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-21 14:05
+
+### Изменения в сессии
+```
+DECISIONS.md                      | 27 +++++++++++++++++++++++++++
+ bot/logseq/journals/2026_05_21.md |  6 ++++++
+ 2 files changed, 33 insertions(+)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-21 16:39
+
+### Изменения в сессии
+```
+DECISIONS.md                                     | 41 ++++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html | 14 ++++----
+ bot/logseq/journals/2026_05_21.md                |  3 ++
+ 3 files changed, 51 insertions(+), 7 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 04:05
+
+### Изменения в сессии
+```
+DECISIONS.md                                     | 56 ++++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html | 16 +++----
+ bot/logseq/journals/2026_05_21.md                |  3 ++
+ 3 files changed, 67 insertions(+), 8 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 04:07
+
+### Изменения в сессии
+```
+DECISIONS.md                                     | 71 ++++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html | 16 +++---
+ bot/logseq/journals/2026_05_21.md                |  3 +
+ 3 files changed, 82 insertions(+), 8 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 04:10
+
+### Изменения в сессии
+```
+DECISIONS.md                                     | 86 ++++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html | 16 ++---
+ bot/logseq/journals/2026_05_21.md                |  3 +
+ 3 files changed, 97 insertions(+), 8 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 04:36
+
+### Изменения в сессии
+```
+DECISIONS.md                                     | 101 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 ++--
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ 3 files changed, 112 insertions(+), 8 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 04:57
+
+### Изменения в сессии
+```
+DECISIONS.md                                     | 116 +++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +--
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ hooks/kimi_agent.sh                              |  14 +-
+ hooks/kimi_client.py                             | 171 ++++++++++-------------
+ 5 files changed, 207 insertions(+), 113 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 05:16
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  66 ++----
+ DECISIONS.md                                     | 133 ++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        |  80 +-------
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 -----------------------
+ hooks/router.py                                  |  70 +------
+ 8 files changed, 180 insertions(+), 497 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 06:29
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  61 +++---
+ DECISIONS.md                                     | 153 ++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++++-------
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 -----------------------
+ hooks/router.py                                  |  50 ++---
+ 8 files changed, 283 insertions(+), 444 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 06:31
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  62 +++---
+ DECISIONS.md                                     | 173 ++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++++-------
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 -----------------------
+ hooks/router.py                                  |  54 ++---
+ 8 files changed, 306 insertions(+), 446 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 06:40
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  62 +++---
+ DECISIONS.md                                     | 193 ++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++++-------
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 -----------------------
+ hooks/router.py                                  |  55 ++---
+ 8 files changed, 327 insertions(+), 446 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 06:43
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  62 +++---
+ DECISIONS.md                                     | 213 +++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++++-------
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 -----------------------
+ hooks/router.py                                  |  55 ++---
+ 8 files changed, 347 insertions(+), 446 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 06:48
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 +++++---
+ DECISIONS.md                                     | 233 +++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++++-------
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 -----------------------
+ hooks/router.py                                  |  55 ++---
+ 8 files changed, 389 insertions(+), 446 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 06:51
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 +++++---
+ DECISIONS.md                                     | 253 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++++------
+ hooks/auto_journal.py                            |  98 ++++++---
+ hooks/kimi_agent.sh                              |  62 ------
+ hooks/kimi_client.py                             | 247 ----------------------
+ hooks/router.py                                  |  55 ++---
+ 9 files changed, 478 insertions(+), 475 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 07:09
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 ++++---
+ DECISIONS.md                                     | 274 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 +++++------
+ hooks/auto_journal.py                            | 114 +++++++---
+ hooks/kimi_agent.sh                              |  62 -----
+ hooks/kimi_client.py                             | 247 --------------------
+ hooks/router.py                                  |  55 ++---
+ 9 files changed, 515 insertions(+), 475 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 07:11
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 ++++---
+ DECISIONS.md                                     | 295 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 +++++------
+ hooks/auto_journal.py                            | 114 ++++++---
+ hooks/kimi_agent.sh                              |  62 -----
+ hooks/kimi_client.py                             | 247 -------------------
+ hooks/router.py                                  |  55 ++---
+ 9 files changed, 536 insertions(+), 475 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 07:13
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 +++---
+ DECISIONS.md                                     | 316 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 +++++-----
+ hooks/auto_journal.py                            | 114 +++++---
+ hooks/kimi_agent.sh                              |  62 -----
+ hooks/kimi_client.py                             | 247 ------------------
+ hooks/router.py                                  |  55 ++--
+ 9 files changed, 557 insertions(+), 475 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 07:15
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 ++++--
+ DECISIONS.md                                     | 337 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 +++++----
+ hooks/auto_journal.py                            | 114 ++++++--
+ hooks/kimi_agent.sh                              |  62 -----
+ hooks/kimi_client.py                             | 247 -----------------
+ hooks/router.py                                  |  55 ++--
+ 9 files changed, 578 insertions(+), 475 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 07:22
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 ++++--
+ DECISIONS.md                                     | 358 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++-----
+ hooks/auto_journal.py                            | 114 ++++++--
+ hooks/gemini_agent.sh                            | 248 +++++++++-------
+ hooks/kimi_agent.sh                              |  62 ----
+ hooks/kimi_client.py                             | 247 ----------------
+ hooks/router.py                                  |  55 ++--
+ 10 files changed, 735 insertions(+), 587 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 07:44
+
+### Изменения в сессии
+```
+CLAUDE.md                                        |  84 +++--
+ DECISIONS.md                                     | 380 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++----
+ hooks/auto_journal.py                            |  35 +--
+ hooks/confirm_bridge.py                          | 189 +----------
+ hooks/gemini_agent.sh                            | 189 +----------
+ hooks/kimi_agent.sh                              |  62 ----
+ hooks/kimi_client.py                             | 247 ---------------
+ hooks/llm_tracker.py                             | 187 +----------
+ hooks/loop_orchestrator.sh                       | 153 +--------
+ hooks/memory_hygiene.py                          | 119 +------
+ hooks/process_watch.py                           | 223 +------------
+ hooks/retrospective.py                           | 114 +------
+ hooks/router.py                                  |  57 ++--
+ hooks/safety_guard.py                            |  95 +-----
+ hooks/self_improving_agent.py                    | 151 +--------
+ hooks/skill_vetter.py                            | 126 +-------
+ hooks/stuck_detector.py                          |  95 +-----
+ 20 files changed, 549 insertions(+), 2111 deletions(-)
+```
+
+### Gemini Red Team Review
+_Gemini review недоступен_
+
+---
+
+## Retrospective — 2026-05-22 08:09 [infrascan-ai]
+
+### Изменения
+```
+CLAUDE.md                                        |  84 +++--
+ DECISIONS.md                                     | 412 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++----
+ hooks/auto_journal.py                            |  35 +-
+ hooks/confirm_bridge.py                          | 189 +----------
+ hooks/gemini_agent.sh                            | 189 +----------
+ hooks/kimi_agent.sh                              |  62 ----
+ hooks/kimi_client.py                             | 247 --------------
+ hooks/llm_tracker.py                             | 187 +---------
+ hooks/loop_orchestrator.sh                       | 153 +--------
+ hooks/memory_hygiene.py                          | 119 +------
+ hooks/process_watch.py                           | 223 +-----------
+ hooks/retrospective.py                           | 114 +------
+ hooks/router.py                                  |  57 ++--
+ hooks/safety_guard.py                            |  95 +-----
+ hooks/self_improving_agent.py                    | 151 +--------
+ hooks/skill_vetter.py                            | 126 +------
+ hooks/stuck_detector.py                          |  95 +-----
+ 20 files changed, 581 insertions(+), 2111 deletions(-)
+```
+
+### Gemini Review
+_Gemini недоступен_
+
+---
+
+## Retrospective — 2026-05-22 08:16 [infrascan-ai]
+
+### Изменения
+```
+CLAUDE.md                                        |  84 +++--
+ DECISIONS.md                                     | 444 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ config/collaboration.yaml                        | 135 ++++---
+ hooks/auto_journal.py                            |  35 +-
+ hooks/confirm_bridge.py                          | 189 +---------
+ hooks/gemini_agent.sh                            | 189 +---------
+ hooks/kimi_agent.sh                              |  62 ----
+ hooks/kimi_client.py                             | 247 -------------
+ hooks/llm_tracker.py                             | 187 +---------
+ hooks/loop_orchestrator.sh                       | 153 +-------
+ hooks/memory_hygiene.py                          | 119 +-----
+ hooks/process_watch.py                           | 223 +-----------
+ hooks/retrospective.py                           | 114 +-----
+ hooks/router.py                                  |  57 +--
+ hooks/safety_guard.py                            |  95 +----
+ hooks/self_improving_agent.py                    | 151 +-------
+ hooks/skill_vetter.py                            | 126 +------
+ hooks/stuck_detector.py                          |  95 +----
+ 20 files changed, 613 insertions(+), 2111 deletions(-)
+```
+
+### Gemini Review
+_Gemini недоступен_
+
+---
+
+## Retrospective — 2026-05-22 08:28 [infrascan-ai]
+
+### Изменения
+```
+CLAUDE.md                                        |  84 ++--
+ DECISIONS.md                                     | 476 +++++++++++++++++++++++
+ addons/infrascan_ai/static/src/webapp/index.html |  16 +-
+ bot/logseq/journals/2026_05_21.md                |   3 +
+ bot/src/services/gemini.py                       |   4 +-
+ config/collaboration.yaml                        | 140 ++++---
+ hooks/auto_journal.py                            |  35 +-
+ hooks/confirm_bridge.py                          | 189 +--------
+ hooks/gemini_agent.sh                            | 189 +--------
+ hooks/kimi_agent.sh                              |  62 ---
+ hooks/kimi_client.py                             | 247 ------------
+ hooks/llm_tracker.py                             | 187 +--------
+ hooks/loop_orchestrator.sh                       | 153 +-------
+ hooks/memory_hygiene.py                          | 119 +-----
+ hooks/process_watch.py                           | 223 +----------
+ hooks/retrospective.py                           | 114 +-----
+ hooks/router.py                                  |  57 +--
+ hooks/safety_guard.py                            |  95 +----
+ hooks/self_improving_agent.py                    | 151 +------
+ hooks/skill_vetter.py                            | 126 +-----
+ hooks/stuck_detector.py                          |  95 +----
+ 21 files changed, 649 insertions(+), 2116 deletions(-)
+```
+
+### Gemini Review
+🤖 [Gemini/infrascan-ai] режим=retrospective модель=gemini-3.1-flash-lite
+---
+### Ретроспектива: Multi-Agent System Transition (2026-05-22)
+
+#### 1. Успешные паттерны
+*   **YAML-as-Source-of-Truth:** Перенос контекста из разрозненных скриптов в централизованные YAML-файлы (`/root/agents/projects/`) значительно упростил масштабируемость и снизил риск рассинхронизации.
+*   **Инкапсуляция ответственности:** Вынос логики оркестрации в `/usr/local/bin/agent` (`orchestrator.py`) позволил избавиться от "спагетти-кода" в `router.py` и унифицировать входные точки для LLM-интеграций.
+*   **Автоматизация контекста:** Автоматическое инжектирование `GEMINI_PROJECT_CONTEXT` через оркестратор — критически важный паттерн для минимизации галлюцинаций в условиях ограниченного контекстного окна.
+
+#### 2. Проблемы и узкие места
+*   **Регрессия Gemini:** В ходе рефакторинга хуков нарушилась связность вызовов API. Причина — несоответствие ожидаемых параметров окружения в обновленных `gemini_agent.sh` и `llm_tracker.py`.
+*   **"Кровавый" рефакторинг:** Массовое удаление кода (более 2000 строк) в `hooks/` привело к потере специфических механизмов обработки ошибок в `kimi_client.py`. Требуется тщательная проверка на "битые" вызовы.
+*   **Риск диска:** Заполнение диска (88%) делает невозможным выполнение тяжелых операций без предварительной очистки кэшей (артефакты, логи).
+
+#### 3. Следующие шаги
+1.  **Диагностика Gemini:**
+    *   *Файл:* `hooks/llm_tracker.py`
+    *   *Действие:* Проверить лог вызова `gemini_agent.sh` (через `artifacts/`) и сравнить с переданными переменными окружения от `orchestrator.py`. Исправить маппинг параметров.
+2.  **Восстановление Kimi-k2.6:**
+    *   *Файл:* `hooks/kimi_agent.sh`
+    *   *Действие:* Написать минимальный тест вызова (`council "test"`) с прямым указанием `KIMI_PROJECT_CONTEXT` для изоляции ошибки (API vs Код).
+3.  **Стабилизация архитектуры:**
+    *   *Файл:* `hooks/router.py`
+    *   *Действие:* Добавить валидацию путей для всех агентов перед их вызовом в `orchestrator.py` для предотвращения вызова несуществующих скриптов.
+
+*Приступить к выполнению после подтверждения приоритетов.*
+
+---

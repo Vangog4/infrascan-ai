@@ -1,7 +1,29 @@
 # CLAUDE.md — infrascan-ai
 
+## ⚡ SESSION MEMORY — ОБЯЗАТЕЛЬНО
+
+### При старте каждой сессии:
+1. Прочитай `SESSION_STATE.md` — там контекст предыдущей сессии (ветка, незакоммиченное, след. шаги)
+2. Прочитай `SESSION_NOTES.md` — заметки что было в работе
+3. Выполни чеклист ниже
+
+### В течение сессии (ОБЯЗАТЕЛЬНО):
+Обновляй `/root/infrascan-ai/SESSION_NOTES.md` при каждом важном шаге:
+- Что делаю прямо сейчас
+- Ключевые решения и почему
+- Что ещё нужно сделать (следующие шаги)
+
+Используй команду: `Edit SESSION_NOTES.md` — не жди конца сессии.
+
+### При завершении сессии:
+Stop hook автоматически запишет `SESSION_STATE.md` на основе SESSION_NOTES.md + git state.
+
+---
+
 ## Pre-Session Checklist (выполнять перед каждой сессией)
 ```bash
+cat /root/infrascan-ai/SESSION_STATE.md             # контекст прошлой сессии!
+cat /root/infrascan-ai/SESSION_NOTES.md             # незавершённые задачи!
 python3 /root/infrascan-ai/hooks/process_watch.py   # все сервисы up?
 git -C /root/infrascan-ai status                    # нет незакоммиченного мусора?
 df -h /                                             # диск > 10% свободно?
@@ -170,20 +192,24 @@ ODOO_PASSWORD=...
 │                        │      └──────────────────────┐               │
 │                        ▼                             ▼               │
 │              ┌──────────────────┐       ┌─────────────────────┐      │
-│              │  GEMINI 2.5      │       │  KIMI 2.5           │      │
+│              │  GEMINI 2.5      │       │  KIMI-k2.6          │      │
 │              │  (Специалист)    │       │  (Аналитик)         │      │
 │              │                  │       │                     │      │
-│              │ 2M ctx + Web     │       │ 128K ctx (дёшево)   │      │
-│              │ + Vision API     │       │ OpenAI-совместимый  │      │
-│              │                  │       │                     │      │
-│              │ modes:           │       │ modes:              │      │
-│              │  review          │       │  analyze            │      │
-│              │  analyze         │       │  bulk               │      │
-│              │  research        │       │  draft              │      │
-│              │  redteam         │       │  migrate            │      │
-│              │  retrospective   │       │  compare            │      │
-│              │  health          │       │  council            │      │
-│              └──────────────────┘       └─────────────────────┘      │
+│              │ 2M ctx + Web     │       │ 262K ctx + think    │      │
+│              │ + Vision API     │       │ + web search        │      │
+│              │                  │       │ + reads files       │      │
+│              │ modes:           │       │                     │      │
+│              │  review          │       │ modes:              │      │
+│              │  review          │       │ modes:              │      │
+│              │  analyze         │       │  analyze            │      │
+│              │  research        │       │  bulk               │      │
+│              │  redteam         │       │  draft              │      │
+│              │  retrospective   │       │  migrate            │      │
+│              │  health          │       │  compare            │      │
+│              └──────────────────┘       │  council            │      │
+│                                         │  review             │      │
+│                                         │  research           │      │
+│                                         └─────────────────────┘      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -193,17 +219,23 @@ ODOO_PASSWORD=...
 |---|---|---|
 | **Claude** | Всегда (оркестратор) | Edit, Write, git, тесты, планирование |
 | **Gemini** | Vision / Web / Security | Фото анализ, поиск в доках, red team |
-| **Kimi** | Большой объём / дёшево | Весь репо, логи, черновики, миграции БД |
+| **Kimi** | Аналитика / Черновики / Логи | Весь репо, логи, миграции, second opinion |
 
 ### Маршрутизация (router.py)
 
 ```bash
 # Узнать куда идёт задача:
+python3 hooks/router.py "найди уязвимости в webhook"
+# → {"engine": "gemini", "mode": "redteam", ...}
+
 python3 hooks/router.py "проанализируй все логи за неделю"
 # → {"engine": "kimi", "mode": "bulk", ...}
 
-python3 hooks/router.py "найди уязвимости в webhook"
-# → {"engine": "gemini", "mode": "redteam", ...}
+python3 hooks/router.py "весь репо проанализируй"
+# → {"engine": "kimi", "mode": "analyze", ...}
+
+python3 hooks/router.py "исправь опечатку в config"
+# → {"engine": "claude", "mode": "direct", ...}
 ```
 
 ### Gemini Quick Reference
@@ -220,20 +252,14 @@ bash hooks/gemini_agent.sh retrospective   # ретроспектива сесс
 ### Kimi Quick Reference
 
 ```bash
-kimi analyze /root/infrascan-ai/bot/src/   # весь bot/src/ за раз
-kimi bulk /root/infrascan-ai/bot.log        # анализ логов
-kimi draft "идея для новой фичи"            # черновик (дёшево)
-kimi migrate /root/astrotara_bot/bot_app/src/database/models.py
-kimi compare "Redis vs Postgres для кеша"
-kimi council "стоит ли переходить на gRPC"
-```
-
-### Настройка Kimi API
-
-```bash
-# Добавить в /root/.env или /root/infrascan-ai/.env:
-MOONSHOT_API_KEY=sk-xxxxxxxxxxxxxxxx
-# Получить: https://platform.moonshot.cn/console/api-keys
+kimi_agent analyze /root/infrascan-ai/bot/src/   # весь bot/src/ за раз (262K ctx)
+kimi_agent bulk /root/infrascan-ai/bot.log        # анализ логов
+kimi_agent draft "идея для новой фичи"            # черновик / брейншторм
+kimi_agent migrate /root/astrotara_bot/bot_app/src/database/models.py
+kimi_agent compare "Redis pub/sub vs Kafka"
+kimi_agent council "стоит ли переходить на webhook mode"
+kimi_agent research "aiogram 3.x webhook best practices 2025"
+kimi_agent review /root/infrascan-ai             # code review git diff
 ```
 
 ### Слои безопасности (Hook Pipeline)

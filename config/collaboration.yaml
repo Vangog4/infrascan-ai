@@ -1,6 +1,6 @@
 # Agent Collaboration Registry — infrascan-ai
-# Три движка: Claude (оркестратор) + Gemini (специалист) + Kimi (тяжёлые задачи)
-# Используется hooks/router.py, hooks/gemini_agent.sh, hooks/kimi_agent.sh
+# Три движка: Claude (оркестратор) + Gemini (специалист) + Kimi (аналитик)
+# Router: hooks/router.py  |  Scripts: hooks/gemini_agent.sh, /root/kimi_agent.sh
 
 version: "2.0"
 
@@ -29,14 +29,15 @@ agents:
   gemini:
     role: specialist
     description: >
-      Специалист. 2M токен контекст + веб-доступ + Vision API.
+      Специалист. 2M токен контекст + живой веб-доступ + Vision API.
       Запускается лениво только при реальной необходимости.
     binary: gemini
-    model: gemini-2.5-flash
-    script: hooks/gemini_agent.sh
+    model: gemini-3.1-pro-preview
+    model_fast: gemini-3.1-flash-lite
+    script: /root/agents/gemini_agent.sh
     strengths:
-      - Vision API (тепловые снимки, фото объектов)
-      - живой веб-поиск и актуальные доки
+      - Vision API (тепловые снимки, фото объектов, скриншоты)
+      - живой веб-поиск и актуальные доки (Google grounding)
       - adversarial security review (Red Team)
       - code review git diff (независимый взгляд)
       - ретроспектива сессий
@@ -66,43 +67,52 @@ agents:
   kimi:
     role: analyst
     description: >
-      Аналитик тяжёлых задач. 128K токен контекст, OpenAI-совместимый API
-      (Moonshot AI). Дешевле Claude/Gemini. Не имеет веб-доступа.
-      Запускается для задач с большим объёмом данных.
-    binary: python3 hooks/kimi_client.py
-    model: moonshot-v1-128k
-    script: hooks/kimi_agent.sh
-    api_base: https://api.moonshot.cn/v1
-    api_key_env: MOONSHOT_API_KEY
+      Аналитик-помощник. Kimi-k2.6, 262K токен контекст, thinking mode,
+      встроенный веб-поиск (moonshot_search). Полноценный coding agent —
+      читает файлы через свои инструменты автономно.
+      Скрипт на уровне сервера: /root/kimi_agent.sh
+    binary: kimi
+    model: kimi-for-coding (Kimi-k2.6)
+    script: /root/kimi_agent.sh
+    api: https://api.kimi.com/coding/v1 (OAuth, managed)
     strengths:
-      - весь репозиторий в одном контексте (128K)
-      - анализ больших логов и дампов
-      - черновые исследования (дёшево)
-      - анализ схем БД и миграций
-      - второе мнение по архитектуре
-      - сравнение подходов A/B
-    token_limit: 128_000
-    cost_tier: very_low
+      - 262K контекст — весь bot/src/ за один вызов
+      - thinking mode — глубокое рассуждение перед ответом
+      - встроенный веб-поиск (moonshot_search)
+      - автономное чтение файлов через нативные инструменты
+      - анализ больших логов и дампов данных
+      - черновые исследования и брейнштормы
+      - анализ схем БД и предложение миграций
+      - второе мнение по архитектурным решениям
+      - сравнение подходов A/B с обоснованием
+    token_limit: 262_144
+    cost_tier: low
     modes:
-      analyze:  "файл/директория → полный анализ (весь репо за раз)"
-      bulk:     "большие логи / дампы данных"
-      draft:    "черновик / брейншторм (быстро и дёшево)"
-      migrate:  "схема БД → предложение ALTER TABLE / Alembic"
-      compare:  "сравнение двух подходов A/B"
-      council:  "второе мнение по архитектурному решению"
+      analyze:  "путь → анализ кода (Kimi читает файлы сам)"
+      bulk:     "файл → анализ логов/дампов"
+      draft:    "черновик/брейншторм (быстро)"
+      migrate:  "путь → схема БД → миграции"
+      compare:  "вопрос → сравнение подходов A/B"
+      council:  "вопрос → второе мнение по архитектуре"
+      review:   "git diff → code review"
+      research: "вопрос → веб-поиск (встроенный)"
     projects:
       infrascan-ai:
         - полный анализ bot/src/ + addons/ за один вызов
         - анализ логов контейнеров за период
-        - анализ SQLAlchemy моделей Odoo
+        - анализ SQLAlchemy / Odoo моделей
         - черновики новых фич перед реализацией
       astrotara:
         - весь codebase → поиск скрытых багов
         - анализ схемы astro.db (недостающие колонки)
         - черновики для новых астро-фич
+      dogsensei:
+        - анализ monitoring логов
+        - черновики новых проверок
       all:
         - анализ логов при инцидентах
         - сравнение архитектурных вариантов
+        - второе мнение перед крупными решениями
 
 # ── Маршрутизация ─────────────────────────────────────────────────────────────
 
@@ -111,49 +121,32 @@ routing:
 
   claude_override:
     description: "Всегда Claude — мгновенные простые правки"
-    triggers:
-      - быстрое исправление, quick fix, опечатк, typo
-      - rename, поменяй строку, исправь строку
-      - config, конфиг, добавь строку
-      - git commit, git add, закоммить
+    triggers: [быстрое исправление, quick fix, typo, rename, config, git commit]
 
   size_thresholds:
-    file_gt_50kb:  {engine: kimi,   mode: analyze, reason: "огромный файл → Kimi 128K"}
+    file_gt_50kb:  {engine: kimi,   mode: analyze, reason: "огромный файл → Kimi 262K"}
     file_gt_8kb:   {engine: gemini, mode: analyze, reason: "большой файл → Gemini 2M"}
-    total_gt_80kb: {engine: kimi,   mode: analyze, reason: "суммарный контекст → Kimi"}
-    total_gt_20kb: {engine: gemini, mode: analyze, reason: "суммарный контекст → Gemini"}
 
   gemini_keywords:
-    priority: 10-5  # higher = evaluated first
+    priority: 10-5
     routes:
-      - {keywords: [image, photo, фото, thermal, термограмм, vision, тепловизор],
-         mode: analyze, priority: 10, reason: "Vision API → Gemini"}
-      - {keywords: [research, погугли, web search, актуальн, odoo docs, changelog],
-         mode: research, priority: 9, reason: "веб-поиск → Gemini"}
-      - {keywords: [уязвимост, security audit, exploit, red team, xss, ssrf, rce],
-         mode: redteam, priority: 8, reason: "Red Team → Gemini"}
-      - {keywords: [code review, проверь диф, ревью диф, перед коммитом],
-         mode: review, priority: 7, reason: "diff review → Gemini"}
-      - {keywords: [health check, состояние системы, диагностик, статус контейнеров],
-         mode: health, priority: 6, reason: "health → Gemini"}
-      - {keywords: [ретроспектив, retrospective, итог сессии],
-         mode: retrospective, priority: 5, reason: "ретро → Gemini"}
+      - {priority: 10, keywords: [фото, image, thermal, vision, термограмм], mode: analyze}
+      - {priority:  9, keywords: [research, погугли, odoo docs, changelog],   mode: research}
+      - {priority:  8, keywords: [уязвимост, red team, exploit, xss, rce],    mode: redteam}
+      - {priority:  7, keywords: [code review, ревью диф, перед коммитом],    mode: review}
+      - {priority:  6, keywords: [health check, состояние системы, диагностик], mode: health}
+      - {priority:  5, keywords: [ретроспектив, retrospective],               mode: retrospective}
 
   kimi_keywords:
-    priority: 9-4  # yields to Gemini on ties
+    priority: 9-4
     routes:
-      - {keywords: [весь репо, full codebase, все файлы, весь код, полный репозиторий],
-         mode: analyze, priority: 9, reason: "весь репо → Kimi 128K"}
-      - {keywords: [log, logs, лог, логи, dump, traceback, bot.log, ошибки за],
-         mode: bulk, priority: 8, reason: "логи → Kimi bulk"}
-      - {keywords: [миграци, migration, schema, alter table, sqlalchemy модели, структура бд],
-         mode: migrate, priority: 7, reason: "схема БД → Kimi migrate"}
-      - {keywords: [сравни подходы, compare, что лучше, два варианта, trade-off],
-         mode: compare, priority: 5, reason: "сравнение → Kimi"}
-      - {keywords: [второе мнение, council, посоветуй, как лучше архитектурно],
-         mode: council, priority: 5, reason: "архит. совет → Kimi"}
-      - {keywords: [черновик, draft, набросок, предложи варианты, а что если],
-         mode: draft, priority: 4, reason: "черновик → Kimi (дёшево)"}
+      - {priority: 9, keywords: [весь репо, all files, весь код, полный репозиторий], mode: analyze}
+      - {priority: 8, keywords: [лог, logs, traceback, bot.log, ошибки за],          mode: bulk}
+      - {priority: 7, keywords: [миграци, alter table, sqlalchemy, схема бд],        mode: migrate}
+      - {priority: 6, keywords: [актуальн, поищи, найди инфо],                      mode: research}
+      - {priority: 5, keywords: [сравни, compare, trade-off, что лучше],             mode: compare}
+      - {priority: 5, keywords: [второе мнение, council, посоветуй],                 mode: council}
+      - {priority: 4, keywords: [черновик, draft, набросок, а что если],             mode: draft}
 
 # ── Хуки безопасности ────────────────────────────────────────────────────────
 
@@ -163,7 +156,7 @@ safety:
       - {matcher: Bash,        script: hooks/safety_guard.py,  action: block_on_exit_2}
       - {matcher: "Write|Edit", script: hooks/skill_vetter.py, action: block_on_exit_2}
     PostToolUse:
-      - {matcher: "Edit|Write",      script: hooks/run_pytest.sh,    action: block_on_exit_2}
+      - {matcher: "Edit|Write",      script: hooks/run_pytest.sh,     action: block_on_exit_2}
       - {matcher: "Bash|Edit|Write", script: hooks/stuck_detector.py, action: block_on_exit_2}
     Stop:
       - {script: hooks/auto_journal.py,  description: "Logseq журнал сессии"}
@@ -172,10 +165,6 @@ safety:
   sandboxing:
     runtime: podman
     confirmation_gateway: hooks/confirm_bridge.py
-    confirmation_required_for:
-      - overnight loop start
-      - 5+ consecutive test failures
-      - любая необратимая операция вне рабочего flow
 
 # ── Quick Reference ───────────────────────────────────────────────────────────
 
@@ -188,12 +177,13 @@ quick_reference:
     bash hooks/gemini_agent.sh redteam
     bash hooks/gemini_agent.sh retrospective
   kimi: |
-    kimi analyze /root/infrascan-ai/bot/src/
-    kimi bulk /root/infrascan-ai/bot.log
-    kimi draft "идея для новой фичи"
-    kimi migrate /root/astrotara_bot/bot_app/src/database/models.py
-    kimi compare "Redis vs Postgres для кеша анализов"
-    kimi council "стоит ли переходить на webhook mode"
+    kimi_agent analyze /root/infrascan-ai/bot/src/
+    kimi_agent bulk /root/infrascan-ai/bot.log
+    kimi_agent draft "идея для новой фичи"
+    kimi_agent migrate /root/astrotara_bot/bot_app/src/database/models.py
+    kimi_agent compare "Redis pub/sub vs Kafka"
+    kimi_agent council "стоит ли переходить на webhook mode"
+    kimi_agent research "aiogram 3.x FSM best practices 2025"
   router: |
     python3 hooks/router.py "описание задачи"
     echo '{"task":"...","files":["path"]}' | python3 hooks/router.py

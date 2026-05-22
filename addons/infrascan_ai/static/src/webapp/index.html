@@ -171,7 +171,7 @@
     <div id="detail-content"></div>
   </div>
 
-  <button class="btn-primary" id="cta-btn" onclick="orderInspection()">
+  <button class="btn-primary" id="cta-btn" onclick="_orderInspection()">
     🚗 Заказать выезд инженера
   </button>
 
@@ -218,18 +218,18 @@
     const level = analysis.risk_level || 'LOW';
     const color = riskColors[level];
 
-    document.getElementById('score-circle').textContent = score + '%';
-    document.getElementById('score-circle').style.background = color + '22';
+    document.getElementById('score-circle').textContent = `${score}%`;
+    document.getElementById('score-circle').style.background = `${color}22`;
     document.getElementById('score-circle').style.color = color;
-    document.getElementById('risk-label').textContent = riskLabels[level] + ' риск';
+    document.getElementById('risk-label').textContent = `${riskLabels[level]} риск`;
     document.getElementById('risk-desc').textContent = riskDescs[level];
-    document.getElementById('progress-fill').style.width = score + '%';
+    document.getElementById('progress-fill').style.width = `${score}%`;
     document.getElementById('progress-fill').style.background = color;
     document.getElementById('scan-date').textContent = analysis.scan_date || analysis.object_type || 'Карта рисков';
 
     // Render zones
     const grid = document.getElementById('zone-grid');
-    (analysis.zones || []).forEach((zone, i) => {
+    (analysis.zones || []).forEach((zone, _i) => {
       const card = document.createElement('div');
       card.className = 'zone-card';
       card.innerHTML = `
@@ -251,7 +251,7 @@
       }
       activeCard = card;
       card.classList.add('active');
-      document.getElementById('detail-title').textContent = zone.icon + ' ' + zone.name;
+      document.getElementById('detail-title').textContent = `${zone.icon} ${zone.name}`;
       const content = document.getElementById('detail-content');
       content.innerHTML = (zone.issues || []).map(issue =>
         `<div class="detail-item"><div class="dot"></div><span>${issue}</span></div>`
@@ -260,7 +260,7 @@
       tg.HapticFeedback.impactOccurred('light');
     }
 
-    function orderInspection() {
+    function _orderInspection() {
       tg.sendData(JSON.stringify({ action: 'order_inspection', risk_level: level }));
     }
   </script>

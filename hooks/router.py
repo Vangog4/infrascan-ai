@@ -3,14 +3,14 @@
 Agent Router — три движка: Claude | Gemini | Kimi.
 
 Иерархия:
-  1. Claude override (быстрые локальные правки — всегда Claude)
-  2. Gemini  (Vision, Web, Security, Code Review — специалист)
-  3. Kimi    (128K контекст, логи, черновики, миграции — тяжёлые задачи)
-  4. Claude  (всё остальное по умолчанию)
+  1. Claude override  (быстрые локальные правки — всегда Claude)
+  2. Gemini           (Vision, Web, Security, Code Review — специалист)
+  3. Kimi             (262K ctx, логи, черновики, миграции, второе мнение)
+  4. Claude           (всё остальное по умолчанию)
 
 Usage:
-  echo '{"task": "review thermal images"}' | python3 router.py
-  python3 router.py "проведи code review всего проекта"
+  python3 router.py "проанализируй все логи за неделю"
+  echo '{"task":"...","files":["path"]}' | python3 router.py
 
 Output JSON:
   {"engine": "claude|gemini|kimi", "mode": "...", "reason": "...", "cmd": "..."}
@@ -19,17 +19,16 @@ from __future__ import annotations
 
 import contextlib
 import json
+import shlex
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path("/root/infrascan-ai")
-GEMINI_AGENT = REPO_ROOT / "hooks" / "gemini_agent.sh"
-KIMI_AGENT   = REPO_ROOT / "hooks" / "kimi_agent.sh"
+AGENTS_DIR   = Path("/root/agents")
+GEMINI_AGENT = AGENTS_DIR / "gemini_agent.sh"
+KIMI_AGENT   = Path("/root/kimi_agent.sh")
 
-LARGE_FILE_BYTES  = 8_000
-HUGE_FILE_BYTES   = 50_000
-LARGE_TOTAL_BYTES = 20_000
-HUGE_TOTAL_BYTES  = 80_000
+LARGE_FILE_BYTES = 8_000
+HUGE_FILE_BYTES  = 50_000
 
 GEMINI_ROUTES: list[tuple[list[str], str, str, int]] = [
     (["image", "photo", "фото", "изображен", "термограмм", "thermal",
@@ -37,7 +36,7 @@ GEMINI_ROUTES: list[tuple[list[str], str, str, int]] = [
       "тепловой снимок", "инфракрасн"],
      "analyze", "мультимодальная задача → Gemini Vision", 10),
     (["research", "найди в интернете", "погугли", "web search", "latest",
-      "актуальн", "поищи онлайн", "changelog", "odoo docs", "документаци",
+      "поищи онлайн", "changelog", "odoo docs", "документаци",
       "новост", "что нового", "release notes"],
      "research", "веб-поиск → Gemini (интернет-доступ)", 9),
     (["уязвимост", "security audit", "exploit", "red team", "pentest",
@@ -56,17 +55,19 @@ GEMINI_ROUTES: list[tuple[list[str], str, str, int]] = [
 
 KIMI_ROUTES: list[tuple[list[str], str, str, int]] = [
     (["весь репо", "full codebase", "all files", "все файлы", "весь код",
-      "весь проект целиком", "все хандлеры", "все модели", "полный репозиторий",
+      "весь проект", "все хандлеры", "все модели", "полный репозиторий",
       "скорми весь", "загрузи весь"],
-     "analyze", "весь репо → Kimi 128K контекст", 9),
+     "analyze", "весь репо → Kimi 262K ctx", 9),
     (["log", "logs", "лог", "логи", "dump", "дамп", "traceback",
-      "stacktrace", "journal", "история запросов", "ошибки за неделю",
-      "ошибки за месяц", "bot.log", "access.log"],
-     "bulk", "анализ логов → Kimi bulk режим", 8),
+      "stacktrace", "journal", "ошибки за неделю", "ошибки за месяц",
+      "bot.log", "access.log"],
+     "bulk", "анализ логов → Kimi bulk", 8),
     (["миграци", "migration", "schema", "схема бд", "alter table",
-      "добавь колонку", "alembic", "sqlalchemy модели", "недостающие колонки",
-      "структура бд", "проверь модели"],
+      "добавь колонку", "alembic", "sqlalchemy модели", "структура бд",
+      "недостающие колонки", "проверь модели"],
      "migrate", "анализ схемы БД → Kimi migrate", 7),
+    (["актуальн", "поищи", "найди инфо", "что нового в"],
+     "research", "веб-поиск → Kimi research", 6),
     (["сравни подходы", "compare", "a/b", "что лучше", "какой вариант",
       "два варианта", "плюсы и минусы", "trade-off"],
      "compare", "сравнение вариантов → Kimi compare", 5),
@@ -74,7 +75,7 @@ KIMI_ROUTES: list[tuple[list[str], str, str, int]] = [
       "что думаешь о решении", "стоит ли использовать"],
      "council", "архитектурный совет → Kimi council", 5),
     (["черновик", "draft", "набросок", "идея для", "предложи варианты",
-      "пробный вариант", "explore", "поэкспериментируй", "а что если"],
+      "пробный вариант", "поэкспериментируй", "а что если"],
      "draft", "черновое исследование → Kimi (дёшево)", 4),
 ]
 
@@ -105,11 +106,11 @@ def route(task: str, files: list[str] | None = None) -> dict:
     file_size = _total_file_size(files)
     if file_size > HUGE_FILE_BYTES:
         return {"engine": "kimi", "mode": "analyze",
-                "reason": f"файл {file_size//1024}KB → Kimi 128K",
+                "reason": f"файл {file_size // 1024}KB → Kimi 262K",
                 "cmd": f"bash {KIMI_AGENT} analyze '{files[0]}'"}
     if file_size > LARGE_FILE_BYTES:
         return {"engine": "gemini", "mode": "analyze",
-                "reason": f"файл {file_size//1024}KB → Gemini 2M",
+                "reason": f"файл {file_size // 1024}KB → Gemini 2M",
                 "cmd": f"bash {GEMINI_AGENT} analyze '{files[0]}'"}
 
     gemini_best: tuple[int, str, str] | None = None
@@ -139,15 +140,15 @@ def route(task: str, files: list[str] | None = None) -> dict:
 
     if winner == "gemini":
         _, mode, reason = gemini_best  # type: ignore[misc]
-        cmd_map = {"research": f"bash {GEMINI_AGENT} research '{task[:200]}'",
-                   "health": f"bash {GEMINI_AGENT} health"}
+        cmd_map = {"research": f"bash {GEMINI_AGENT} research {shlex.quote(task[:200])}",
+                   "health":   f"bash {GEMINI_AGENT} health"}
         return {"engine": "gemini", "mode": mode, "reason": reason,
                 "cmd": cmd_map.get(mode, f"bash {GEMINI_AGENT} {mode}")}
 
     if winner == "kimi":
         _, mode, reason = kimi_best  # type: ignore[misc]
-        arg = (files[0] if files and mode in ("analyze", "bulk", "migrate")
-               else f'"{task[:200]}"')
+        arg = (shlex.quote(files[0]) if files and mode in ("analyze", "bulk", "migrate")
+               else shlex.quote(task[:200]))
         return {"engine": "kimi", "mode": mode, "reason": reason,
                 "cmd": f"bash {KIMI_AGENT} {mode} {arg}"}
 

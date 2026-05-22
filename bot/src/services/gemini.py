@@ -289,9 +289,7 @@ async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg
         return {"error": "api_error", "free_verdict": msg}
 
 
-async def calculate_losses(
-    area: float, heating: str, payment: float, weather_ctx: str = ""
-) -> str:
+async def calculate_losses(area: float, heating: str, payment: float, weather_ctx: str = "") -> str:
     if settings.gemini_stub:
         return _STUB_LOSSES
     try:
