@@ -1,40 +1,42 @@
 # SESSION_NOTES — заметки текущей сессии
 
 ## Текущая задача
-Per-project multi-agent система — каждый проект имеет своих специализированных субагентов.
+Завершена: per-project multi-agent система полностью настроена и протестирована.
 
-## Что сделано в эту сессию
-- Починён `hooks/router.py` — добавлен `import shlex`
-- Настроена система памяти: `journal_logger.py` (real-time), `auto_journal.py` (итог), `session_snapshot.py` (STATE)
-- Создан `/root/agents/` — система per-project субагентов:
-  - `agents/projects/infrascan.yaml` — полный контекст: стек, конвенции, бэклог, специализации
-  - `agents/projects/pepito.yaml`
-  - `agents/projects/astrotara.yaml`
-  - `agents/projects/subarist.yaml`
-  - `agents/projects/amanita.yaml`
-  - `agents/orchestrator.py` — параллельный запуск агентов, автодетект проекта
-- Переписан `hooks/gemini_agent.sh` — project-aware, читает YAML контекст, исправлен дублирующийся хвост
-- Обновлён `kimi_agent.sh` — читает YAML контекст из `/root/agents/projects/`, поддерживает `KIMI_PROJECT_CONTEXT` env
-- Создан симлинк `/usr/local/bin/agent` → `orchestrator.py`
-- `SESSION_NOTES.md` создан для всех проектов (кроме dogsensei — не трогать)
-- Блок ⚡ SESSION MEMORY добавлен в CLAUDE.md всех проектов
+## Что сделано в эту сессию (2026-05-22)
 
-## Ключевые решения
-- Контекст агентов: YAML файлы в `/root/agents/projects/` — один источник правды
-- Инжекция контекста: env vars `GEMINI_PROJECT_CONTEXT` / `KIMI_PROJECT_CONTEXT` от оркестратора
-- Параллельность: `concurrent.futures.ThreadPoolExecutor` в orchestrator.py
-- Автодетект проекта по cwd → git root → YAML match
+### Тестирование субагентов (результат)
+- Gemini `gemini-3.1-pro-preview` ✅ — review и analyze работают
+- Kimi-k2.6 ✅ — council работает, дал архитектурный анализ P0/P1/P2
+- Параллельный запуск через orchestrator.py ✅ — оба за ~90 секунд
+- Рабочие модели Gemini: `gemini-3.1-pro-preview` и `gemini-3.1-flash-lite`
+
+### Исправления в orchestrator.py (по замечаниям Kimi)
+- Kimi timeout 180s → 300s
+- as_completed(timeout=360) вместо future.result(timeout=200)
+- max_workers=min(len(agents), 4)
+- --agents без --mode теперь использует роутер (не "analyze" для всех)
+- _save_to_journal() — fcntl locking + atomic os.replace (race condition fix)
+- detect_project() — try/except на yaml.safe_load
+
+### Исправления в auto_journal.py
+- _write() — fcntl locking + atomic os.replace (race condition fix)
+
+### Устранение дублирования router.py
+- hooks/router.py → симлинк на /root/agents/router.py
+
+### Новое: per-project Claude sub-agents
+- /root/agents/project_agent.py — собирает контекст и запускает Claude sub-agent
+- Алиасы: infrascan_agent, astrotara_agent, pepito_agent, subarist_agent, amanita_agent
+- Правило запомнено: главный Клод только оркестрирует, не лезет в проекты сам
+
+## Правила
 - НЕ делать git commit/push без явного разрешения пользователя
-
-## Следующие шаги (незавершённое)
-- Проверить работу Gemini (сейчас "недоступен" в ретроспективах — выяснить почему)
-- Проверить работу Kimi-k2.6 через `/root/kimi_agent.sh council "тест"`
-- Обновить `SYSTEM_GUIDE.md` с новой архитектурой агентов
-- Закоммитить всё (когда пользователь даст добро)
-- Обсудить: нужны ли Claude sub-agents через Anthropic API (отдельный Claude на каждый проект)
-
-## Контекст который важно помнить
-- Ветка: `autoresearch/stack-health-2026-05-15`
-- Диск 88% заполнен — осторожно с новыми пакетами
-- Пользователь хочет чтобы система помнила ВСЁ — журнал пишется в реальном времени
 - dogsensei_bot — не трогать
+- Диск 88% — осторожно
+- Ветка: autoresearch/stack-health-2026-05-15
+
+## Следующие шаги
+- Закоммитить все изменения (ждём добро пользователя)
+- Обновить SYSTEM_GUIDE.md с новой архитектурой
+- Протестировать project_agent.py с реальной задачей
