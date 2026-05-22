@@ -37,6 +37,15 @@ def _configured() -> bool:
     return bool(settings.odoo_url and (settings.odoo_api_key or settings.odoo_password))
 
 
+def _first_id(result: object) -> int | None:
+    """Odoo JSON-2 create() returns list[int] for vals_list; unwrap safely."""
+    if isinstance(result, int):
+        return result
+    if isinstance(result, list) and result and isinstance(result[0], int):
+        return result[0]
+    return None
+
+
 async def _call(model: str, method: str, **kwargs: Any) -> Any:
     """POST /json/2/{model}/{method} with JSON body."""
     if not _configured():
@@ -65,9 +74,10 @@ async def create_lead(name: str, phone: str, description: str = "") -> int | Non
         "create",
         vals_list=[{"name": name, "phone": phone, "description": description, "type": "lead"}],
     )
-    if isinstance(result, int):
-        logger.info("CRM lead created: id=%d phone=%s", result, phone)
-        return result
+    lead_id = _first_id(result)
+    if lead_id:
+        logger.info("CRM lead created: id=%d phone=%s", lead_id, phone)
+        return lead_id
 
     # Fallback: project.task
     result = await _call(
@@ -77,11 +87,12 @@ async def create_lead(name: str, phone: str, description: str = "") -> int | Non
             {"name": f"[Лид] {name}", "project_id": _LEADS_PROJECT_ID, "description": task_desc}
         ],
     )
-    if isinstance(result, int):
-        logger.info("Lead task created (fallback): id=%d phone=%s", result, phone)
+    task_id = _first_id(result)
+    if task_id:
+        logger.info("Lead task created (fallback): id=%d phone=%s", task_id, phone)
     else:
         logger.error("create_lead failed for phone=%s", phone)
-    return result if isinstance(result, int) else None
+    return task_id
 
 
 async def find_partner(phone: str) -> dict | None:
@@ -112,7 +123,7 @@ async def _get_or_create_tag(name: str) -> int | None:
     if existing:
         return existing[0]["id"]
     result = await _call("res.partner.category", "create", vals_list=[{"name": name}])
-    return result if isinstance(result, int) else None
+    return _first_id(result)
 
 
 async def is_employee(telegram_id: int) -> bool:
@@ -185,10 +196,10 @@ async def attach_photo(
             }
         ],
     )
-    if isinstance(result, int):
-        logger.info("Attached %s to task %d (att_id=%d)", filename, task_id, result)
-        return result
-    return None
+    att_id = _first_id(result)
+    if att_id:
+        logger.info("Attached %s to task %d (att_id=%d)", filename, task_id, att_id)
+    return att_id
 
 
 async def get_premium_status(telegram_id: int) -> bool:
@@ -244,7 +255,7 @@ async def set_premium(telegram_id: int, days: int) -> bool:
             }
         ],
     )
-    return isinstance(result, int)
+    return _first_id(result) is not None
 
 
 async def close() -> None:
@@ -283,8 +294,9 @@ async def save_report(client_tg_id: str, analysis: dict) -> bool:
             }
         ],
     )
-    if isinstance(result, int):
-        logger.info("Saved bot report id=%d for tg_id=%s", result, client_tg_id)
+    report_id = _first_id(result)
+    if report_id:
+        logger.info("Saved bot report id=%d for tg_id=%s", report_id, client_tg_id)
         return True
     logger.warning("save_report failed for tg_id=%s: %s", client_tg_id, result)
     return False
