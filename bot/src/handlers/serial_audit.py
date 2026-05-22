@@ -1,4 +1,4 @@
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -44,7 +44,7 @@ async def start_serial(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(SerialAuditFlow.collecting, F.photo)
-async def collect_photo(message: Message, state: FSMContext):
+async def collect_photo(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     photos = data.get("photos", [])
 
@@ -55,11 +55,25 @@ async def collect_photo(message: Message, state: FSMContext):
         )
         return
 
+    wait = await message.answer("🔎 Проверяю качество снимка...")
+    file_io = await bot.download(message.photo[-1])
+    qc = await gemini.check_quality(file_io.read())
+
+    if not qc["ok"]:
+        tip = f"\n💡 {qc['tip']}" if qc.get("tip") else ""
+        await wait.edit_text(
+            f"❌ <b>Снимок не принят</b> <code>{qc['score']}/100</code>\n\n"
+            f"📋 {qc.get('reason', 'Качество недостаточно')}"
+            f"{tip}\n\nПересними и отправь снова 👇"
+        )
+        return
+
     file_id = message.photo[-1].file_id
     photos.append(file_id)
     await state.update_data(photos=photos)
-    await message.answer(
-        f"✅ Фото {len(photos)}/{MAX_PHOTOS} добавлено.",
+    score_emoji = "🟢" if qc["verdict"] == "ПРИНЯТО" else "🟡"
+    await wait.edit_text(
+        f"{score_emoji} Снимок {len(photos)}/{MAX_PHOTOS} принят <code>{qc['score']}/100</code>",
         reply_markup=_serial_kb(len(photos)),
     )
 
@@ -82,22 +96,18 @@ async def serial_done(callback: CallbackQuery, state: FSMContext):
     results = []
     locale = "ru"
 
+    risk_icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}
     for i, file_id in enumerate(photos, 1):
         try:
             file = await callback.bot.get_file(file_id)
             bio = await callback.bot.download_file(file.file_path)
             data_bytes = bio.read() if hasattr(bio, "read") else bytes(bio)
 
-            qc = await gemini.check_quality(data_bytes)
-            if not qc.get("ok"):
-                results.append(f"📸 <b>Фото {i}</b>: ❌ {qc.get('reason', 'низкое качество')}")
-                continue
-
             analysis = await gemini.analyze_photo(data_bytes, locale=locale)
             risk = analysis.get("risk_level", "?")
             obj = analysis.get("object_type", "объект")
             verdict = (analysis.get("free_verdict") or "")[:200]
-            icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}.get(risk, "⚪")
+            icon = risk_icon.get(risk, "⚪")
             results.append(
                 f"📸 <b>Фото {i}</b> — {obj}\n{icon} Риск: <b>{risk}</b>\n<i>{verdict}</i>"
             )

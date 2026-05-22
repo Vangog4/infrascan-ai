@@ -91,15 +91,14 @@ services:
       - ./bot/.env
     environment:
       - WEBHOOK_URL=https://infrascan-ai.ru/bot/webhook
-      - WEBHOOK_SECRET=2e655890ce6f8de0534b24db8ee4339a18066d254dfc57f478cc681c6766dff6
     ports:
       - "127.0.0.1:8080:8080"
     networks:
       - bot-net
       - npm_network   # lets Nginx Proxy Manager route /bot/webhook → bot:8080
     healthcheck:
-      test: ["CMD-SHELL", "uv run python -c 'import src.config' || exit 1"]
-      interval: 60s
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s

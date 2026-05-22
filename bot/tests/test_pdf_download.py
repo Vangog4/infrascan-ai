@@ -63,6 +63,7 @@ async def test_download_pdf_sends_document():
     call = _call()
     with (
         patch("src.handlers.client.get_last_report", AsyncMock(return_value="Отчёт: норма")),
+        patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
         patch.dict(sys.modules, {"src.services.pdf": _pdf_mod(b"%PDF-fake")}),
     ):
         await download_pdf(call, locale="ru")
@@ -74,6 +75,7 @@ async def test_download_pdf_ru_caption():
     call = _call()
     with (
         patch("src.handlers.client.get_last_report", AsyncMock(return_value="данные")),
+        patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
         patch.dict(sys.modules, {"src.services.pdf": _pdf_mod()}),
     ):
         await download_pdf(call, locale="ru")
@@ -86,6 +88,7 @@ async def test_download_pdf_en_caption():
     call = _call()
     with (
         patch("src.handlers.client.get_last_report", AsyncMock(return_value="data")),
+        patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
         patch.dict(sys.modules, {"src.services.pdf": _pdf_mod()}),
     ):
         await download_pdf(call, locale="en")
@@ -98,6 +101,7 @@ async def test_download_pdf_filename_has_infrascan_prefix():
     call = _call()
     with (
         patch("src.handlers.client.get_last_report", AsyncMock(return_value="данные")),
+        patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
         patch.dict(sys.modules, {"src.services.pdf": _pdf_mod()}),
     ):
         await download_pdf(call, locale="ru")

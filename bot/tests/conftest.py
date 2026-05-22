@@ -81,6 +81,20 @@ class FakeRedis:
             if fnmatch.fnmatch(key, pattern):
                 yield key
 
+    async def zrem(self, key: str, *members: str) -> int:
+        bucket = self._store.get(key, {})
+        if not isinstance(bucket, dict):
+            return 0
+        removed = 0
+        for m in members:
+            if m in bucket:  # type: ignore[operator]
+                del bucket[m]  # type: ignore[operator]
+                removed += 1
+        return removed
+
+    async def ping(self) -> bool:
+        return True
+
     async def aclose(self) -> None:
         pass
 

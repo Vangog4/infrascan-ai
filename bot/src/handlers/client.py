@@ -1,5 +1,7 @@
+import asyncio
+import hashlib
 import logging
-from datetime import UTC
+from datetime import UTC, date
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
@@ -30,12 +32,17 @@ from src.services import referral as ref_svc
 from src.services.comparison import format_comparison
 from src.services.i18n import t
 from src.services.redis import (
+    cache_analysis,
+    get_cached_analysis,
     get_last_analysis,
     get_last_report,
     save_last_analysis,
     save_last_report,
+    save_webapp_data,
+    schedule_reminder,
 )
 from src.states.flows import AuditFlow, CalcFlow, LeadFlow
+from src.utils import typing_loop
 
 logger = logging.getLogger(__name__)
 router = Router(name="client")
@@ -113,7 +120,18 @@ async def audit_photo(
     wait = await message.answer(t("analyzing", locale))
 
     file_io = await bot.download(photo)
-    result = await gemini.analyze_photo(file_io.read(), locale=locale)
+    photo_bytes = file_io.read()
+    photo_hash = hashlib.sha256(photo_bytes).hexdigest()
+    voice_context = data.get("voice_context", "")
+
+    result = await get_cached_analysis(photo_hash)
+    if result is None:
+        _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
+        try:
+            result = await gemini.analyze_photo(photo_bytes, locale=locale, context=voice_context)
+        finally:
+            _typing.cancel()
+        await cache_analysis(photo_hash, result)
 
     await wait.delete()
 
@@ -124,10 +142,9 @@ async def audit_photo(
         await message.answer(cmp_text, parse_mode="HTML")
     await save_last_analysis(user_id, result)
 
-    # Save to report history (fire-and-forget, non-blocking)
-    import asyncio as _asyncio
-
-    _asyncio.create_task(odoo.save_report(str(message.from_user.id), result))
+    # Save to report history and schedule follow-up reminder (fire-and-forget)
+    asyncio.create_task(odoo.save_report(str(message.from_user.id), result))
+    asyncio.create_task(schedule_reminder(user_id, delay_days=30))
 
     # Referral first-scan reward (idempotent, fires once per new user)
     await ref_svc.reward_first_scan(user_id, bot)
@@ -159,7 +176,7 @@ async def audit_photo(
     else:
         text = gemini.format_analysis_premium(result, locale)
         await save_last_report(user_id, text)
-        # Build keyboard: PDF + Voice + optional order button
+        # Build keyboard: PDF + Voice + WebApp map + optional order button
         b = InlineKeyboardBuilder()
         pdf_label = "📄 Скачать PDF-отчёт" if locale == "ru" else "📄 Download PDF report"
         voice_label = "🎤 Голосовое заключение" if locale == "ru" else "🎤 Voice summary"
@@ -168,7 +185,10 @@ async def audit_photo(
             InlineKeyboardButton(text=voice_label, callback_data="report:voice"),
         )
         map_label = "🗺 Карта рисков" if locale == "ru" else "🗺 Risk map"
-        b.row(InlineKeyboardButton(text=map_label, web_app=WebAppInfo(url=settings.webapp_url)))
+        webapp_data = gemini.analysis_to_webapp(result, scan_date=date.today().strftime("%d.%m.%Y"))
+        webapp_key = await save_webapp_data(webapp_data)
+        webapp_url = f"{settings.webapp_url}?k={webapp_key}"
+        b.row(InlineKeyboardButton(text=map_label, web_app=WebAppInfo(url=webapp_url)))
         if is_local:
             b.row(
                 InlineKeyboardButton(
@@ -179,6 +199,35 @@ async def audit_photo(
                 )
             )
         await message.answer(text, reply_markup=b.as_markup())
+
+
+# ── Voice context hint ────────────────────────────────────────────────────────
+
+
+@router.message(AuditFlow.photo, F.voice)
+async def audit_voice_hint(
+    message: Message, state: FSMContext, bot: Bot, locale: str = "ru"
+) -> None:
+    """User can send a voice comment before the photo to add context to analysis."""
+    wait = await message.answer(
+        "🎤 Записываю комментарий..." if locale == "ru" else "🎤 Recording your note..."
+    )
+    file_io = await bot.download(message.voice)
+    transcript = await gemini.transcribe_voice(file_io.read(), mime="audio/ogg")
+    if transcript:
+        await state.update_data(voice_context=transcript)
+        note = transcript[:200]
+        await wait.edit_text(
+            f"✅ <b>Комментарий записан:</b>\n<i>{note}</i>\n\nТеперь отправьте фото объекта."
+            if locale == "ru"
+            else f"✅ <b>Note recorded:</b>\n<i>{note}</i>\n\nNow send the photo."
+        )
+    else:
+        await wait.edit_text(
+            "⚠️ Не удалось распознать голосовое. Отправьте фото."
+            if locale == "ru"
+            else "⚠️ Could not transcribe voice. Please send the photo."
+        )
 
 
 # ── Heat Loss Calculator ──────────────────────────────────────────────────────
@@ -350,7 +399,8 @@ async def download_pdf(call: CallbackQuery, locale: str = "ru") -> None:
 
     from src.services.pdf import generate_report
 
-    pdf_bytes = generate_report(report_text, locale)
+    last_analysis = await get_last_analysis(user_id)
+    pdf_bytes = generate_report(report_text, locale, analysis=last_analysis)
     date_str = datetime.now(UTC).strftime("%Y%m%d_%H%M")
     filename = f"InfraScan_{date_str}.pdf"
 

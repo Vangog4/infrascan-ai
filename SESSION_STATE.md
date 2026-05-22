@@ -1,24 +1,39 @@
-# SESSION_STATE — infrascan-ai — 2026-05-22 10:58
+# SESSION_STATE — infrascan-ai — 2026-05-22 12:30
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+0fceac5 fix: odoo.py _first_id() + install infrascan_ai addon
+49f7216 fix: Biome lint errors + session docs update
 7399d16 fix: security audit — 5 vulnerabilities patched (Gemini+Kimi review)
 daa8508 docs: session 2026-05-22 — per-project sub-agents, orchestrator fixes
 a5bb0e3 feat: per-project multi-agent architecture and robust session memory
 eaabc9a feat: three-engine multi-agent system (Claude + Gemini + Kimi)
 1a3e3d9 docs: session journal 2026-05-21 final — all 15 features complete
-46a0d64 feat: Telegram WebApp risk map (#15)
-bcf0cff feat: multilingual support DE/TR/KK (#14)
 ```
 
 ## Незакоммиченные изменения
 ```
-SESSION_STATE.md                  |  41 +++-
- bot/logseq/journals/2026_05_22.md | 459 ++++++++++++++++++++++++++++++++++++++
- 2 files changed, 491 insertions(+), 9 deletions(-)
+DECISIONS.md                                       | 158 ++++++++
+ SESSION_STATE.md                                   |  43 +-
+ .../infrascan_ai/static/src/css/website_custom.css |  40 +-
+ addons/infrascan_ai/static/src/webapp/index.html   |  42 +-
+ bot/logseq/journals/2026_05_22.md                  | 448 +++++++++++++++++++++
+ bot/src/bot.py                                     | 140 ++++++-
+ bot/src/config.py                                  |   3 +
+ bot/src/handlers/client.py                         |  68 +++-
+ bot/src/handlers/employee.py                       |  31 +-
+ bot/src/handlers/serial_audit.py                   |  30 +-
+ bot/src/services/gemini.py                         | 125 +++++-
+ bot/src/services/pdf.py                            |  53 ++-
+ bot/src/services/redis.py                          |  54 +++
+ bot/tests/conftest.py                              |  14 +
+ bot/tests/test_client_photo.py                     |   8 +
+ bot/tests/test_pdf_download.py                     |   4 +
+ podman-compose.yml                                 |   5 +-
+ 17 files changed, 1192 insertions(+), 74 deletions(-)
 ```
 
 ## Неотслеживаемые файлы
@@ -27,11 +42,27 @@ artifacts/judge-2026-05-22_08-26-28.log
 artifacts/judge-2026-05-22_08-28-12.log
 artifacts/judge-2026-05-22_10-45-12.log
 artifacts/judge-2026-05-22_10-52-04.log
+artifacts/judge-2026-05-22_11-00-44.log
+artifacts/judge-2026-05-22_11-31-10.log
+artifacts/judge-2026-05-22_11-45-40.log
+artifacts/judge-2026-05-22_12-08-51.log
+artifacts/judge-2026-05-22_12-11-55.log
+artifacts/judge-2026-05-22_12-17-40.log
+artifacts/judge-2026-05-22_12-17-58.log
 bot/artifacts/judge-2026-05-22_08-26-28.log
 bot/artifacts/judge-2026-05-22_08-28-12.log
 bot/artifacts/judge-2026-05-22_10-45-12.log
 bot/artifacts/judge-2026-05-22_10-52-04.log
+bot/artifacts/judge-2026-05-22_11-00-44.log
+bot/artifacts/judge-2026-05-22_11-31-10.log
+bot/artifacts/judge-2026-05-22_11-45-40.log
+bot/artifacts/judge-2026-05-22_12-08-51.log
+bot/artifacts/judge-2026-05-22_12-11-55.log
+bot/artifacts/judge-2026-05-22_12-17-40.log
+bot/artifacts/judge-2026-05-22_12-17-58.log
 bot/logseq/journals/2026_05_22.lock
+bot/src/utils.py
+bot/tests/test_new_features.py
 ```
 
 ## Заметки сессии

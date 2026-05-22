@@ -180,16 +180,30 @@
     tg.ready();
     tg.expand();
 
-    // Parse analysis data passed via initData or startParam
-    const params = new URLSearchParams(tg.initData || window.location.search.slice(1));
     let analysis = {};
-    try {
-      const raw = tg.initDataUnsafe?.start_param || params.get('data');
-      if (raw) analysis = JSON.parse(decodeURIComponent(raw));
-    } catch (_) {}
+
+    async function loadAnalysis() {
+      // Priority 1: key from URL query param (?k=...)
+      const key = new URLSearchParams(window.location.search).get('k');
+      if (key) {
+        try {
+          const resp = await fetch(`/bot/webapp-data/${key}`);
+          if (resp.ok) {
+            analysis = await resp.json();
+            return;
+          }
+        } catch (_) {}
+      }
+      // Priority 2: start_param from Telegram initData
+      try {
+        const raw = tg.initDataUnsafe?.start_param;
+        if (raw) { analysis = JSON.parse(decodeURIComponent(raw)); return; }
+      } catch (_) {}
+    }
 
     // Fallback demo data
-    if (!analysis.risk_level) {
+    function setDemoData() {
+      if (!analysis.risk_level) {
       analysis = {
         risk_level: 'MEDIUM',
         risk_score: 54,
@@ -202,7 +216,16 @@
         ],
         scan_date: new Date().toLocaleDateString('ru-RU'),
       };
+      }
     }
+
+    async function init() {
+      await loadAnalysis();
+      setDemoData();
+      render();
+    }
+
+    function render() {
 
     const riskColors = { LOW: '#34d058', MEDIUM: '#f0a500', HIGH: '#e05c4b', CRITICAL: '#cc0000' };
     const riskLabels = { LOW: 'Низкий', MEDIUM: 'Средний', HIGH: 'Высокий', CRITICAL: 'Критический' };
@@ -260,9 +283,14 @@
       tg.HapticFeedback.impactOccurred('light');
     }
 
+    } // end render()
+
     function _orderInspection() {
+      const level = analysis.risk_level || 'MEDIUM';
       tg.sendData(JSON.stringify({ action: 'order_inspection', risk_level: level }));
     }
+
+    init();
   </script>
 </body>
 </html>

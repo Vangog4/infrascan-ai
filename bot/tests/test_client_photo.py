@@ -137,6 +137,9 @@ async def test_audit_photo_free_user_calls_gemini():
         patch("src.services.referral.get_bonus_scans", AsyncMock(return_value=0)),
         patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
         patch("src.handlers.client.save_last_analysis", AsyncMock()),
+        patch("src.handlers.client.get_cached_analysis", AsyncMock(return_value=None)),
+        patch("src.handlers.client.cache_analysis", AsyncMock()),
+        patch("src.handlers.client.schedule_reminder", AsyncMock()),
         patch("src.services.odoo.save_report", AsyncMock()),
     ):
         await audit_photo(msg, state=state, bot=bot)
@@ -156,10 +159,15 @@ async def test_audit_photo_premium_user_saves_report():
         patch("src.services.premium.is_premium", AsyncMock(return_value=True)),
         patch("src.services.gemini.analyze_photo", AsyncMock(return_value=fake_result)),
         patch("src.services.gemini.format_analysis_premium", MagicMock(return_value="Premium анализ")),
+        patch("src.services.gemini.analysis_to_webapp", MagicMock(return_value={})),
         patch("src.services.referral.reward_first_scan", AsyncMock()),
         patch("src.handlers.client.save_last_report", AsyncMock()),
         patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
         patch("src.handlers.client.save_last_analysis", AsyncMock()),
+        patch("src.handlers.client.get_cached_analysis", AsyncMock(return_value=None)),
+        patch("src.handlers.client.cache_analysis", AsyncMock()),
+        patch("src.handlers.client.schedule_reminder", AsyncMock()),
+        patch("src.handlers.client.save_webapp_data", AsyncMock(return_value="testkey")),
         patch("src.services.odoo.save_report", AsyncMock()),
     ):
         await audit_photo(msg, state=state, bot=_bot())

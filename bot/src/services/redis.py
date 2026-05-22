@@ -4,6 +4,10 @@ A single connection is reused across premium, roles, and referral services
 instead of maintaining three separate lazy singletons.
 """
 
+import json
+import secrets
+import time
+
 import redis.asyncio as aioredis
 
 from src.config import settings
@@ -53,3 +57,53 @@ async def close_redis() -> None:
     if _redis is not None:
         await _redis.aclose()
         _redis = None
+
+
+# ── Photo analysis cache ──────────────────────────────────────────────────────
+
+_PHOTO_CACHE_TTL = 24 * 3600
+
+
+async def get_cached_analysis(photo_sha256: str) -> dict | None:
+    raw = await get_redis().get(f"photocache:{photo_sha256}")
+    return json.loads(raw) if raw else None
+
+
+async def cache_analysis(photo_sha256: str, analysis: dict) -> None:
+    await get_redis().set(f"photocache:{photo_sha256}", json.dumps(analysis), ex=_PHOTO_CACHE_TTL)
+
+
+# ── WebApp live data store ────────────────────────────────────────────────────
+
+_WEBAPP_TTL = 24 * 3600
+
+
+async def save_webapp_data(analysis: dict) -> str:
+    """Store webapp-format analysis in Redis; return the short key."""
+    key = secrets.token_urlsafe(8)
+    await get_redis().set(f"webapp:{key}", json.dumps(analysis), ex=_WEBAPP_TTL)
+    return key
+
+
+async def get_webapp_data(key: str) -> dict | None:
+    raw = await get_redis().get(f"webapp:{key}")
+    return json.loads(raw) if raw else None
+
+
+# ── Follow-up reminders ───────────────────────────────────────────────────────
+
+_REMIND_ZSET = "remind_queue"
+
+
+async def schedule_reminder(user_id: int, delay_days: int = 30) -> None:
+    remind_at = time.time() + delay_days * 86400
+    await get_redis().zadd(_REMIND_ZSET, {str(user_id): remind_at})
+
+
+async def pop_due_reminders() -> list[int]:
+    """Return user IDs whose reminder time has passed, removing them from queue."""
+    now = time.time()
+    members = await get_redis().zrangebyscore(_REMIND_ZSET, 0, now)
+    if members:
+        await get_redis().zrem(_REMIND_ZSET, *members)
+    return [int(m) for m in members]

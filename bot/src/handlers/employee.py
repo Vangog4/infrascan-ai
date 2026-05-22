@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hashlib
 import logging
 from datetime import datetime
 
@@ -11,8 +12,10 @@ from aiogram.types import CallbackQuery, Message
 from src.config import settings
 from src.keyboards.menus import employee_menu, tasks_kb
 from src.services import gemini, odoo
+from src.services.redis import cache_analysis, get_cached_analysis
 from src.services.roles import Role
 from src.states.flows import EmployeePhotoFlow
+from src.utils import typing_loop
 
 logger = logging.getLogger(__name__)
 router = Router(name="employee")
@@ -119,7 +122,9 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
 
     await wait.edit_text("📎 Прикрепляю к задаче и выполняю анализ...")
 
-    att_id, analysis = await _attach_and_analyze(task_id, filename, data_b64, photo_bytes)
+    att_id, analysis = await _attach_and_analyze(
+        task_id, filename, data_b64, photo_bytes, bot, message.chat.id
+    )
 
     analyses: list = data.get("analyses", [])
     analyses.append({"filename": filename, "result": analysis})
@@ -150,15 +155,25 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
 
 
 async def _attach_and_analyze(
-    task_id: int, filename: str, data_b64: str, photo_bytes: bytes
+    task_id: int, filename: str, data_b64: str, photo_bytes: bytes, bot: Bot, chat_id: int
 ) -> tuple[int | None, str]:
+    photo_hash = hashlib.sha256(photo_bytes).hexdigest()
+    cached = await get_cached_analysis(photo_hash)
+    if cached is not None:
+        att_id = await odoo.attach_photo(task_id, filename, data_b64)
+        return att_id, gemini.format_analysis_text(cached)
 
-    result_dict, att_id = await asyncio.gather(
-        gemini.analyze_photo(photo_bytes, locale="ru"),
-        odoo.attach_photo(task_id, filename, data_b64),
-    )
-    analysis = gemini.format_analysis_text(result_dict)
-    return att_id, analysis
+    _typing = asyncio.create_task(typing_loop(bot, chat_id))
+    try:
+        result_dict, att_id = await asyncio.gather(
+            gemini.analyze_photo(photo_bytes, locale="ru"),
+            odoo.attach_photo(task_id, filename, data_b64),
+        )
+    finally:
+        _typing.cancel()
+
+    await cache_analysis(photo_hash, result_dict)
+    return att_id, gemini.format_analysis_text(result_dict)
 
 
 @router.message(Command("done"), EmployeePhotoFlow.photos)

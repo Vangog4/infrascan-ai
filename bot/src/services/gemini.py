@@ -250,11 +250,20 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-async def analyze_photo(data: bytes, locale: str = "ru", mime: str = "image/jpeg") -> dict:
+async def analyze_photo(
+    data: bytes, locale: str = "ru", mime: str = "image/jpeg", context: str = ""
+) -> dict:
     """Return structured analysis dict. Callers use format_analysis_free/premium to render."""
     if settings.gemini_stub:
         return _STUB_ANALYSIS
     prompt = _AUDIT_PROMPT_RU if locale == "ru" else _AUDIT_PROMPT_EN
+    if context:
+        prefix = (
+            f"Контекст от пользователя (голосовое): {context}\n\n"
+            if locale == "ru"
+            else f"User context (voice): {context}\n\n"
+        )
+        prompt = prefix + prompt
     r = None
     try:
         r = await _get().aio.models.generate_content(
@@ -326,10 +335,16 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
         parsed = json.loads(_strip_fences(r.text))
+        score = min(100, max(0, int(parsed.get("total_score", 75))))
         verdict = parsed.get("verdict", "ПРИНЯТО")
+        # Enforce score↔verdict consistency per prompt thresholds
+        if score >= 70 and verdict == "БРАК":
+            verdict = "ПРИНЯТО"
+        elif score < 50 and verdict == "ПРИНЯТО":
+            verdict = "БРАК"
         return {
             "ok": verdict in ("ПРИНЯТО", "ЗАМЕЧАНИЕ"),
-            "score": min(100, max(0, int(parsed.get("total_score", 75)))),
+            "score": score,
             "verdict": verdict,
             "reason": parsed.get("reason"),
             "tip": parsed.get("tip"),
@@ -453,3 +468,109 @@ def format_analysis_text(result: dict) -> str:
     if "error" in result or "_fallback" in result:
         return result.get("free_verdict", result.get("premium_analysis", ""))
     return format_analysis_premium(result, locale="ru")
+
+
+# ── Voice transcription ───────────────────────────────────────────────────────
+
+
+async def transcribe_voice(audio_bytes: bytes, mime: str = "audio/ogg") -> str:
+    """Transcribe a Telegram voice message to text using Gemini."""
+    if settings.gemini_stub:
+        return "Трещина в верхнем правом углу, видно намокание штукатурки"
+    try:
+        r = await _get().aio.models.generate_content(
+            model=settings.gemini_model,
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime),
+                "Transcribe this voice message verbatim into Russian. Return only the transcription text.",
+            ],
+        )
+        return r.text.strip()
+    except Exception as e:
+        logger.error("Gemini transcribe_voice: %s", e)
+        return ""
+
+
+# ── WebApp data conversion ────────────────────────────────────────────────────
+
+_SEV_TO_RISK = {"low": "LOW", "medium": "MEDIUM", "high": "HIGH", "critical": "CRITICAL"}
+_TYPE_TO_ICON = {
+    "thermal_bridge": "🌡",
+    "moisture": "💧",
+    "mold": "🟤",
+    "crack": "🔩",
+    "insulation": "🧱",
+    "electrical": "⚡",
+    "structural": "🏗",
+    "condensation": "💧",
+    "other": "⚠️",
+}
+_OBJTYPE_ICON = {
+    "wall": "🧱",
+    "window": "🪟",
+    "roof": "🏠",
+    "electrical": "⚡",
+    "facade": "🏗",
+    "floor": "🔲",
+    "other": "📍",
+}
+
+
+def analysis_to_webapp(analysis: dict, scan_date: str = "") -> dict:
+    """Convert Gemini analysis dict to the format expected by webapp/index.html."""
+    from collections import defaultdict
+
+    problems = analysis.get("problems", [])
+    obj_type = analysis.get("object_type", "")
+    obj_icon = _OBJTYPE_ICON.get(obj_type, "📍")
+    sev_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+    sev_labels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+    zones_map: dict[str, list[str]] = defaultdict(list)
+    zone_sev: dict[str, int] = defaultdict(int)
+
+    for p in problems:
+        loc = (p.get("location") or "Объект")[:30]
+        sev = p.get("severity", "medium")
+        zones_map[loc].append(p.get("description", ""))
+        zone_sev[loc] = max(zone_sev[loc], sev_order.get(sev, 1))
+
+    zones = [
+        {
+            "name": loc,
+            "icon": _TYPE_TO_ICON.get(
+                next(
+                    (p.get("type", "") for p in problems if (p.get("location") or "")[:30] == loc),
+                    "",
+                ),
+                obj_icon,
+            ),
+            "risk": sev_labels[zone_sev[loc]],
+            "issues": issues,
+        }
+        for loc, issues in zones_map.items()
+    ]
+
+    if not zones:
+        risk = analysis.get("risk_level", "MEDIUM")
+        zones = [
+            {
+                "name": "Объект",
+                "icon": obj_icon,
+                "risk": risk,
+                "issues": [analysis.get("free_verdict", "")[:120]],
+            }
+        ]
+
+    score = analysis.get("risk_score", 0)
+    if isinstance(score, float) and score <= 1.0:
+        score = round(score * 100)  # round avoids 0.58*100=57.999...
+
+    return {
+        "risk_level": analysis.get("risk_level", "MEDIUM"),
+        "risk_score": int(score),
+        "object_type": _OBJECT_LABEL["ru"].get(obj_type, obj_type),
+        "zones": zones,
+        "free_verdict": analysis.get("free_verdict", ""),
+        "scan_date": scan_date,
+    }

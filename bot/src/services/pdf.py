@@ -108,7 +108,7 @@ class _Report(FPDF):
         self.ln(2)
 
 
-def generate_report(analysis_text: str, locale: str = "ru") -> bytes:
+def generate_report(analysis_text: str, locale: str = "ru", analysis: dict | None = None) -> bytes:
     """Return a branded PDF bytes object for the given analysis text."""
     pdf = _Report(locale)
     pdf.set_auto_page_break(auto=True, margin=18)
@@ -120,8 +120,6 @@ def generate_report(analysis_text: str, locale: str = "ru") -> bytes:
     date_str = now.strftime("%d.%m.%Y  %H:%M UTC")
 
     # ── Meta block ───────────────────────────────────────────────────────────
-    pdf.set_font("dj", "", 9)
-    pdf.set_text_color(*_MUTED)
     title = "ОТЧЁТ О ТЕПЛОВИЗИОННОЙ ДИАГНОСТИКЕ" if locale == "ru" else "THERMAL INSPECTION REPORT"
     pdf.set_font("dj", "B", 14)
     pdf.set_text_color(*_TEXT)
@@ -148,8 +146,55 @@ def generate_report(analysis_text: str, locale: str = "ru") -> bytes:
         pdf.ln(11)
         pdf.h_rule()
 
+    # ── Problems table (if raw analysis dict available) ───────────────────────
+    if analysis and analysis.get("problems"):
+        section_title = "ВЫЯВЛЕННЫЕ ДЕФЕКТЫ" if locale == "ru" else "DETECTED ISSUES"
+        pdf.section_title(section_title)
+        sev_map = {
+            "low": ("НИЗКАЯ", "LOW"),
+            "medium": ("СРЕДНЯЯ", "MEDIUM"),
+            "high": ("ВЫСОКАЯ", "HIGH"),
+            "critical": ("КРИТИЧЕСКАЯ", "CRITICAL"),
+        }
+        for i, p in enumerate(analysis["problems"][:8], 1):
+            sev_key = p.get("severity", "medium")
+            sev_ru, sev_en = sev_map.get(sev_key, ("—", "—"))
+            sev_label = sev_ru if locale == "ru" else sev_en
+            sev_color = _BG_RISK.get(sev_key, _MUTED)
+            loc = _strip_markdown(p.get("location", "—"))
+            desc = _strip_markdown(p.get("description", ""))
+
+            pdf.set_font("dj", "B", 9)
+            pdf.set_text_color(*_TEXT)
+            pdf.cell(8, 6, f"{i}.")
+            pdf.set_fill_color(*sev_color)
+            pdf.set_text_color(*_WHITE)
+            pdf.cell(26, 6, f" {sev_label} ", fill=True)
+            pdf.set_text_color(*_MUTED)
+            pdf.set_font("dj", "", 9)
+            pdf.cell(0, 6, f"  {loc}")
+            pdf.ln(7)
+            if desc:
+                pdf.set_font("dj", "", 8.5)
+                pdf.set_text_color(*_TEXT)
+                pdf.set_x(20)
+                pdf.multi_cell(0, 5, desc)
+                pdf.ln(1)
+        pdf.h_rule()
+
+    # ── Recommendations (if available) ───────────────────────────────────────
+    if analysis and analysis.get("recommendations_detailed"):
+        rec_title = "ПЛАН УСТРАНЕНИЯ" if locale == "ru" else "ACTION PLAN"
+        pdf.section_title(rec_title)
+        for step in analysis["recommendations_detailed"][:5]:
+            pdf.set_font("dj", "", 9)
+            pdf.set_text_color(*_TEXT)
+            pdf.multi_cell(0, 5.5, _strip_markdown(f"• {step}"))
+            pdf.ln(1)
+        pdf.h_rule()
+
     # ── Analysis body ─────────────────────────────────────────────────────────
-    section = "РЕЗУЛЬТАТ АНАЛИЗА" if locale == "ru" else "ANALYSIS RESULT"
+    section = "ПОЛНЫЙ ТЕКСТ АНАЛИЗА" if locale == "ru" else "FULL ANALYSIS"
     pdf.section_title(section)
     clean_text = _strip_markdown(analysis_text)
     pdf.body_text(clean_text)
