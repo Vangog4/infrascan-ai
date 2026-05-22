@@ -355,18 +355,22 @@ async def lead_contact(
         phone=phone,
         description=f"Заявка через Telegram-бот. TG: {tg_ref}",
     )
-    if result is None:
-        for admin_id in settings.admin_ids:
-            if admin_id:
-                try:
-                    await bot.send_message(
-                        admin_id,
-                        f"📥 <b>Новый лид!</b>\n\n"
-                        f"Имя: {name}\nТелефон: <code>{phone}</code>\nTG: {tg_ref}\n\n"
-                        "⚠️ Odoo недоступен — зафиксируй вручную.",
-                    )
-                except Exception:
-                    pass
+    odoo_status = (
+        f"✅ Лид #{result} создан в Odoo" if result else "⚠️ Odoo недоступен — зафиксируй вручную"
+    )
+    for admin_id in settings.admin_ids:
+        if admin_id:
+            try:
+                await bot.send_message(
+                    admin_id,
+                    f"📥 <b>Новая заявка на выезд!</b>\n\n"
+                    f"👤 Имя: {name}\n"
+                    f"📞 Телефон: <code>{phone}</code>\n"
+                    f"🔗 TG: {tg_ref}\n\n"
+                    f"{odoo_status}",
+                )
+            except Exception:
+                pass
 
     await message.answer(
         "✅ <b>Заявка принята!</b>\n\n"

@@ -170,6 +170,18 @@ async def payment_success(
         count = int(payload.split("_")[1])
         await ref_svc.add_bonus_scans(user_id, count)
         bonus_left = await ref_svc.get_bonus_scans(user_id)
+        for admin_id in settings.admin_ids:
+            if admin_id:
+                try:
+                    await bot.send_message(
+                        admin_id,
+                        f"📦 <b>Куплен пакет анализов!</b>\n\n"
+                        f"👤 TG ID: <code>{user_id}</code>\n"
+                        f"📊 Пакет: {count} анализов\n"
+                        f"⭐️ Оплачено: {payment.total_amount} Stars",
+                    )
+                except Exception:
+                    pass
         if locale == "ru":
             text = (
                 f"📦 <b>Пакет активирован!</b>\n\n"
@@ -192,6 +204,21 @@ async def payment_success(
     days = settings.premium_duration_days
     await premium_svc.grant_premium(user_id, days)
     await ref_svc.reward_premium_purchase(user_id, bot)
+
+    username = message.from_user.username
+    tg_ref = f"@{username}" if username else f"tg://user?id={user_id}"
+    for admin_id in settings.admin_ids:
+        if admin_id:
+            try:
+                await bot.send_message(
+                    admin_id,
+                    f"⭐️ <b>Куплен Premium!</b>\n\n"
+                    f"👤 {tg_ref} (ID: <code>{user_id}</code>)\n"
+                    f"📅 Период: {days} дней\n"
+                    f"⭐️ Оплачено: {payment.total_amount} Stars",
+                )
+            except Exception:
+                pass
 
     if locale == "ru":
         text = (
