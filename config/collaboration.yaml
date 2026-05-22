@@ -1,124 +1,199 @@
 # Agent Collaboration Registry — infrascan-ai
-# Defines agent capabilities, routing rules, and safety constraints.
-# Used by hooks/router.py and hooks/gemini_agent.sh.
+# Три движка: Claude (оркестратор) + Gemini (специалист) + Kimi (тяжёлые задачи)
+# Используется hooks/router.py, hooks/gemini_agent.sh, hooks/kimi_agent.sh
 
-version: "1.0"
+version: "2.0"
+
+# ── Агенты ────────────────────────────────────────────────────────────────────
 
 agents:
   claude:
     role: orchestrator
     description: >
-      Primary reasoning engine. Handles code edits, architecture decisions,
-      quick fixes, config changes, and all tasks not requiring large context
-      or live web access. Routes to Gemini when beneficial.
+      Главный оркестратор. Пишет и редактирует код, управляет git,
+      принимает архитектурные решения. Делегирует Gemini и Kimi
+      когда их специализация даёт явное преимущество.
     strengths:
-      - precise code editing
-      - architectural reasoning
-      - safety-first decision making
-      - hook orchestration
+      - точное редактирование кода (Edit/Write/Bash)
+      - архитектурное мышление и планирование
+      - git workflow и коммиты
+      - управление FSM, тестами, хуками
     token_limit: 200_000
     cost_tier: medium
+    always_handles:
+      - редактирование файлов (Edit/Write)
+      - коммиты и git операции
+      - быстрые правки (typo, config, rename)
+      - финальные решения после анализа субагентов
 
   gemini:
-    role: subagent
+    role: specialist
     description: >
-      Specialist subagent. Invoked lazily only when Claude's strengths are
-      insufficient. Has 2M token context window and live internet access.
+      Специалист. 2M токен контекст + веб-доступ + Vision API.
+      Запускается лениво только при реальной необходимости.
     binary: gemini
     model: gemini-2.5-flash
     script: hooks/gemini_agent.sh
     strengths:
-      - large codebase analysis (2M tokens)
-      - vision / image analysis (thermal scans)
-      - live web research
-      - red team adversarial review
-      - independent code review (second opinion)
+      - Vision API (тепловые снимки, фото объектов)
+      - живой веб-поиск и актуальные доки
+      - adversarial security review (Red Team)
+      - code review git diff (независимый взгляд)
+      - ретроспектива сессий
+      - диагностика стека (health)
     token_limit: 2_000_000
     cost_tier: low
     modes:
-      - review        # git diff code review
-      - analyze       # deep file/dir analysis
-      - research      # web search & docs
-      - health        # system diagnostics
-      - redteam       # adversarial security audit
-      - retrospective # nightly session review
+      review:        "git diff → code review"
+      analyze:       "файл/директория → глубокий анализ (2M ctx)"
+      research:      "веб-поиск + актуальные доки"
+      health:        "диагностика контейнеров и VDS"
+      redteam:       "adversarial security audit"
+      retrospective: "ночная ретроспектива сессии"
+    projects:
+      infrascan-ai:
+        - анализ тепловых снимков и промптов Gemini Vision
+        - security audit webhook/bot endpoints
+        - code review перед релизом
+        - поиск в Odoo 19 docs
+      astrotara:
+        - исследование астро-алгоритмов онлайн
+        - ревью новых фич перед релизом
+      all:
+        - health check всех сервисов
+        - ретроспективы сессий
+
+  kimi:
+    role: analyst
+    description: >
+      Аналитик тяжёлых задач. 128K токен контекст, OpenAI-совместимый API
+      (Moonshot AI). Дешевле Claude/Gemini. Не имеет веб-доступа.
+      Запускается для задач с большим объёмом данных.
+    binary: python3 hooks/kimi_client.py
+    model: moonshot-v1-128k
+    script: hooks/kimi_agent.sh
+    api_base: https://api.moonshot.cn/v1
+    api_key_env: MOONSHOT_API_KEY
+    strengths:
+      - весь репозиторий в одном контексте (128K)
+      - анализ больших логов и дампов
+      - черновые исследования (дёшево)
+      - анализ схем БД и миграций
+      - второе мнение по архитектуре
+      - сравнение подходов A/B
+    token_limit: 128_000
+    cost_tier: very_low
+    modes:
+      analyze:  "файл/директория → полный анализ (весь репо за раз)"
+      bulk:     "большие логи / дампы данных"
+      draft:    "черновик / брейншторм (быстро и дёшево)"
+      migrate:  "схема БД → предложение ALTER TABLE / Alembic"
+      compare:  "сравнение двух подходов A/B"
+      council:  "второе мнение по архитектурному решению"
+    projects:
+      infrascan-ai:
+        - полный анализ bot/src/ + addons/ за один вызов
+        - анализ логов контейнеров за период
+        - анализ SQLAlchemy моделей Odoo
+        - черновики новых фич перед реализацией
+      astrotara:
+        - весь codebase → поиск скрытых багов
+        - анализ схемы astro.db (недостающие колонки)
+        - черновики для новых астро-фич
+      all:
+        - анализ логов при инцидентах
+        - сравнение архитектурных вариантов
+
+# ── Маршрутизация ─────────────────────────────────────────────────────────────
 
 routing:
-  # Gemini is invoked when ANY of these conditions match
-  delegate_to_gemini_when:
-    - keyword_matches:
-        - image, photo, фото, thermal, термограмм, vision, картинк, скриншот
-        → mode: analyze
-        reason: "multimodal task requiring Gemini Vision"
+  priority_order: [claude_override, size_threshold, gemini_keywords, kimi_keywords, claude_default]
 
-    - keyword_matches:
-        - research, найди в интернете, погугли, latest docs, актуальн, changelog
-        → mode: research
-        reason: "live web access required"
+  claude_override:
+    description: "Всегда Claude — мгновенные простые правки"
+    triggers:
+      - быстрое исправление, quick fix, опечатк, typo
+      - rename, поменяй строку, исправь строку
+      - config, конфиг, добавь строку
+      - git commit, git add, закоммить
 
-    - keyword_matches:
-        - security audit, уязвимост, red team, pentest, CVE, exploit
-        → mode: redteam
-        reason: "independent adversarial security review"
+  size_thresholds:
+    file_gt_50kb:  {engine: kimi,   mode: analyze, reason: "огромный файл → Kimi 128K"}
+    file_gt_8kb:   {engine: gemini, mode: analyze, reason: "большой файл → Gemini 2M"}
+    total_gt_80kb: {engine: kimi,   mode: analyze, reason: "суммарный контекст → Kimi"}
+    total_gt_20kb: {engine: gemini, mode: analyze, reason: "суммарный контекст → Gemini"}
 
-    - keyword_matches:
-        - code review, проверь весь проект, полный анализ, весь репозиторий
-        → mode: review
-        reason: "large-context full project review"
+  gemini_keywords:
+    priority: 10-5  # higher = evaluated first
+    routes:
+      - {keywords: [image, photo, фото, thermal, термограмм, vision, тепловизор],
+         mode: analyze, priority: 10, reason: "Vision API → Gemini"}
+      - {keywords: [research, погугли, web search, актуальн, odoo docs, changelog],
+         mode: research, priority: 9, reason: "веб-поиск → Gemini"}
+      - {keywords: [уязвимост, security audit, exploit, red team, xss, ssrf, rce],
+         mode: redteam, priority: 8, reason: "Red Team → Gemini"}
+      - {keywords: [code review, проверь диф, ревью диф, перед коммитом],
+         mode: review, priority: 7, reason: "diff review → Gemini"}
+      - {keywords: [health check, состояние системы, диагностик, статус контейнеров],
+         mode: health, priority: 6, reason: "health → Gemini"}
+      - {keywords: [ретроспектив, retrospective, итог сессии],
+         mode: retrospective, priority: 5, reason: "ретро → Gemini"}
 
-    - file_size_bytes: "> 8000"
-      → mode: analyze
-      reason: "file too large for Claude's focused editing mode"
+  kimi_keywords:
+    priority: 9-4  # yields to Gemini on ties
+    routes:
+      - {keywords: [весь репо, full codebase, все файлы, весь код, полный репозиторий],
+         mode: analyze, priority: 9, reason: "весь репо → Kimi 128K"}
+      - {keywords: [log, logs, лог, логи, dump, traceback, bot.log, ошибки за],
+         mode: bulk, priority: 8, reason: "логи → Kimi bulk"}
+      - {keywords: [миграци, migration, schema, alter table, sqlalchemy модели, структура бд],
+         mode: migrate, priority: 7, reason: "схема БД → Kimi migrate"}
+      - {keywords: [сравни подходы, compare, что лучше, два варианта, trade-off],
+         mode: compare, priority: 5, reason: "сравнение → Kimi"}
+      - {keywords: [второе мнение, council, посоветуй, как лучше архитектурно],
+         mode: council, priority: 5, reason: "архит. совет → Kimi"}
+      - {keywords: [черновик, draft, набросок, предложи варианты, а что если],
+         mode: draft, priority: 4, reason: "черновик → Kimi (дёшево)"}
 
-    - total_context_bytes: "> 20000"
-      → mode: analyze
-      reason: "context exceeds optimal Claude editing window"
-
-  # Override: always use Claude for these regardless of above
-  force_claude_when:
-    - task contains: быстрое исправление, quick fix, опечатк, typo, rename, поменяй строку
-    - task contains: config, конфиг изменить
+# ── Хуки безопасности ────────────────────────────────────────────────────────
 
 safety:
   hooks:
     PreToolUse:
-      - matcher: Bash
-        script: hooks/safety_guard.py
-        action: block_on_exit_2
-        description: "Blocks destructive shell commands (rm -rf /, fork bomb, disk wipe)"
-
-      - matcher: "Write|Edit"
-        script: hooks/skill_vetter.py
-        action: block_on_exit_2
-        description: "Audits code for RCE, injection, prompt injection before save"
-
+      - {matcher: Bash,        script: hooks/safety_guard.py,  action: block_on_exit_2}
+      - {matcher: "Write|Edit", script: hooks/skill_vetter.py, action: block_on_exit_2}
     PostToolUse:
-      - matcher: "Edit|Write"
-        script: hooks/run_pytest.sh
-        action: block_on_exit_2
-        description: "Runs pytest after Python file changes; blocks if tests fail"
-
-      - matcher: "Bash|Edit|Write"
-        script: hooks/stuck_detector.py
-        action: block_on_exit_2
-        description: "Detects repetitive failure loops; forces strategy change"
-
+      - {matcher: "Edit|Write",      script: hooks/run_pytest.sh,    action: block_on_exit_2}
+      - {matcher: "Bash|Edit|Write", script: hooks/stuck_detector.py, action: block_on_exit_2}
     Stop:
-      - script: hooks/auto_journal.py
-        description: "Writes session end marker to Logseq journal"
-
-      - script: hooks/retrospective.py
-        description: "Triggers Gemini Red Team review if git diff is non-empty"
+      - {script: hooks/auto_journal.py,  description: "Logseq журнал сессии"}
+      - {script: hooks/retrospective.py, description: "Gemini ретроспектива если есть diff"}
 
   sandboxing:
     runtime: podman
-    networks:
-      - odoo-internal    # isolated: db ↔ odoo only
-      - bot-net          # bridge: bot ↔ odoo, internet (Telegram)
-      - npm_network      # external: nginx proxy → odoo
+    confirmation_gateway: hooks/confirm_bridge.py
+    confirmation_required_for:
+      - overnight loop start
+      - 5+ consecutive test failures
+      - любая необратимая операция вне рабочего flow
 
-  confirmation_gateway: hooks/confirm_bridge.py
-  confirmation_required_for:
-    - overnight loop start
-    - 5+ consecutive test failures
-    - any manual system operation outside normal workflow
+# ── Quick Reference ───────────────────────────────────────────────────────────
+
+quick_reference:
+  gemini: |
+    bash hooks/gemini_agent.sh review
+    bash hooks/gemini_agent.sh analyze bot/src/
+    bash hooks/gemini_agent.sh research "вопрос"
+    bash hooks/gemini_agent.sh health
+    bash hooks/gemini_agent.sh redteam
+    bash hooks/gemini_agent.sh retrospective
+  kimi: |
+    kimi analyze /root/infrascan-ai/bot/src/
+    kimi bulk /root/infrascan-ai/bot.log
+    kimi draft "идея для новой фичи"
+    kimi migrate /root/astrotara_bot/bot_app/src/database/models.py
+    kimi compare "Redis vs Postgres для кеша анализов"
+    kimi council "стоит ли переходить на webhook mode"
+  router: |
+    python3 hooks/router.py "описание задачи"
+    echo '{"task":"...","files":["path"]}' | python3 hooks/router.py

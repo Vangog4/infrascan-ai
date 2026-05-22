@@ -153,49 +153,87 @@ ODOO_PASSWORD=...
 
 ---
 
-## Multi-Agent Orchestration Architecture
+## Multi-Agent Orchestration Architecture (v2.0 — три движка)
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     CLAUDE (Orchestrator)                        │
-│   PreToolUse          Core Logic          PostToolUse + Stop     │
-│  ┌──────────┐      ┌───────────┐        ┌──────────────────┐    │
-│  │safety_   │      │  router   │        │run_pytest.sh     │    │
-│  │guard.py  │      │  .py      │        │stuck_detector.py │    │
-│  │(Bash)    │      │           │        │auto_journal.py   │    │
-│  ├──────────┤      │  claude?  │        │retrospective.py  │    │
-│  │skill_    │      │  gemini?  │        └──────────────────┘    │
-│  │vetter.py │      └─────┬─────┘                                │
-│  │(Write/   │            │ delegate                             │
-│  │Edit)     │            ▼                                       │
-│  └──────────┘    ┌───────────────┐                              │
-│                  │ GEMINI CLI    │                               │
-│                  │ (Subagent)    │                               │
-│                  │ 2M ctx window │                               │
-│                  │ + web access  │                               │
-│                  │               │                               │
-│                  │ modes:        │                               │
-│                  │ review        │                               │
-│                  │ analyze       │                               │
-│                  │ research      │                               │
-│                  │ redteam       │                               │
-│                  │ retrospective │                               │
-│                  └───────────────┘                              │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                      CLAUDE (Orchestrator)                            │
+│   PreToolUse           Core Logic           PostToolUse + Stop        │
+│  ┌──────────┐       ┌────────────┐        ┌───────────────────┐      │
+│  │safety_   │       │  router.py │        │run_pytest.sh      │      │
+│  │guard.py  │       │            │        │stuck_detector.py  │      │
+│  │(Bash)    │       │  claude?   │        │auto_journal.py    │      │
+│  ├──────────┤       │  gemini?   │        │retrospective.py   │      │
+│  │skill_    │       │  kimi?     │        └───────────────────┘      │
+│  │vetter.py │       └──┬──────┬──┘                                   │
+│  └──────────┘          │      │                                      │
+│                        │      └──────────────────────┐               │
+│                        ▼                             ▼               │
+│              ┌──────────────────┐       ┌─────────────────────┐      │
+│              │  GEMINI 2.5      │       │  KIMI 2.5           │      │
+│              │  (Специалист)    │       │  (Аналитик)         │      │
+│              │                  │       │                     │      │
+│              │ 2M ctx + Web     │       │ 128K ctx (дёшево)   │      │
+│              │ + Vision API     │       │ OpenAI-совместимый  │      │
+│              │                  │       │                     │      │
+│              │ modes:           │       │ modes:              │      │
+│              │  review          │       │  analyze            │      │
+│              │  analyze         │       │  bulk               │      │
+│              │  research        │       │  draft              │      │
+│              │  redteam         │       │  migrate            │      │
+│              │  retrospective   │       │  compare            │      │
+│              │  health          │       │  council            │      │
+│              └──────────────────┘       └─────────────────────┘      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Agent Registry (Lazy Loading)
-Gemini запускается ТОЛЬКО когда `router.py` решает делегировать:
-- файл > 8KB → Gemini (2M контекст)
-- задача содержит: image/photo/thermal → Gemini Vision
-- задача содержит: research/погугли → Gemini (веб-доступ)
-- задача содержит: security audit/red team → Gemini RedTeam
-- иначе → Claude обрабатывает напрямую
+### Agent Registry — роли
+
+| Агент | Когда | Примеры задач |
+|---|---|---|
+| **Claude** | Всегда (оркестратор) | Edit, Write, git, тесты, планирование |
+| **Gemini** | Vision / Web / Security | Фото анализ, поиск в доках, red team |
+| **Kimi** | Большой объём / дёшево | Весь репо, логи, черновики, миграции БД |
+
+### Маршрутизация (router.py)
 
 ```bash
-# Явный запрос решения роутера:
-bash hooks/gemini_agent.sh route "проанализируй тепловые снимки"
-# → {"engine": "gemini", "mode": "analyze", "reason": "..."}
+# Узнать куда идёт задача:
+python3 hooks/router.py "проанализируй все логи за неделю"
+# → {"engine": "kimi", "mode": "bulk", ...}
+
+python3 hooks/router.py "найди уязвимости в webhook"
+# → {"engine": "gemini", "mode": "redteam", ...}
+```
+
+### Gemini Quick Reference
+
+```bash
+bash hooks/gemini_agent.sh review          # code review git diff
+bash hooks/gemini_agent.sh analyze <file>  # анализ файла/директории
+bash hooks/gemini_agent.sh research "..."  # веб-поиск
+bash hooks/gemini_agent.sh health          # диагностика стека
+bash hooks/gemini_agent.sh redteam         # adversarial security audit
+bash hooks/gemini_agent.sh retrospective   # ретроспектива сессии
+```
+
+### Kimi Quick Reference
+
+```bash
+kimi analyze /root/infrascan-ai/bot/src/   # весь bot/src/ за раз
+kimi bulk /root/infrascan-ai/bot.log        # анализ логов
+kimi draft "идея для новой фичи"            # черновик (дёшево)
+kimi migrate /root/astrotara_bot/bot_app/src/database/models.py
+kimi compare "Redis vs Postgres для кеша"
+kimi council "стоит ли переходить на gRPC"
+```
+
+### Настройка Kimi API
+
+```bash
+# Добавить в /root/.env или /root/infrascan-ai/.env:
+MOONSHOT_API_KEY=sk-xxxxxxxxxxxxxxxx
+# Получить: https://platform.moonshot.cn/console/api-keys
 ```
 
 ### Слои безопасности (Hook Pipeline)
