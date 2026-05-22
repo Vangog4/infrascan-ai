@@ -1,7 +1,26 @@
 # SESSION_NOTES — заметки текущей сессии
 
 ## Текущая задача
-Завершена: per-project multi-agent система полностью настроена и протестирована.
+Полная проверка проекта + исправление ошибок (2026-05-22).
+
+## Что исправлено в эту сессию (2026-05-22 — аудит)
+
+### Критические уязвимости (Gemini Red Team)
+- **CWE-78 OS Command Injection** → `router.py` L110/114: заменены `'{files[0]}'` → `shlex.quote(files[0])` для KIMI_AGENT и GEMINI_AGENT
+- **CWE-362 Race Condition** → `auto_journal.py` + `orchestrator.py`: заменён `fcntl.flock(fh, LOCK_EX)` на отдельный `.lock` файл — теперь `os.replace()` не меняет inode под замком
+- **CWE-74 Prompt Injection** → `project_agent.py`: `session_notes` и `session_state` обёрнуты в `<session_notes>...</session_notes>` / `<session_state>...</session_state>` разделители
+- **CWE-22 Path Traversal** → `project_agent.py`: добавлены проверки `"/" in project_id` и `yaml_path.resolve().is_relative_to(PROJECTS_DIR.resolve())`
+- **GEMINI_STUB=true** → удалён из `podman-compose.yml`; бот перезапущен и теперь использует реальный Gemini Vision API (GEMINI_API_KEY в .env уже был настроен)
+
+### Результат проверки (без изменений — всё ОК)
+- 205/205 тестов прошли
+- judge.sh 7/7 ✅ (syntax, ruff, odoo addons, pytest, containers)
+- Нет runtime ошибок в логах контейнеров
+
+## Следующие шаги
+- Дождаться результата Kimi (анализ всего репо) — ещё идёт
+- Закоммитить исправления (ждём добро пользователя)
+- Обновить DECISIONS.md с исправленными уязвимостями
 
 ## Что сделано в эту сессию (2026-05-22)
 
