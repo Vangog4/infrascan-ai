@@ -125,7 +125,9 @@
 			},
 			{ threshold: 0.6 },
 		);
-		els.forEach((el) => io.observe(el));
+		els.forEach((el) => {
+			io.observe(el);
+		});
 	}
 
 	/* ── 5. Hero heading stagger ──────────────────────────────── */
@@ -214,13 +216,17 @@
 				btn.target = "_blank";
 				btn.rel = "noopener noreferrer";
 				btn.className = "btn is-btn-primary-hero";
-				strip.forEach((p) => btn.style.removeProperty(p));
+				strip.forEach((p) => {
+					btn.style.removeProperty(p);
+				});
 			} else if (i === 1) {
 				btn.textContent = "Вызвать инженера →";
 				btn.href = FORM_URL;
 				btn.removeAttribute("target");
 				btn.className = "btn is-btn-secondary-hero";
-				strip.forEach((p) => btn.style.removeProperty(p));
+				strip.forEach((p) => {
+					btn.style.removeProperty(p);
+				});
 			}
 		});
 	}
