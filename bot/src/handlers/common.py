@@ -7,7 +7,13 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
-from src.keyboards.menus import client_menu, employee_menu
+from src.keyboards.menus import (
+    BTN_HELP,
+    BTN_HELP_EN,
+    client_menu,
+    employee_menu,
+    premium_client_menu,
+)
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
 from src.services.redis import get_redis, is_first_visit
@@ -20,25 +26,21 @@ router = Router(name="common")
 _SEP = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
 
 _WELCOME_RU = (
-    "🔬 <b>ИНФРАСКАН · НЕЙРО-ДИАГНОСТИКА</b>\n" + _SEP + "\n\n"
+    "🔥 <b>InfraScan AI — рентген вашего здания</b>\n" + _SEP + "\n\n"
     "<code>◉ СТАТУС        ОНЛАЙН\n"
-    "◉ ИИ-МОДЕЛЬ     Gemini Vision\n"
-    "◉ АНАЛИЗ        ГОТОВ\n"
-    "◉ ТАРИФ         {tier}</code>\n\n" + _SEP + "\n\n"
-    "Загрузите фото — ИИ выявит скрытые теплопотери "
-    "и дефекты за 30 секунд.\n\n"
-    "Выберите действие 👇"
+    "◉ МОДЕЛЬ        Gemini Vision\n"
+    "◉ ТАРИФ         {tier}\n"
+    "◉ АНАЛИЗОВ      {scans_left}</code>\n\n" + _SEP + "\n\n"
+    "👇 Нажмите <b>«Найти утечки тепла»</b> и отправьте фото."
 )
 
 _WELCOME_EN = (
-    "🔬 <b>INFRASCAN · AI DIAGNOSTICS</b>\n" + _SEP + "\n\n"
+    "🔥 <b>InfraScan AI — X-ray for your building</b>\n" + _SEP + "\n\n"
     "<code>◉ STATUS        ONLINE\n"
-    "◉ AI MODEL      Gemini Vision\n"
-    "◉ ANALYSIS      READY\n"
-    "◉ PLAN          {tier}</code>\n\n" + _SEP + "\n\n"
-    "Upload a photo — AI detects hidden heat losses "
-    "and defects in 30 seconds.\n\n"
-    "Choose an action 👇"
+    "◉ MODEL         Gemini Vision\n"
+    "◉ PLAN          {tier}\n"
+    "◉ SCANS LEFT    {scans_left}</code>\n\n" + _SEP + "\n\n"
+    "👇 Tap <b>«Find Heat Leaks Now»</b> and send a photo."
 )
 
 _EMPLOYEE_WELCOME = (
@@ -142,12 +144,24 @@ async def cmd_start(
         # Compact returning-user welcome
         is_prem = await premium_svc.is_premium(user_id)
         if locale == "ru":
-            tier = "⭐️ PREMIUM" if is_prem else f"FREE ({settings.free_daily_scans} фото/день)"
-            text = _WELCOME_RU.format(tier=tier)
+            tier = (
+                "⭐️ PREMIUM — безлимит"
+                if is_prem
+                else f"FREE ({settings.free_daily_scans} фото/день)"
+            )
+            scans_left = "∞" if is_prem else str(await premium_svc.scans_remaining(user_id))
+            text = _WELCOME_RU.format(tier=tier, scans_left=scans_left)
+            kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
         else:
-            tier = "⭐️ PREMIUM" if is_prem else f"FREE ({settings.free_daily_scans} photos/day)"
-            text = _WELCOME_EN.format(tier=tier)
-        await message.answer(text + bonus_notice, reply_markup=client_menu(locale, is_local))
+            tier = (
+                "⭐️ PREMIUM — unlimited"
+                if is_prem
+                else f"FREE ({settings.free_daily_scans} photos/day)"
+            )
+            scans_left = "∞" if is_prem else str(await premium_svc.scans_remaining(user_id))
+            text = _WELCOME_EN.format(tier=tier, scans_left=scans_left)
+            kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
+        await message.answer(text + bonus_notice, reply_markup=kb)
 
 
 @router.callback_query(F.data == "onboarding:photo")
@@ -186,8 +200,13 @@ async def cmd_cancel(
     if role == Role.EMPLOYEE:
         kb = employee_menu()
     else:
-        kb = client_menu(locale, is_local)
-    text = "Действие отменено." if locale == "ru" else "Action cancelled."
+        is_prem = await premium_svc.is_premium(message.from_user.id)
+        kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
+    text = (
+        "Действие отменено. Выберите действие в меню 👇"
+        if locale == "ru"
+        else "Action cancelled. Choose an action below 👇"
+    )
     await message.answer(text, reply_markup=kb)
 
 
@@ -233,10 +252,12 @@ async def cmd_broadcast(message: Message, bot: Bot) -> None:
                 failed += 1
 
     await status.edit_text(
-        f"✅ Broadcast завершён\n\n"
-        f"📨 Доставлено: <b>{sent}</b>\n"
-        f"🚫 Заблокировали бота: <b>{blocked}</b>\n"
-        f"❌ Ошибок: <b>{failed}</b>"
+        f"✅ <b>Broadcast завершён</b>\n"
+        f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+        f"📨 <b>Доставлено:</b> {sent}\n"
+        f"🚫 <b>Заблокировали бота:</b> {blocked}\n"
+        f"❌ <b>Ошибок доставки:</b> {failed}\n\n"
+        f"<i>Итого получателей: {len(user_ids_raw)}</i>"
     )
 
 
@@ -320,12 +341,12 @@ async def cmd_stats(message: Message) -> None:
     _sep2 = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
     text = (
         f"📊 <b>Статистика InfraScan</b>\n{_sep2}\n\n"
-        f"<b>Сегодня:</b>\n"
-        f"  🔍 Сканов: <b>{scans_today}</b>\n"
+        f"<b>📅 Сегодня:</b>\n"
+        f"  🔍 Сканов выполнено: <b>{scans_today}</b>\n"
         f"  👤 Активных пользователей: <b>{active_users}</b>\n\n"
-        f"<b>Всего в Redis:</b>\n"
-        f"  ⭐️ Premium-активных: <b>{premium_users}</b>\n\n"
-        f"<b>Odoo ({odoo_status}):</b>\n"
+        f"<b>💾 Redis (накопленное):</b>\n"
+        f"  ⭐️ Premium-пользователей: <b>{premium_users}</b>\n\n"
+        f"<b>🗄 Odoo {odoo_status}:</b>\n"
         f"  🚗 Задач на выезд: <b>{tasks_today}</b>\n"
         f"  📋 Лидов в очереди: <b>{leads_count}</b>\n"
         f"\n{_sep2}"
@@ -378,6 +399,50 @@ async def confirm_callback(call: CallbackQuery) -> None:
 # ── FSM nudge handlers ────────────────────────────────────────────────────────
 
 
+@router.message(F.text.in_({BTN_HELP, BTN_HELP_EN}))
+async def cmd_help(message: Message, locale: str = "ru") -> None:
+    if locale == "ru":
+        await message.answer(
+            "❓ <b>Помощь — InfraScan AI</b>\n"
+            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+            "🔬 Анализирую тепловизионные снимки за <b>~30 секунд</b>.\n\n"
+            "<b>📷 Что отправить:</b>\n"
+            "  ✅ Окна изнутри (в холодное время)\n"
+            "  ✅ Внешние стены и углы комнат\n"
+            "  ✅ Электрощитки\n"
+            "  ✅ Крыша, чердак, фасад\n\n"
+            "<b>⌨️ Команды:</b>\n"
+            "  /start — главное меню\n"
+            "  /account — мой кабинет\n"
+            "  /premium — Premium-подписка\n"
+            "  /ref — пригласить друга\n"
+            "  /myreports — история анализов\n"
+            "  /cancel — отменить действие\n\n"
+            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n"
+            "<i>Для подробного FAQ нажмите «Помощь» в меню.</i>"
+        )
+    else:
+        await message.answer(
+            "❓ <b>Help — InfraScan AI</b>\n"
+            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+            "🔬 I analyze thermal images in <b>~30 seconds</b>.\n\n"
+            "<b>📷 What to send:</b>\n"
+            "  ✅ Windows from inside (in cold weather)\n"
+            "  ✅ Exterior walls and room corners\n"
+            "  ✅ Electrical panels\n"
+            "  ✅ Roof, attic, facade\n\n"
+            "<b>⌨️ Commands:</b>\n"
+            "  /start — main menu\n"
+            "  /account — my account\n"
+            "  /premium — Premium subscription\n"
+            "  /ref — invite a friend\n"
+            "  /myreports — analysis history\n"
+            "  /cancel — cancel action\n\n"
+            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n"
+            "<i>For detailed FAQ tap «Help» in the menu.</i>"
+        )
+
+
 @router.message(AuditFlow.photo)
 async def audit_wrong_input(message: Message, locale: str = "ru") -> None:
     if locale == "ru":
@@ -411,6 +476,19 @@ async def calc_wrong_input(message: Message) -> None:
     )
 
 
+@router.message(CalcFlow.heating)
+async def calc_heating_nudge(message: Message, locale: str = "ru") -> None:
+    if locale == "ru":
+        await message.answer(
+            "🔘 Пожалуйста, выберите <b>тип отопления</b> с помощью кнопок выше.\n\n"
+            "Для отмены — /cancel"
+        )
+    else:
+        await message.answer(
+            "🔘 Please select <b>heating type</b> using the buttons above.\n\nTo cancel — /cancel"
+        )
+
+
 # ── Global fallback ───────────────────────────────────────────────────────────
 
 
@@ -425,7 +503,8 @@ async def fallback(
         kb = employee_menu()
         hint = "Используйте кнопки меню ниже."
     else:
-        kb = client_menu(locale, is_local)
+        is_prem = await premium_svc.is_premium(message.from_user.id)
+        kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
         hint = (
             "Нажмите /start чтобы открыть главное меню."
             if locale == "ru"

@@ -16,6 +16,13 @@ bot/.pytest_cache/
 logs/
 backups/
 
+# Judge / артефакты прогонов
+artifacts/
+bot/artifacts/
+
+# Logseq editor locks
+*.lock
+
 # Odoo
 addons/**/__pycache__/
 addons/**/*.pyc

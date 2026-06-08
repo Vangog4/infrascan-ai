@@ -1,39 +1,39 @@
-# SESSION_STATE — infrascan-ai — 2026-05-22 12:30
+# SESSION_STATE — infrascan-ai — 2026-06-08 15:06
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+a4194c7 fix: admin always notified on new lead, Premium purchase and scan pack
+97e042c feat: 13 new bot features — photo cache, WebApp live data, reminders, engineer notifications, voice hints, health endpoint, JSON logging, serial audit QC, PDF defect table, typing indicator
 0fceac5 fix: odoo.py _first_id() + install infrascan_ai addon
 49f7216 fix: Biome lint errors + session docs update
 7399d16 fix: security audit — 5 vulnerabilities patched (Gemini+Kimi review)
 daa8508 docs: session 2026-05-22 — per-project sub-agents, orchestrator fixes
 a5bb0e3 feat: per-project multi-agent architecture and robust session memory
-eaabc9a feat: three-engine multi-agent system (Claude + Gemini + Kimi)
-1a3e3d9 docs: session journal 2026-05-21 final — all 15 features complete
 ```
 
 ## Незакоммиченные изменения
 ```
-DECISIONS.md                                       | 158 ++++++++
- SESSION_STATE.md                                   |  43 +-
- .../infrascan_ai/static/src/css/website_custom.css |  40 +-
- addons/infrascan_ai/static/src/webapp/index.html   |  42 +-
- bot/logseq/journals/2026_05_22.md                  | 448 +++++++++++++++++++++
- bot/src/bot.py                                     | 140 ++++++-
- bot/src/config.py                                  |   3 +
- bot/src/handlers/client.py                         |  68 +++-
- bot/src/handlers/employee.py                       |  31 +-
- bot/src/handlers/serial_audit.py                   |  30 +-
- bot/src/services/gemini.py                         | 125 +++++-
- bot/src/services/pdf.py                            |  53 ++-
- bot/src/services/redis.py                          |  54 +++
- bot/tests/conftest.py                              |  14 +
- bot/tests/test_client_photo.py                     |   8 +
- bot/tests/test_pdf_download.py                     |   4 +
- podman-compose.yml                                 |   5 +-
- 17 files changed, 1192 insertions(+), 74 deletions(-)
+DECISIONS.md                      |  835 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ SESSION_NOTES.md                  |   92 ++----
+ SESSION_STATE.md                  |  132 ++++-----
+ bot/logseq/journals/2026_05_22.md | 1973 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ bot/pyproject.toml                |    1 +
+ bot/src/bot.py                    |    4 +
+ bot/src/config.py                 |    2 +
+ bot/src/handlers/client.py        |  177 ++++++++----
+ bot/src/handlers/common.py        |  136 ++++++---
+ bot/src/handlers/employee.py      |   64 +++--
+ bot/src/handlers/help.py          |  125 ++++++---
+ bot/src/handlers/onboarding.py    |   47 ++--
+ bot/src/handlers/payments.py      |   15 +-
+ bot/src/handlers/referral.py      |   47 +++-
+ bot/src/handlers/reports.py       |   42 ++-
+ bot/src/keyboards/menus.py        |   66 +++--
+ podman-compose.yml                |    4 +-
+ 17 files changed, 3402 insertions(+), 360 deletions(-)
 ```
 
 ## Неотслеживаемые файлы
@@ -49,6 +49,7 @@ artifacts/judge-2026-05-22_12-08-51.log
 artifacts/judge-2026-05-22_12-11-55.log
 artifacts/judge-2026-05-22_12-17-40.log
 artifacts/judge-2026-05-22_12-17-58.log
+artifacts/judge-2026-05-22_12-58-13.log
 bot/artifacts/judge-2026-05-22_08-26-28.log
 bot/artifacts/judge-2026-05-22_08-28-12.log
 bot/artifacts/judge-2026-05-22_10-45-12.log
@@ -60,70 +61,39 @@ bot/artifacts/judge-2026-05-22_12-08-51.log
 bot/artifacts/judge-2026-05-22_12-11-55.log
 bot/artifacts/judge-2026-05-22_12-17-40.log
 bot/artifacts/judge-2026-05-22_12-17-58.log
+bot/artifacts/judge-2026-05-22_12-58-13.log
 bot/logseq/journals/2026_05_22.lock
-bot/src/utils.py
-bot/tests/test_new_features.py
 ```
 
 ## Заметки сессии
-# SESSION_NOTES — заметки текущей сессии
+# SESSION_NOTES — InfraScan AI
 
-## Текущая задача
-Полная проверка проекта + исправление ошибок (2026-05-22).
+## Последняя сессия: 22.05.2026
 
-## Что исправлено в эту сессию (2026-05-22 — аудит)
+### Статус стека
+- infrascan-ai_bot: RUNNING (webhook mode, порт 8080)
+- infrascan-ai_web (Odoo 19): RUNNING (порт 8069)
+- infrascan-ai_db (PostgreSQL 17): RUNNING (healthy)
+- infrascan-ai_redis: RUNNING (healthy)
+- Webhook: https://infrascan-ai.ru/bot/webhook — активен, pending=0
 
-### Критические уязвимости (Gemini Red Team)
-- **CWE-78 OS Command Injection** → `router.py` L110/114: заменены `'{files[0]}'` → `shlex.quote(files[0])` для KIMI_AGENT и GEMINI_AGENT
-- **CWE-362 Race Condition** → `auto_journal.py` + `orchestrator.py`: заменён `fcntl.flock(fh, LOCK_EX)` на отдельный `.lock` файл — теперь `os.replace()` не меняет inode под замком
-- **CWE-74 Prompt Injection** → `project_agent.py`: `session_notes` и `session_state` обёрнуты в `<session_notes>...</session_notes>` / `<session_state>...</session_state>` разделители
-- **CWE-22 Path Traversal** → `project_agent.py`: добавлены проверки `"/" in project_id` и `yaml_path.resolve().is_relative_to(PROJECTS_DIR.resolve())`
-- **GEMINI_STUB=true** → удалён из `podman-compose.yml`; бот перезапущен и теперь использует реальный Gemini Vision API (GEMINI_API_KEY в .env уже был настроен)
+### Что сделано
+1. Починили webhook (был 502 — secret_token рассинхронизировался)
+2. Редизайн меню: новые BTN_PHOTO/BTN_INVITE/BTN_UPGRADE, premium_client_menu()
+3. Багфиксы P0/P1: referral bot_id, cache errors, typing_loop, CalcFlow locale, BTN_HELP handler
+4. Аудит Odoo: все 10 API-методов ✅, кастомный модуль v19.0.1.3 работает
 
-### Результат проверки (без изменений — всё ОК)
-- 205/205 тестов прошли
-- judge.sh 7/7 ✅ (syntax, ruff, odoo addons, pytest, containers)
-- Нет runtime ошибок в логах контейнеров
+### Незакоммиченные файлы
+- bot/src/keyboards/menus.py
+- bot/src/handlers/client.py
+- bot/src/handlers/common.py
+- bot/src/handlers/referral.py
+- bot/src/handlers/payments.py
+- bot/src/handlers/onboarding.py
 
-## Следующие шаги
-- Дождаться результата Kimi (анализ всего репо) — ещё идёт
-- Закоммитить исправления (ждём добро пользователя)
-- Обновить DECISIONS.md с исправленными уязвимостями
-
-## Что сделано в эту сессию (2026-05-22)
-
-### Тестирование субагентов (результат)
-- Gemini `gemini-3.1-pro-preview` ✅ — review и analyze работают
-- Kimi-k2.6 ✅ — council работает, дал архитектурный анализ P0/P1/P2
-- Параллельный запуск через orchestrator.py ✅ — оба за ~90 секунд
-- Рабочие модели Gemini: `gemini-3.1-pro-preview` и `gemini-3.1-flash-lite`
-
-### Исправления в orchestrator.py (по замечаниям Kimi)
-- Kimi timeout 180s → 300s
-- as_completed(timeout=360) вместо future.result(timeout=200)
-- max_workers=min(len(agents), 4)
-- --agents без --mode теперь использует роутер (не "analyze" для всех)
-- _save_to_journal() — fcntl locking + atomic os.replace (race condition fix)
-- detect_project() — try/except на yaml.safe_load
-
-### Исправления в auto_journal.py
-- _write() — fcntl locking + atomic os.replace (race condition fix)
-
-### Устранение дублирования router.py
-- hooks/router.py → симлинк на /root/agents/router.py
-
-### Новое: per-project Claude sub-agents
-- /root/agents/project_agent.py — собирает контекст и запускает Claude sub-agent
-- Алиасы: infrascan_agent, astrotara_agent, pepito_agent, subarist_agent, amanita_agent
-- Правило запомнено: главный Клод только оркестрирует, не лезет в проекты сам
-
-## Правила
-- НЕ делать git commit/push без явного разрешения пользователя
-- dogsensei_bot — не трогать
-- Диск 88% — осторожно
-- Ветка: autoresearch/stack-health-2026-05-15
-
-## Следующие шаги
-- Закоммитить все изменения (ждём добро пользователя)
-- Обновить SYSTEM_GUIDE.md с новой архитектурой
-- Протестировать project_agent.py с реальной задачей
+### Завтра
+1. git commit (с разрешения пользователя) — ветка autoresearch/stack-health-2026-05-15
+2. Тест реального фото через Gemini Vision
+3. Тест premium flow (Telegram Stars)
+4. Odoo UI настройка (CRM views, bot report list)
+5. DogSensei: добавить ANTHROPIC_API_KEY в /root/dogsensei_bot/.env

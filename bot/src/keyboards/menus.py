@@ -11,14 +11,19 @@ remove_kb = ReplyKeyboardRemove()
 
 # ── Button label constants (used in handlers as F.text targets) ───────────────
 
-BTN_PHOTO = "📸 Анализ фото ИИ"
-BTN_PHOTO_EN = "📸 AI Photo Analysis"
+BTN_PHOTO = "🔥 Найти утечки тепла"
+BTN_PHOTO_EN = "🔥 Find Heat Leaks Now"
+BTN_PHOTO_PREM = "🔥 Анализ — безлимит"
+BTN_PHOTO_PREM_EN = "🔥 Analyse — Unlimited"
 
 BTN_CALC = "📊 Расчёт теплопотерь"
 BTN_CALC_EN = "📊 Heat Loss Calc"
 
-BTN_INVITE = "🎁 Позвать друга"
-BTN_INVITE_EN = "🎁 Invite Friend"
+BTN_INVITE = "🎁 Дать другу 5 сканов"
+BTN_INVITE_EN = "🎁 Gift a Friend 5 Scans"
+
+BTN_UPGRADE = "⭐️ Стать Premium"
+BTN_UPGRADE_EN = "⭐️ Go Premium"
 
 BTN_ACCOUNT = "👤 Мой кабинет"
 BTN_ACCOUNT_EN = "👤 My Account"
@@ -30,36 +35,51 @@ BTN_HELP_EN = "❓ Help"
 def client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
     if locale == "ru":
+        kb.row(KeyboardButton(text=BTN_PHOTO))
         kb.row(
-            KeyboardButton(text=BTN_PHOTO),
             KeyboardButton(text=BTN_CALC),
-        )
-        kb.row(
-            KeyboardButton(text="⭐️ Premium"),
-            KeyboardButton(text=BTN_INVITE),
+            KeyboardButton(text=BTN_UPGRADE),
         )
         if is_local:
             kb.row(
+                KeyboardButton(text=BTN_INVITE),
                 KeyboardButton(text="🚗 Вызвать инженера"),
-                KeyboardButton(text=BTN_ACCOUNT),
             )
         else:
-            kb.row(
-                KeyboardButton(text=BTN_ACCOUNT),
-                KeyboardButton(text=BTN_HELP),
-            )
+            kb.row(KeyboardButton(text=BTN_INVITE))
+        kb.row(KeyboardButton(text=BTN_ACCOUNT))
     else:
+        kb.row(KeyboardButton(text=BTN_PHOTO_EN))
         kb.row(
-            KeyboardButton(text=BTN_PHOTO_EN),
             KeyboardButton(text=BTN_CALC_EN),
+            KeyboardButton(text=BTN_UPGRADE_EN),
         )
         kb.row(
-            KeyboardButton(text="⭐️ Premium"),
             KeyboardButton(text=BTN_INVITE_EN),
-        )
-        kb.row(
             KeyboardButton(text=BTN_ACCOUNT_EN),
-            KeyboardButton(text=BTN_HELP_EN),
+        )
+    return kb.as_markup(resize_keyboard=True)
+
+
+def premium_client_menu(locale: str = "ru", is_local: bool = True) -> ReplyKeyboardMarkup:
+    kb = ReplyKeyboardBuilder()
+    if locale == "ru":
+        kb.row(KeyboardButton(text=BTN_PHOTO_PREM))
+        kb.row(KeyboardButton(text=BTN_CALC))
+        if is_local:
+            kb.row(
+                KeyboardButton(text=BTN_INVITE),
+                KeyboardButton(text="🚗 Вызвать инженера"),
+            )
+        else:
+            kb.row(KeyboardButton(text=BTN_INVITE))
+        kb.row(KeyboardButton(text=BTN_ACCOUNT))
+    else:
+        kb.row(KeyboardButton(text=BTN_PHOTO_PREM_EN))
+        kb.row(KeyboardButton(text=BTN_CALC_EN))
+        kb.row(
+            KeyboardButton(text=BTN_INVITE_EN),
+            KeyboardButton(text=BTN_ACCOUNT_EN),
         )
     return kb.as_markup(resize_keyboard=True)
 
@@ -101,13 +121,12 @@ def heating_kb() -> InlineKeyboardMarkup:
 
 def order_kb(locale: str = "ru") -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    if locale == "ru":
-        b.row(
-            InlineKeyboardButton(
-                text="🚗 Заказать профессиональный выезд",
-                callback_data="action:order",
-            )
-        )
+    label = (
+        "🚗 Заказать профессиональный выезд"
+        if locale == "ru"
+        else "🚗 Order professional inspection"
+    )
+    b.row(InlineKeyboardButton(text=label, callback_data="action:order"))
     return b.as_markup()
 
 

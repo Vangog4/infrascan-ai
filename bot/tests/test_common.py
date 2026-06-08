@@ -96,6 +96,7 @@ async def test_start_returning_free_client_shows_tier():
     with (
         patch("src.handlers.common.is_first_visit", AsyncMock(return_value=False)),
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=3)),
         patch("src.services.referral.register_referral", AsyncMock(return_value=False)),
     ):
         await cmd_start(msg, state=_state(), role=Role.CLIENT, command=_command(), locale="ru")
@@ -122,6 +123,7 @@ async def test_start_returning_client_sends_one_message():
     with (
         patch("src.handlers.common.is_first_visit", AsyncMock(return_value=False)),
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=3)),
         patch("src.services.referral.register_referral", AsyncMock(return_value=False)),
     ):
         await cmd_start(msg, state=_state(), role=Role.CLIENT, command=_command())
@@ -135,21 +137,24 @@ async def test_start_returning_client_sends_one_message():
 async def test_cancel_clears_state():
     msg = _msg()
     state = _state()
-    await cmd_cancel(msg, state=state, role=Role.CLIENT, locale="ru")
+    with patch("src.services.premium.is_premium", AsyncMock(return_value=False)):
+        await cmd_cancel(msg, state=state, role=Role.CLIENT, locale="ru")
     state.clear.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_cancel_client_ru_confirmation():
     msg = _msg()
-    await cmd_cancel(msg, state=_state(), role=Role.CLIENT, locale="ru")
+    with patch("src.services.premium.is_premium", AsyncMock(return_value=False)):
+        await cmd_cancel(msg, state=_state(), role=Role.CLIENT, locale="ru")
     assert "отменено" in msg.answer.call_args[0][0]
 
 
 @pytest.mark.asyncio
 async def test_cancel_client_en_confirmation():
     msg = _msg()
-    await cmd_cancel(msg, state=_state(), role=Role.CLIENT, locale="en")
+    with patch("src.services.premium.is_premium", AsyncMock(return_value=False)):
+        await cmd_cancel(msg, state=_state(), role=Role.CLIENT, locale="en")
     assert "cancelled" in msg.answer.call_args[0][0]
 
 
@@ -167,14 +172,16 @@ async def test_cancel_employee_gets_keyboard():
 @pytest.mark.asyncio
 async def test_fallback_client_ru_mentions_start():
     msg = _msg()
-    await fallback(msg, role=Role.CLIENT, locale="ru")
+    with patch("src.services.premium.is_premium", AsyncMock(return_value=False)):
+        await fallback(msg, role=Role.CLIENT, locale="ru")
     assert "/start" in msg.answer.call_args[0][0]
 
 
 @pytest.mark.asyncio
 async def test_fallback_client_en_mentions_start():
     msg = _msg()
-    await fallback(msg, role=Role.CLIENT, locale="en")
+    with patch("src.services.premium.is_premium", AsyncMock(return_value=False)):
+        await fallback(msg, role=Role.CLIENT, locale="en")
     assert "/start" in msg.answer.call_args[0][0]
 
 

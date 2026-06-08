@@ -19,7 +19,7 @@ async def test_help_ru_contains_faq_header():
     msg = _msg("ru")
     await cmd_help(msg, locale="ru")
     msg.answer.assert_called_once()
-    assert "Частые вопросы" in msg.answer.call_args[0][0]
+    assert "Помощь — InfraScan AI" in msg.answer.call_args[0][0]
 
 
 @pytest.mark.asyncio
@@ -27,7 +27,7 @@ async def test_help_en_contains_faq_header():
     msg = _msg("en")
     await cmd_help(msg, locale="en")
     msg.answer.assert_called_once()
-    assert "FAQ" in msg.answer.call_args[0][0]
+    assert "Help — InfraScan AI" in msg.answer.call_args[0][0]
 
 
 @pytest.mark.asyncio

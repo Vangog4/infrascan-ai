@@ -21,6 +21,10 @@ from src.keyboards.menus import (
     BTN_CALC_EN,
     BTN_PHOTO,
     BTN_PHOTO_EN,
+    BTN_PHOTO_PREM,
+    BTN_PHOTO_PREM_EN,
+    BTN_UPGRADE,
+    BTN_UPGRADE_EN,
     client_menu,
     contact_kb,
     heating_kb,
@@ -53,7 +57,7 @@ _SEP = "━━━━━━━━━━━━━━━━━━━━━"
 # ── Photo Audit ───────────────────────────────────────────────────────────────
 
 
-@router.message(F.text.in_({BTN_PHOTO, BTN_PHOTO_EN}))
+@router.message(F.text.in_({BTN_PHOTO, BTN_PHOTO_EN, BTN_PHOTO_PREM, BTN_PHOTO_PREM_EN}))
 async def audit_start(
     message: Message,
     state: FSMContext,
@@ -88,21 +92,52 @@ async def audit_photo(
         if remaining <= 0:
             used_bonus = await ref_svc.consume_bonus_scan(user_id)
             if not used_bonus:
+                upgrade_b = InlineKeyboardBuilder()
                 if locale == "ru":
+                    upgrade_b.row(
+                        InlineKeyboardButton(
+                            text=f"⭐️ Premium — {settings.premium_price_stars} Stars/мес",
+                            callback_data="premium:buy",
+                        )
+                    )
+                    upgrade_b.row(
+                        InlineKeyboardButton(
+                            text="🎁 Пригласить друга (+5 сканов)",
+                            callback_data="action:invite",
+                        )
+                    )
                     await message.answer(
-                        f"⚠️ <b>Дневной лимит исчерпан</b> ({settings.free_daily_scans} из {settings.free_daily_scans}).\n\n"
-                        "Лимит обновится в полночь по UTC, или подключите Premium — "
-                        "безлимитный анализ за <b>150 Stars/мес</b>.\n\n"
-                        "👉 /premium",
-                        reply_markup=client_menu(locale, is_local),
+                        f"⚠️ <b>Дневной лимит исчерпан</b>\n"
+                        f"──────────────────────\n"
+                        f"📊 Использовано: <b>{settings.free_daily_scans}/{settings.free_daily_scans}</b> анализов\n"
+                        f"🕐 Лимит обновится в <b>00:00 UTC</b>\n\n"
+                        "<b>Как продолжить прямо сейчас:</b>\n"
+                        "  ⭐️ Premium — безлимитный анализ\n"
+                        "  🎁 Пригласите друга — получите +5 бонусных сканов",
+                        reply_markup=upgrade_b.as_markup(),
                     )
                 else:
+                    upgrade_b.row(
+                        InlineKeyboardButton(
+                            text=f"⭐️ Premium — {settings.premium_price_stars} Stars/month",
+                            callback_data="premium:buy",
+                        )
+                    )
+                    upgrade_b.row(
+                        InlineKeyboardButton(
+                            text="🎁 Invite a Friend (+5 scans)",
+                            callback_data="action:invite",
+                        )
+                    )
                     await message.answer(
-                        f"⚠️ <b>Daily limit reached</b> ({settings.free_daily_scans}/{settings.free_daily_scans}).\n\n"
-                        "Limit resets at midnight UTC, or get Premium for unlimited analysis — "
-                        f"<b>150 Stars/month</b>.\n\n"
-                        "👉 /premium",
-                        reply_markup=client_menu(locale, is_local),
+                        f"⚠️ <b>Daily limit reached</b>\n"
+                        f"──────────────────────\n"
+                        f"📊 Used: <b>{settings.free_daily_scans}/{settings.free_daily_scans}</b> analyses\n"
+                        f"🕐 Limit resets at <b>00:00 UTC</b>\n\n"
+                        "<b>Continue right now:</b>\n"
+                        "  ⭐️ Premium — unlimited analysis\n"
+                        "  🎁 Invite a friend — earn +5 bonus scans",
+                        reply_markup=upgrade_b.as_markup(),
                     )
                 return
 
@@ -118,20 +153,21 @@ async def audit_photo(
 
     await bot.send_chat_action(message.chat.id, "upload_photo")
     wait = await message.answer(t("analyzing", locale))
+    _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
 
-    file_io = await bot.download(photo)
-    photo_bytes = file_io.read()
-    photo_hash = hashlib.sha256(photo_bytes).hexdigest()
-    voice_context = data.get("voice_context", "")
+    try:
+        file_io = await bot.download(photo)
+        photo_bytes = file_io.read()
+        photo_hash = hashlib.sha256(photo_bytes).hexdigest()
+        voice_context = data.get("voice_context", "")
 
-    result = await get_cached_analysis(photo_hash)
-    if result is None:
-        _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
-        try:
+        result = await get_cached_analysis(photo_hash)
+        if result is None:
             result = await gemini.analyze_photo(photo_bytes, locale=locale, context=voice_context)
-        finally:
-            _typing.cancel()
-        await cache_analysis(photo_hash, result)
+            if "error" not in result:
+                await cache_analysis(photo_hash, result)
+    finally:
+        _typing.cancel()
 
     await wait.delete()
 
@@ -218,9 +254,15 @@ async def audit_voice_hint(
         await state.update_data(voice_context=transcript)
         note = transcript[:200]
         await wait.edit_text(
-            f"✅ <b>Комментарий записан:</b>\n<i>{note}</i>\n\nТеперь отправьте фото объекта."
+            f"✅ <b>Голосовой комментарий записан</b>\n"
+            f"──────────────────────\n"
+            f"<i>«{note}»</i>\n\n"
+            f"📸 Теперь отправьте фото объекта."
             if locale == "ru"
-            else f"✅ <b>Note recorded:</b>\n<i>{note}</i>\n\nNow send the photo."
+            else f"✅ <b>Voice note recorded</b>\n"
+            f"──────────────────────\n"
+            f"<i>«{note}»</i>\n\n"
+            f"📸 Now send the photo."
         )
     else:
         await wait.edit_text(
@@ -230,22 +272,39 @@ async def audit_voice_hint(
         )
 
 
+# ── Premium upgrade shortcut ──────────────────────────────────────────────────
+
+
+@router.message(F.text.in_({BTN_UPGRADE, BTN_UPGRADE_EN}))
+async def btn_upgrade(message: Message, locale: str = "ru", is_local: bool = True) -> None:
+    from src.handlers.payments import cmd_premium
+
+    await cmd_premium(message, locale=locale, is_local=is_local)
+
+
 # ── Heat Loss Calculator ──────────────────────────────────────────────────────
 
 
 @router.message(F.text.in_({BTN_CALC, BTN_CALC_EN}))
-async def calc_start(message: Message, state: FSMContext, locale: str = "ru") -> None:
+async def calc_start(
+    message: Message, state: FSMContext, locale: str = "ru", is_local: bool = True
+) -> None:
     await state.set_state(CalcFlow.area)
+    await state.update_data(locale=locale, is_local=is_local)
     if locale == "ru":
         await message.answer(
-            "📊 <b>Калькулятор теплопотерь</b>\n\n"
-            "Шаг 1 из 3 — укажите общую площадь вашего дома или квартиры (м²).\n"
+            "📊 <b>Калькулятор теплопотерь</b>\n"
+            "──────────────────────\n"
+            "Шаг <b>1 из 3</b> — Площадь объекта\n\n"
+            "Укажите общую площадь дома или квартиры в м².\n"
             "<i>Пример: 120</i>"
         )
     else:
         await message.answer(
-            "📊 <b>Heat Loss Calculator</b>\n\n"
-            "Step 1 of 3 — enter the total area of your home or apartment (m²).\n"
+            "📊 <b>Heat Loss Calculator</b>\n"
+            "──────────────────────\n"
+            "Step <b>1 of 3</b> — Object area\n\n"
+            "Enter the total area of your home or apartment (m²).\n"
             "<i>Example: 120</i>"
         )
 
@@ -265,17 +324,32 @@ async def calc_area(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(CalcFlow.heating, F.data.startswith("heat:"))
-async def calc_heating(call: CallbackQuery, state: FSMContext) -> None:
-    labels = {"central": "Центральное", "gas": "Газ/Автономное", "electric": "Электрическое"}
+async def calc_heating(call: CallbackQuery, state: FSMContext, locale: str = "ru") -> None:
+    labels_ru = {"central": "Центральное", "gas": "Газ/Автономное", "electric": "Электрическое"}
+    labels_en = {"central": "Central", "gas": "Gas/Autonomous", "electric": "Electric"}
+    labels = labels_ru if locale == "ru" else labels_en
     key = call.data.split(":")[1]
     label = labels.get(key, key)
     await state.update_data(heating=label)
     await state.set_state(CalcFlow.payment)
-    await call.message.edit_text(
-        f"Тип отопления: <b>{label}</b> ✓\n\n"
-        "Шаг 3 из 3 — укажите сумму платежа за отопление в самый холодный месяц (руб.).\n"
-        "<i>Пример: 4 500</i>"
-    )
+    if locale == "ru":
+        await call.message.edit_text(
+            "📊 <b>Калькулятор теплопотерь</b>\n"
+            "──────────────────────\n"
+            f"✅ Шаг 2 из 3 — тип отопления: <b>{label}</b>\n\n"
+            "Шаг <b>3 из 3</b> — Платёж за отопление\n\n"
+            "Укажите сумму за самый холодный месяц (руб.).\n"
+            "<i>Пример: 4 500</i>"
+        )
+    else:
+        await call.message.edit_text(
+            "📊 <b>Heat Loss Calculator</b>\n"
+            "──────────────────────\n"
+            f"✅ Step 2 of 3 — heating type: <b>{label}</b>\n\n"
+            "Step <b>3 of 3</b> — Monthly heating bill\n\n"
+            "Enter your bill for the coldest month (local currency).\n"
+            "<i>Example: 4500</i>"
+        )
 
 
 @router.message(CalcFlow.payment, F.text)
@@ -300,7 +374,7 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
     result = await gemini.calculate_losses(data["area"], data["heating"], payment, weather_ctx)
     await wait.delete()
     await message.answer(
-        f"🧮 <b>Расчёт теплопотерь</b>\n{_SEP}\n\n{result}",
+        f"🧮 <b>Расчёт теплопотерь</b>\n{_SEP}\n\n{result}\n\n{_SEP}",
         reply_markup=order_kb(locale),
     )
 
@@ -312,9 +386,12 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
 async def lead_start(message: Message, state: FSMContext) -> None:
     await state.set_state(LeadFlow.contact)
     await message.answer(
-        "🚗 <b>Вызов инженера на объект</b>\n\n"
-        "Наш специалист приедет и выполнит полную тепловизионную диагностику.\n\n"
-        "Поделитесь номером телефона — перезвоним для уточнения деталей:",
+        "🚗 <b>Вызов инженера на объект</b>\n"
+        "──────────────────────\n"
+        "Специалист приедет и выполнит полную\n"
+        "тепловизионную диагностику здания.\n\n"
+        "📱 Поделитесь номером телефона —\n"
+        "перезвоним для уточнения деталей:",
         reply_markup=contact_kb(),
     )
 
@@ -363,18 +440,21 @@ async def lead_contact(
             try:
                 await bot.send_message(
                     admin_id,
-                    f"📥 <b>Новая заявка на выезд!</b>\n\n"
-                    f"👤 Имя: {name}\n"
-                    f"📞 Телефон: <code>{phone}</code>\n"
-                    f"🔗 TG: {tg_ref}\n\n"
-                    f"{odoo_status}",
+                    f"📥 <b>Новая заявка на выезд!</b>\n"
+                    f"──────────────────────\n"
+                    f"👤 <b>Имя:</b> {name}\n"
+                    f"📞 <b>Телефон:</b> <code>{phone}</code>\n"
+                    f"🔗 <b>Telegram:</b> {tg_ref}\n"
+                    f"──────────────────────\n"
+                    f"🗄 {odoo_status}",
                 )
             except Exception:
                 pass
 
     await message.answer(
-        "✅ <b>Заявка принята!</b>\n\n"
-        "Инженер свяжется с вами в ближайшее время для согласования выезда.\n\n"
+        "✅ <b>Заявка на выезд принята!</b>\n"
+        "──────────────────────\n"
+        "🚗 Инженер свяжется с вами для согласования времени.\n\n"
         "<i>Среднее время ответа — 15 минут в рабочие часы.</i>",
         reply_markup=client_menu(locale, is_local),
     )
@@ -409,11 +489,15 @@ async def download_pdf(call: CallbackQuery, locale: str = "ru") -> None:
     filename = f"InfraScan_{date_str}.pdf"
 
     caption = (
-        "📄 <b>PDF-отчёт готов!</b>\n\n"
-        "<i>Документ содержит полный результат ИИ-анализа с уровнем риска.</i>"
+        "📄 <b>PDF-отчёт готов!</b>\n"
+        "──────────────────────\n"
+        "<i>Документ содержит полный результат ИИ-анализа,\n"
+        "уровень риска и рекомендации по устранению.</i>"
         if locale == "ru"
-        else "📄 <b>PDF report ready!</b>\n\n"
-        "<i>The document contains the full AI analysis with risk level.</i>"
+        else "📄 <b>PDF report ready!</b>\n"
+        "──────────────────────\n"
+        "<i>The document contains the full AI analysis,\n"
+        "risk level and remediation recommendations.</i>"
     )
     await call.message.answer_document(
         document=BufferedInputFile(pdf_bytes, filename=filename),

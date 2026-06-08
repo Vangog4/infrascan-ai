@@ -20,7 +20,7 @@ from aiogram.types import (
 )
 
 from src.config import settings
-from src.keyboards.menus import client_menu, premium_kb
+from src.keyboards.menus import client_menu, premium_client_menu, premium_kb
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
 
@@ -75,23 +75,14 @@ async def cmd_premium(
             await message.answer(
                 "✅ <b>У вас уже активен Premium!</b>\n"
                 "Анализируйте неограниченное количество фото.",
-                reply_markup=client_menu(locale, is_local),
+                reply_markup=premium_client_menu(locale, is_local),
             )
         else:
             await message.answer(
                 "✅ <b>You already have Premium!</b>\nAnalyze as many photos as you want.",
-                reply_markup=client_menu(locale, is_local),
+                reply_markup=premium_client_menu(locale, is_local),
             )
         return
-    await _show_premium_offer(message, locale, is_local)
-
-
-@router.message(F.text == "⭐️ Premium")
-async def btn_premium(
-    message: Message,
-    locale: str = "ru",
-    is_local: bool = True,
-) -> None:
     await _show_premium_offer(message, locale, is_local)
 
 

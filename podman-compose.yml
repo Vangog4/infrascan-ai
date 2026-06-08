@@ -2,7 +2,7 @@ name: infrascan-ai
 
 services:
   db:
-    image: docker.io/library/postgres:17
+    image: docker.io/pgvector/pgvector:pg17
     container_name: infrascan-ai_db
     restart: unless-stopped
     environment:
@@ -97,7 +97,7 @@ services:
       - bot-net
       - npm_network   # lets Nginx Proxy Manager route /bot/webhook → bot:8080
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)\""]
       interval: 30s
       timeout: 10s
       retries: 3

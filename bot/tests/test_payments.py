@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiogram.types import Message
 
+from src.handlers.client import btn_upgrade
 from src.handlers.payments import (
-    btn_premium,
     cb_premium_buy,
     cmd_premium,
     payment_success,
@@ -67,20 +67,29 @@ async def test_cmd_premium_offer_contains_stars_price():
     assert str(settings.premium_price_stars) in text
 
 
-# ── ⭐️ Premium button ─────────────────────────────────────────────────────────
+# ── 💎 Upgrade button (menu shortcut → premium offer) ─────────────────────────
+# Redesign 22.05: the old "⭐️ Premium" reply button (btn_premium) was removed.
+# The premium offer is now reached via the BTN_UPGRADE menu button, handled by
+# btn_upgrade() in handlers.client, which delegates to cmd_premium().
 
 @pytest.mark.asyncio
-async def test_btn_premium_shows_offer():
+async def test_btn_upgrade_shows_offer():
     msg = _msg()
-    await btn_premium(msg, locale="ru", is_local=True)
+    with patch(
+        "src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)
+    ):
+        await btn_upgrade(msg, locale="ru", is_local=True)
     msg.answer.assert_called_once()
     assert "Premium" in msg.answer.call_args[0][0]
 
 
 @pytest.mark.asyncio
-async def test_btn_premium_en_locale():
+async def test_btn_upgrade_en_locale():
     msg = _msg()
-    await btn_premium(msg, locale="en", is_local=False)
+    with patch(
+        "src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)
+    ):
+        await btn_upgrade(msg, locale="en", is_local=False)
     text = msg.answer.call_args[0][0]
     assert "Unlimited" in text or "unlimited" in text
 

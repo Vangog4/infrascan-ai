@@ -38,5 +38,7 @@ class Settings(BaseSettings):
     # Telegram WebApp URL (served via Odoo static or CDN)
     webapp_url: str = "https://infrascan-ai.ru/infrascan_ai/static/src/webapp/index.html"
 
+    sentry_dsn: str = ""
+
 
 settings = Settings()

@@ -39,13 +39,17 @@ async def today_tasks(message: Message, role: Role) -> None:
             reply_markup=employee_menu(),
         )
         return
-    lines = []
+    _sep = "──────────────────────"
+    lines = [f"🚗 <b>Выезды на сегодня</b>  <code>({len(tasks)} объектов)</code>\n"]
     for i, t in enumerate(tasks, 1):
         proj = t.get("project_id", [None, "—"])[1]
         deadline = t.get("date_deadline") or "—"
-        lines.append(f"<b>{i}. {t['name']}</b>\n   📁 {proj}  📅 {deadline}")
+        lines.append(
+            f"{_sep}\n<b>{i}. {t['name']}</b>\n📁 <b>Проект:</b> {proj}\n📅 <b>Срок:</b> {deadline}"
+        )
+    lines.append(_sep)
     await message.answer(
-        "🚗 <b>Ваши выезды на сегодня:</b>\n\n" + "\n\n".join(lines),
+        "\n".join(lines),
         reply_markup=employee_menu(),
     )
 
@@ -77,10 +81,11 @@ async def photo_task_selected(call: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(task_id=task_id, task_name=task_name, photo_count=0, analyses=[])
     await state.set_state(EmployeePhotoFlow.photos)
     await call.message.edit_text(
-        f"📍 Объект: <b>{task_name}</b>\n\n"
-        "Теперь отправляйте фотографии прямо сюда.\n"
-        "Каждый снимок проходит контроль качества и тепловизионный анализ ИИ.\n\n"
-        "Когда закончите — нажмите /done или /cancel для выхода."
+        f"📍 <b>Объект выбран:</b> {task_name}\n"
+        "──────────────────────\n\n"
+        "📤 Отправляйте фотографии прямо сюда.\n"
+        "Каждый снимок проходит <b>контроль качества</b> и <b>тепловизионный анализ ИИ</b>.\n\n"
+        "<i>Когда закончите — нажмите /done\nДля выхода без сохранения — /cancel</i>"
     )
     await call.answer()
 
@@ -105,11 +110,13 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
 
         await wait.delete()
         await message.answer(
-            f"❌ <b>Фото не принято</b>  <code>{score}/100</code>\n\n"
+            f"❌ <b>Фото не принято</b>\n"
+            f"──────────────────────\n"
+            f"📊 <b>Оценка качества:</b> <code>{score}/100</code>\n"
             f"{obj_line}"
-            f"📋 {reason}"
+            f"📋 <b>Причина:</b> {reason}"
             f"{tip_block}\n\n"
-            "Пересними объект и отправь снова 👇"
+            "<i>Пересними объект и отправь снова 👇</i>"
         )
         return
 
@@ -146,11 +153,13 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
         warning_block = f"\n⚠️ <i>Замечание: {note}</i>"
 
     await message.answer(
-        f"{score_emoji} <b>Фото #{count} принято</b>  <code>{score}/100</code>\n"
+        f"{score_emoji} <b>Фото #{count} принято</b>\n"
+        f"──────────────────────\n"
+        f"📊 <b>Оценка качества:</b> <code>{score}/100</code>\n"
         f"{obj_line}"
-        f"{status}"
+        f"📎 <b>Статус:</b> {status}"
         f"{warning_block}\n\n"
-        f"<b>🔬 Анализ Кибер-прораба:</b>\n{analysis}"
+        f"🔬 <b>Анализ Кибер-прораба:</b>\n{analysis}"
     )
 
 
@@ -196,16 +205,21 @@ async def photo_done(message: Message, state: FSMContext) -> None:
 
     if saved:
         await message.answer(
-            f"✅ <b>Отчёт сохранён в Odoo</b>\n"
-            f"Объект: {task_name}\n"
-            f"Фотографий: {len(analyses)} шт.\n\n"
-            "Результаты доступны диспетчеру в системе.",
+            f"✅ <b>Отчёт сохранён</b>\n"
+            f"──────────────────────\n"
+            f"📍 <b>Объект:</b> {task_name}\n"
+            f"📷 <b>Фотографий:</b> {len(analyses)} шт.\n"
+            f"🗄 <b>Система:</b> Сохранено в Odoo\n\n"
+            "<i>Результаты доступны диспетчеру в системе.</i>",
             reply_markup=employee_menu(),
         )
     else:
         await message.answer(
-            f"✅ <b>Отчёт завершён</b> ({len(analyses)} фото)\n"
-            "⚠️ Не удалось сохранить в Odoo — передайте диспетчеру вручную.",
+            f"✅ <b>Отчёт завершён</b>\n"
+            f"──────────────────────\n"
+            f"📍 <b>Объект:</b> {task_name}\n"
+            f"📷 <b>Фотографий:</b> {len(analyses)} шт.\n"
+            f"⚠️ <b>Внимание:</b> Не удалось сохранить в Odoo — передайте диспетчеру вручную.",
             reply_markup=employee_menu(),
         )
 
@@ -229,10 +243,11 @@ async def sos(message: Message, bot: Bot, role: Role) -> None:
         return
     user = message.from_user
     text = (
-        f"🆘 <b>SOS от инженера!</b>\n\n"
-        f"Пользователь: {user.full_name}\n"
-        f"Username: @{user.username or '—'}\n"
-        f"TG ID: <code>{user.id}</code>"
+        f"🆘 <b>SOS — ЭКСТРЕННЫЙ СИГНАЛ</b>\n"
+        f"──────────────────────\n"
+        f"👤 <b>Инженер:</b> {user.full_name}\n"
+        f"🔗 <b>Username:</b> @{user.username or '—'}\n"
+        f"🆔 <b>TG ID:</b> <code>{user.id}</code>"
     )
     notified = False
     for admin_id in settings.admin_ids:

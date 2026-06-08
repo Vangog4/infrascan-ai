@@ -255,6 +255,11 @@ async def _run_polling(bot: Bot, dp: Dispatcher) -> None:
 
 
 async def main() -> None:
+    import sentry_sdk
+
+    if settings.sentry_dsn:
+        sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1, environment="production")
+
     if settings.log_format == "json":
         handler = logging.StreamHandler()
         handler.setFormatter(_JsonFormatter())
