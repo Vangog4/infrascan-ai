@@ -1,72 +1,39 @@
-# SESSION_STATE — infrascan-ai — 2026-06-08 15:06
+# SESSION_STATE — infrascan-ai — 2026-06-08 16:25
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+5b1ab1c feat: наработки сессии 22.05 (13 фич бота + редизайн меню) + фиксы тестов/линта
 a4194c7 fix: admin always notified on new lead, Premium purchase and scan pack
 97e042c feat: 13 new bot features — photo cache, WebApp live data, reminders, engineer notifications, voice hints, health endpoint, JSON logging, serial audit QC, PDF defect table, typing indicator
 0fceac5 fix: odoo.py _first_id() + install infrascan_ai addon
 49f7216 fix: Biome lint errors + session docs update
 7399d16 fix: security audit — 5 vulnerabilities patched (Gemini+Kimi review)
 daa8508 docs: session 2026-05-22 — per-project sub-agents, orchestrator fixes
-a5bb0e3 feat: per-project multi-agent architecture and robust session memory
 ```
 
 ## Незакоммиченные изменения
 ```
-DECISIONS.md                      |  835 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
- SESSION_NOTES.md                  |   92 ++----
- SESSION_STATE.md                  |  132 ++++-----
- bot/logseq/journals/2026_05_22.md | 1973 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- bot/pyproject.toml                |    1 +
- bot/src/bot.py                    |    4 +
- bot/src/config.py                 |    2 +
- bot/src/handlers/client.py        |  177 ++++++++----
- bot/src/handlers/common.py        |  136 ++++++---
- bot/src/handlers/employee.py      |   64 +++--
- bot/src/handlers/help.py          |  125 ++++++---
- bot/src/handlers/onboarding.py    |   47 ++--
- bot/src/handlers/payments.py      |   15 +-
- bot/src/handlers/referral.py      |   47 +++-
- bot/src/handlers/reports.py       |   42 ++-
- bot/src/keyboards/menus.py        |   66 +++--
- podman-compose.yml                |    4 +-
- 17 files changed, 3402 insertions(+), 360 deletions(-)
-```
-
-## Неотслеживаемые файлы
-```
-artifacts/judge-2026-05-22_08-26-28.log
-artifacts/judge-2026-05-22_08-28-12.log
-artifacts/judge-2026-05-22_10-45-12.log
-artifacts/judge-2026-05-22_10-52-04.log
-artifacts/judge-2026-05-22_11-00-44.log
-artifacts/judge-2026-05-22_11-31-10.log
-artifacts/judge-2026-05-22_11-45-40.log
-artifacts/judge-2026-05-22_12-08-51.log
-artifacts/judge-2026-05-22_12-11-55.log
-artifacts/judge-2026-05-22_12-17-40.log
-artifacts/judge-2026-05-22_12-17-58.log
-artifacts/judge-2026-05-22_12-58-13.log
-bot/artifacts/judge-2026-05-22_08-26-28.log
-bot/artifacts/judge-2026-05-22_08-28-12.log
-bot/artifacts/judge-2026-05-22_10-45-12.log
-bot/artifacts/judge-2026-05-22_10-52-04.log
-bot/artifacts/judge-2026-05-22_11-00-44.log
-bot/artifacts/judge-2026-05-22_11-31-10.log
-bot/artifacts/judge-2026-05-22_11-45-40.log
-bot/artifacts/judge-2026-05-22_12-08-51.log
-bot/artifacts/judge-2026-05-22_12-11-55.log
-bot/artifacts/judge-2026-05-22_12-17-40.log
-bot/artifacts/judge-2026-05-22_12-17-58.log
-bot/artifacts/judge-2026-05-22_12-58-13.log
-bot/logseq/journals/2026_05_22.lock
+DECISIONS.md                      |  14 ++++
+ SESSION_STATE.md                  |  64 ++++-------------
+ bot/logseq/journals/2026_06_08.md | 116 ++++++++++++++++++++++++++++++
+ 3 files changed, 145 insertions(+), 49 deletions(-)
 ```
 
 ## Заметки сессии
 # SESSION_NOTES — InfraScan AI
+
+## Сессия: 08.06.2026 — доведение judge.sh до зелёного + коммит наработок 22.05
+
+### Что сделано сегодня
+1. Ruff autofix: убран мёртвый импорт `premium_client_menu` в client.py (F401 — функция там реально не используется, премиум-меню рендерится в common.py/payments.py); `ruff format` отформатировал 7 файлов.
+2. Фикс `tests/test_payments.py`: хэндлер `btn_premium` (старая reply-кнопка «⭐️ Premium») удалён при редизайне 22.05. Премиум-оффер теперь открывается через кнопку BTN_UPGRADE → `btn_upgrade()` в handlers/client.py → `cmd_premium()`. Тесты `test_btn_premium_*` переписаны на `btn_upgrade` (с моком `is_premium=False`).
+3. Фикс `tests/test_help.py`: заголовки FAQ обновлены под редизайн — «Помощь — InfraScan AI» / «Help — InfraScan AI» (раньше «Частые вопросы»/«FAQ»).
+4. Фикс `tests/test_common.py`: редизайн добавил вызовы `premium_svc.is_premium`/`scans_remaining` в cmd_start(returning)/cmd_cancel/fallback — добавлены моки, чтобы тесты не лезли в реальный redis.
+5. `./judge.sh` → EXIT 0 (Passed 7 / Failed 0, 219 тестов pass).
+6. Коммит всех наработок 22.05 в ветку autoresearch/stack-health-2026-05-15 (без push).
 
 ## Последняя сессия: 22.05.2026
 

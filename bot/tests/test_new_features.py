@@ -1,13 +1,9 @@
 """Tests for new features: photo cache, webapp data, reminders, gemini helpers."""
 
 import json
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from tests.conftest import FakeRedis, make_message
-
 
 # ── Photo cache ───────────────────────────────────────────────────────────────
 
