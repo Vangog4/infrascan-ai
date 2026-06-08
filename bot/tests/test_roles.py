@@ -1,5 +1,4 @@
 import pytest
-
 import src.services.redis as redis_mod
 from src.services import roles
 from src.services.roles import Role

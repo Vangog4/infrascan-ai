@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.client import btn_upgrade
 from src.handlers.payments import (
     cb_premium_buy,
@@ -30,6 +29,7 @@ def _call(user_id: int = 123, data: str = "premium:buy") -> MagicMock:
 
 
 # ── /premium command ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_cmd_premium_already_premium_ru():
@@ -60,6 +60,7 @@ async def test_cmd_premium_shows_offer_when_not_premium():
 @pytest.mark.asyncio
 async def test_cmd_premium_offer_contains_stars_price():
     from src.config import settings
+
     msg = _msg()
     with patch("src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)):
         await cmd_premium(msg, locale="ru", is_local=True)
@@ -72,12 +73,11 @@ async def test_cmd_premium_offer_contains_stars_price():
 # The premium offer is now reached via the BTN_UPGRADE menu button, handled by
 # btn_upgrade() in handlers.client, which delegates to cmd_premium().
 
+
 @pytest.mark.asyncio
 async def test_btn_upgrade_shows_offer():
     msg = _msg()
-    with patch(
-        "src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)
-    ):
+    with patch("src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)):
         await btn_upgrade(msg, locale="ru", is_local=True)
     msg.answer.assert_called_once()
     assert "Premium" in msg.answer.call_args[0][0]
@@ -86,15 +86,14 @@ async def test_btn_upgrade_shows_offer():
 @pytest.mark.asyncio
 async def test_btn_upgrade_en_locale():
     msg = _msg()
-    with patch(
-        "src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)
-    ):
+    with patch("src.handlers.payments.premium_svc.is_premium", AsyncMock(return_value=False)):
         await btn_upgrade(msg, locale="en", is_local=False)
     text = msg.answer.call_args[0][0]
     assert "Unlimited" in text or "unlimited" in text
 
 
 # ── cb_premium_buy ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_cb_premium_buy_sends_invoice():
@@ -130,6 +129,7 @@ async def test_cb_premium_buy_en_label():
 
 # ── pre_checkout ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_pre_checkout_answers_ok():
     query = MagicMock()
@@ -142,6 +142,7 @@ async def test_pre_checkout_answers_ok():
 
 # ── payment_success ───────────────────────────────────────────────────────────
 
+
 def _fake_bot() -> MagicMock:
     bot = MagicMock()
     bot.send_message = AsyncMock()
@@ -151,6 +152,7 @@ def _fake_bot() -> MagicMock:
 @pytest.mark.asyncio
 async def test_payment_success_grants_premium():
     from src.config import settings
+
     msg = _msg()
     msg.successful_payment = MagicMock(total_amount=150, invoice_payload="premium_30days")
     with (

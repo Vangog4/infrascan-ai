@@ -1,7 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from src.middlewares.geo import GeoMiddleware
 
 
@@ -22,6 +21,7 @@ async def _run(lang: str = "ru", phone: str | None = None, user_id: int = 1) -> 
 
 
 # ── locale detection ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_ru_lang_locale_ru():
@@ -62,6 +62,7 @@ async def test_lang_with_region_code_stripped():
 
 # ── is_local via phone ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_plus7_phone_is_local():
     data = await _run(lang="en", phone="+79001234567")
@@ -100,6 +101,7 @@ async def test_us_phone_not_local():
 
 # ── is_local via language fallback (no phone) ─────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ru_lang_no_phone_is_local():
     data = await _run(lang="ru", phone=None)
@@ -125,6 +127,7 @@ async def test_de_lang_no_phone_not_local():
 
 
 # ── no user ───────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_no_user_defaults():

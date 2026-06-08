@@ -5,8 +5,10 @@ analyze_photo() returns a raw dict (JSON from Gemini).
 Use format_analysis_free() / format_analysis_premium() to render for Telegram.
 """
 
+import asyncio
 import json
 import logging
+import random
 import re
 
 from google import genai
@@ -24,6 +26,98 @@ def _get() -> genai.Client:
     if _client is None:
         _client = genai.Client(api_key=settings.gemini_api_key)
     return _client
+
+
+# ── Retry / fallback helper ────────────────────────────────────────────────────
+
+_MAX_ATTEMPTS = 3  # attempts on the primary model
+_BACKOFF_BASE = 1.0  # seconds: 1s, 2s, 4s ...
+_TRANSIENT_CODES = {429, 500, 502, 503, 504}
+_TRANSIENT_STATUSES = {"UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL", "DEADLINE_EXCEEDED"}
+_TRANSIENT_TYPES = (asyncio.TimeoutError, TimeoutError, ConnectionError)
+
+
+def _is_transient(exc: Exception) -> bool:
+    """Best-effort detection of retryable (transient) Gemini/network errors.
+
+    Checks, in order: known network/timeout exception types, numeric ``code``
+    and string ``status`` attributes (as exposed by google-genai APIError), and
+    finally the string representation as a last resort.
+    """
+    if isinstance(exc, _TRANSIENT_TYPES):
+        return True
+
+    code = getattr(exc, "code", None)
+    try:
+        if code is not None and int(code) in _TRANSIENT_CODES:
+            return True
+    except (TypeError, ValueError):
+        pass
+
+    status = getattr(exc, "status", None)
+    if isinstance(status, str) and status.upper() in _TRANSIENT_STATUSES:
+        return True
+
+    text = str(exc).upper()
+    if any(s in text for s in _TRANSIENT_STATUSES):
+        return True
+    if any(f" {c}" in text or f"{c} " in text or f"[{c}]" in text for c in _TRANSIENT_CODES):
+        return True
+    return False
+
+
+async def _generate_with_retry(*, model: str, contents, config=None):
+    """Call ``generate_content`` with retries on transient errors + optional fallback.
+
+    - Up to ``_MAX_ATTEMPTS`` attempts on ``model`` with exponential backoff + jitter,
+      retrying ONLY on transient errors (503/429/5xx, UNAVAILABLE/RESOURCE_EXHAUSTED,
+      timeouts/network). Non-transient errors (4xx except 429, JSONDecode, etc.) are
+      raised immediately.
+    - After the primary model is exhausted, if ``settings.gemini_fallback_model`` is
+      set, one attempt is made on the fallback model. Otherwise the last error is raised.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            return await _get().aio.models.generate_content(
+                model=model, contents=contents, config=config
+            )
+        except Exception as e:
+            if not _is_transient(e):
+                raise
+            last_exc = e
+            if attempt < _MAX_ATTEMPTS:
+                delay = _BACKOFF_BASE * (2 ** (attempt - 1)) + random.uniform(0, 0.25)
+                logger.warning(
+                    "Gemini transient error on %s (attempt %d/%d): %s — retrying in %.2fs",
+                    model,
+                    attempt,
+                    _MAX_ATTEMPTS,
+                    e,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+    fallback = settings.gemini_fallback_model
+    if fallback:
+        logger.warning(
+            "Gemini primary model %s exhausted after %d attempts, trying fallback %s",
+            model,
+            _MAX_ATTEMPTS,
+            fallback,
+        )
+        return await _get().aio.models.generate_content(
+            model=fallback, contents=contents, config=config
+        )
+
+    logger.error(
+        "Gemini model %s failed after %d attempts, no fallback configured: %s",
+        model,
+        _MAX_ATTEMPTS,
+        last_exc,
+    )
+    assert last_exc is not None
+    raise last_exc
 
 
 # ── Stubs (GEMINI_STUB=true) ──────────────────────────────────────────────────
@@ -266,7 +360,7 @@ async def analyze_photo(
         prompt = prefix + prompt
     r = None
     try:
-        r = await _get().aio.models.generate_content(
+        r = await _generate_with_retry(
             model=settings.gemini_model,
             contents=[types.Part.from_bytes(data=data, mime_type=mime), prompt],
             config=types.GenerateContentConfig(response_mime_type="application/json"),
@@ -305,7 +399,7 @@ async def calculate_losses(area: float, heating: str, payment: float, weather_ct
         prompt = _CALC_PROMPT.format(
             area=area, heating=heating, payment=payment, weather_ctx=weather_ctx
         )
-        r = await _get().aio.models.generate_content(
+        r = await _generate_with_retry(
             model=settings.gemini_model,
             contents=prompt,
         )
@@ -329,7 +423,7 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
     if settings.gemini_stub:
         return _STUB_QC
     try:
-        r = await _get().aio.models.generate_content(
+        r = await _generate_with_retry(
             model=settings.gemini_model,
             contents=[types.Part.from_bytes(data=data, mime_type=mime), _QC_PROMPT],
             config=types.GenerateContentConfig(response_mime_type="application/json"),
@@ -478,7 +572,7 @@ async def transcribe_voice(audio_bytes: bytes, mime: str = "audio/ogg") -> str:
     if settings.gemini_stub:
         return "Трещина в верхнем правом углу, видно намокание штукатурки"
     try:
-        r = await _get().aio.models.generate_content(
+        r = await _generate_with_retry(
             model=settings.gemini_model,
             contents=[
                 types.Part.from_bytes(data=audio_bytes, mime_type=mime),

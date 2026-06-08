@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiogram.types import Message
-
 from src.middlewares.ratelimit import (
     _BUCKET_TTL,
     _EVICTION_INTERVAL,
@@ -20,6 +19,7 @@ def _msg(user_id: int = 1) -> MagicMock:
 
 
 # ── basic flow ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_first_message_allowed():
@@ -58,6 +58,7 @@ async def test_cooldown_enforced_immediately_after_violation():
 
 # ── multi-user isolation ──────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_different_users_are_independent():
     mw = RateLimitMiddleware()
@@ -70,6 +71,7 @@ async def test_different_users_are_independent():
 
 
 # ── non-Message pass-through ──────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_non_message_passes_through():
@@ -89,6 +91,7 @@ async def test_message_without_from_user_passes_through():
 
 
 # ── bucket eviction ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_stale_buckets_are_evicted():

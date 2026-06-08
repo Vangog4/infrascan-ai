@@ -32,9 +32,9 @@ done < <(find bot/src -name "*.py" -print0 2>/dev/null)
 # ------------------------------------------------------------------
 sep "2. Ruff lint + format"
 if command -v uvx &>/dev/null; then
-    uvx ruff check bot/src/ --config bot/pyproject.toml --output-format concise >>"$LOG_FILE" 2>&1 \
+    uvx ruff check bot/src/ bot/tests/ --config bot/pyproject.toml --output-format concise >>"$LOG_FILE" 2>&1 \
         && ok "ruff lint" || fail "ruff lint issues found"
-    uvx ruff format bot/src/ --config bot/pyproject.toml --check >>"$LOG_FILE" 2>&1 \
+    uvx ruff format bot/src/ bot/tests/ --config bot/pyproject.toml --check >>"$LOG_FILE" 2>&1 \
         && ok "ruff format" || fail "ruff format issues found"
 else
     skip "uvx not found"

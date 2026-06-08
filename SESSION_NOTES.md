@@ -1,5 +1,19 @@
 # SESSION_NOTES — InfraScan AI
 
+## Сессия: 08.06.2026 (вечер) — устойчивость Gemini + ротация логов + judge tests/
+
+### Что сделано
+1. **gemini.py — ретраи + fallback.** Добавлен общий хелпер `_generate_with_retry(*, model, contents, config)`: до 3 попыток на основной модели с экспоненциальным бэкоффом (1/2/4s + джиттер) ТОЛЬКО на транзиентных ошибках, затем — одна попытка на `settings.gemini_fallback_model` (если задан), иначе проброс последней ошибки. Детект транзиентности `_is_transient()`: типы (TimeoutError/ConnectionError), атрибуты `.code` (429/500/502/503/504) и `.status` (UNAVAILABLE/RESOURCE_EXHAUSTED/INTERNAL/DEADLINE_EXCEEDED) как у google-genai APIError, плюс fallback по строковому представлению. Все 4 вызова (analyze_photo/calculate_losses/check_quality/transcribe_voice) переведены на хелпер. Stub-ветки и финальные fallback-словари не тронуты.
+2. **config.py:** новое поле `gemini_fallback_model: str | None = None` (env GEMINI_FALLBACK_MODEL). .env НЕ трогал.
+3. **podman-compose.yml:** каждому сервису (db/web/redis/bot) добавлен блок `logging: json-file, max-size 10m, max-file 3`. Валидировано `podman-compose config` (EXIT 0). Лимит активируется при пересоздании контейнера.
+4. **judge.sh:** ruff (check + format-check) теперь покрывает и `bot/tests/`. Прогнал `ruff check --fix` + `ruff format` по tests/ (из корня репо, как делает judge).
+5. **Тесты:** 5 новых в test_gemini.py — детект транзиентности, успех после 2×503 (3 вызова), без ретрая на 400, fallback-модель после исчерпания, проброс/деградация без fallback. asyncio.sleep замокан (тесты не спят и не ходят в сеть).
+6. `./judge.sh` → EXIT 0 (Passed 7 / Failed 0, 224 теста).
+7. Деплой бота: build + up -d. Все контейнеры healthy. /health = {"status":"ok","redis":true}. Webhook https://infrascan-ai.ru/bot/webhook активен, pending=0, last_error=None.
+
+### Важно
+- `podman-compose up -d bot` из-за depends_on пересоздал и web/db/redis — это активировало лог-ротацию на ВСЕХ сервисах сразу (не только bot). Прод поднялся healthy, данные БД на external volumes не тронуты.
+
 ## Сессия: 08.06.2026 — доведение judge.sh до зелёного + коммит наработок 22.05
 
 ### Что сделано сегодня

@@ -1,7 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from src.services import odoo
 
 
@@ -40,8 +39,7 @@ async def test_find_partner_returns_none_when_not_found():
 
 @pytest.mark.asyncio
 async def test_find_partner_returns_dict():
-    partner = {"id": 5, "name": "Тест", "phone": "+79001234567",
-               "email": "", "category_id": []}
+    partner = {"id": 5, "name": "Тест", "phone": "+79001234567", "email": "", "category_id": []}
     with patch("src.services.odoo._call", AsyncMock(return_value=[partner])):
         result = await odoo.find_partner("+79001234567")
     assert result["id"] == 5
@@ -64,10 +62,24 @@ async def test_is_employee_from_env(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_today_tasks_filters_leads():
     tasks = [
-        {"id": 1, "name": "[Лид] Тест", "project_id": [1, "Выезд"],
-         "stage_id": False, "description": "", "date_deadline": False, "x_telegram_id": False},
-        {"id": 2, "name": "Объект А", "project_id": [1, "Выезд"],
-         "stage_id": False, "description": "", "date_deadline": False, "x_telegram_id": False},
+        {
+            "id": 1,
+            "name": "[Лид] Тест",
+            "project_id": [1, "Выезд"],
+            "stage_id": False,
+            "description": "",
+            "date_deadline": False,
+            "x_telegram_id": False,
+        },
+        {
+            "id": 2,
+            "name": "Объект А",
+            "project_id": [1, "Выезд"],
+            "stage_id": False,
+            "description": "",
+            "date_deadline": False,
+            "x_telegram_id": False,
+        },
     ]
     with patch("src.services.odoo._call", AsyncMock(return_value=tasks)):
         result = await odoo.get_today_tasks(123)
@@ -78,15 +90,33 @@ async def test_get_today_tasks_filters_leads():
 @pytest.mark.asyncio
 async def test_get_today_tasks_filters_by_tg_id():
     tasks = [
-        {"id": 1, "name": "Чужой объект", "project_id": [1, "Выезд"],
-         "stage_id": False, "description": "", "date_deadline": False,
-         "x_telegram_id": "999"},
-        {"id": 2, "name": "Мой объект", "project_id": [1, "Выезд"],
-         "stage_id": False, "description": "", "date_deadline": False,
-         "x_telegram_id": "123"},
-        {"id": 3, "name": "Общий объект", "project_id": [1, "Выезд"],
-         "stage_id": False, "description": "", "date_deadline": False,
-         "x_telegram_id": False},
+        {
+            "id": 1,
+            "name": "Чужой объект",
+            "project_id": [1, "Выезд"],
+            "stage_id": False,
+            "description": "",
+            "date_deadline": False,
+            "x_telegram_id": "999",
+        },
+        {
+            "id": 2,
+            "name": "Мой объект",
+            "project_id": [1, "Выезд"],
+            "stage_id": False,
+            "description": "",
+            "date_deadline": False,
+            "x_telegram_id": "123",
+        },
+        {
+            "id": 3,
+            "name": "Общий объект",
+            "project_id": [1, "Выезд"],
+            "stage_id": False,
+            "description": "",
+            "date_deadline": False,
+            "x_telegram_id": False,
+        },
     ]
     with patch("src.services.odoo._call", AsyncMock(return_value=tasks)):
         result = await odoo.get_today_tasks(123)
@@ -105,7 +135,10 @@ async def test_save_analysis_report():
 
 @pytest.mark.asyncio
 async def test_get_premium_status_true():
-    with patch("src.services.odoo._call", AsyncMock(return_value=[{"id": 1, "x_premium_ends": "2026-12-31"}])):
+    with patch(
+        "src.services.odoo._call",
+        AsyncMock(return_value=[{"id": 1, "x_premium_ends": "2026-12-31"}]),
+    ):
         assert await odoo.get_premium_status(555) is True
 
 

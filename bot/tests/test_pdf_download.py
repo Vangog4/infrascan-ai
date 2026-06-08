@@ -1,10 +1,10 @@
 """Tests for download_pdf callback handler."""
+
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import CallbackQuery
-
 from src.handlers.client import download_pdf
 
 

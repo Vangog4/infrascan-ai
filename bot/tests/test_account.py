@@ -1,10 +1,10 @@
 """Tests for account handler — 👤 Мой кабинет / My Account."""
+
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.account import _fmt_duration, cmd_account
 
 
@@ -30,6 +30,7 @@ def _patch_services(is_prem=False, remaining=3, bonus=0, ref_count=0, ttl=0):
 
 # ── _fmt_duration ─────────────────────────────────────────────────────────────
 
+
 def test_fmt_duration_days_ru():
     assert "д." in _fmt_duration(86400, "ru")
 
@@ -47,6 +48,7 @@ def test_fmt_duration_hours_en():
 
 
 # ── Free user — RU ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_account_free_user_ru():
@@ -79,6 +81,7 @@ async def test_account_free_user_no_bonus_hint_when_zero():
 
 # ── Premium user — RU ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_account_premium_user_ru():
     msg = _msg()
@@ -98,6 +101,7 @@ async def test_account_premium_with_ttl_shows_duration():
 
 
 # ── EN locale ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_account_free_user_en():
@@ -129,6 +133,7 @@ async def test_account_en_bonus_hint():
 
 
 # ── Reply keyboard ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_premium_user_gets_keyboard():

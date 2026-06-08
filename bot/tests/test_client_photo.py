@@ -1,10 +1,10 @@
 """Tests for audit_photo and lead_contact handlers (require Bot mock)."""
+
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Contact, Message
-
 from src.handlers.client import audit_photo, lead_contact
 
 
@@ -30,7 +30,6 @@ def _state(data: dict | None = None) -> MagicMock:
     st = MagicMock()
     st.clear = AsyncMock()
     st.get_data = AsyncMock(return_value=data or {"locale": "ru", "is_local": True})
-
 
     return st
 
@@ -158,7 +157,9 @@ async def test_audit_photo_premium_user_saves_report():
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=True)),
         patch("src.services.gemini.analyze_photo", AsyncMock(return_value=fake_result)),
-        patch("src.services.gemini.format_analysis_premium", MagicMock(return_value="Premium анализ")),
+        patch(
+            "src.services.gemini.format_analysis_premium", MagicMock(return_value="Premium анализ")
+        ),
         patch("src.services.gemini.analysis_to_webapp", MagicMock(return_value={})),
         patch("src.services.referral.reward_first_scan", AsyncMock()),
         patch("src.handlers.client.save_last_report", AsyncMock()),

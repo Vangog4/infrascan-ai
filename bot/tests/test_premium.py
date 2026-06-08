@@ -2,7 +2,6 @@ from datetime import UTC
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 import src.services.redis as redis_mod
 from src.services import premium as svc
 
@@ -14,6 +13,7 @@ def mock_redis(monkeypatch, fake_redis):
 
 
 # ── is_premium ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_is_premium_redis_hit_true(mock_redis):
@@ -53,6 +53,7 @@ async def test_is_premium_odoo_error_defaults_to_false(mock_redis):
 
 # ── grant_premium ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_grant_premium_sets_redis_key(mock_redis):
     with patch("src.services.odoo.set_premium", AsyncMock()):
@@ -70,6 +71,7 @@ async def test_grant_premium_odoo_error_does_not_raise(mock_redis):
 
 # ── revoke_premium ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_revoke_premium_sets_zero(mock_redis):
     mock_redis._store["premium:4"] = "1"
@@ -78,6 +80,7 @@ async def test_revoke_premium_sets_zero(mock_redis):
 
 
 # ── scan counters ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_get_scans_today_new_user(mock_redis):
@@ -110,17 +113,20 @@ async def test_increment_scan_accumulates(mock_redis):
 @pytest.mark.asyncio
 async def test_scans_remaining_full_for_new_user(mock_redis):
     from src.config import settings
+
     assert await svc.scans_remaining(300) == settings.free_daily_scans
 
 
 @pytest.mark.asyncio
 async def test_scans_remaining_decrements(mock_redis):
     from src.config import settings
+
     mock_redis._store["scans:301"] = "2"
     assert await svc.scans_remaining(301) == max(0, settings.free_daily_scans - 2)
 
 
 # ── _seconds_until_midnight_utc ───────────────────────────────────────────────
+
 
 def test_seconds_until_midnight_is_positive():
     secs = svc._seconds_until_midnight_utc()
@@ -131,6 +137,7 @@ def test_seconds_until_midnight_month_boundary_jan31():
     """Regression: day+1 crashed on last day of month."""
     from datetime import datetime
     from unittest.mock import patch
+
     last_day = datetime(2026, 1, 31, 14, 0, 0, tzinfo=UTC)
     with patch("src.services.premium.datetime") as mock_dt:
         mock_dt.now.return_value = last_day
@@ -142,6 +149,7 @@ def test_seconds_until_midnight_month_boundary_jan31():
 def test_seconds_until_midnight_month_boundary_dec31():
     from datetime import datetime
     from unittest.mock import patch
+
     last_day = datetime(2026, 12, 31, 23, 59, 0, tzinfo=UTC)
     with patch("src.services.premium.datetime") as mock_dt:
         mock_dt.now.return_value = last_day

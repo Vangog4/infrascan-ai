@@ -1,9 +1,9 @@
 """Tests for common handler — /start, /cancel, fallback, admin commands."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.common import cmd_cancel, cmd_start, fallback
 from src.services.roles import Role
 

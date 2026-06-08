@@ -1,9 +1,9 @@
 """Tests for partner handler — lead submission flow."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.partner import _is_partner, lead_phone, lead_start
 from src.services.roles import Role
 
@@ -25,6 +25,7 @@ def _state() -> MagicMock:
 
 # ── _is_partner ───────────────────────────────────────────────────────────────
 
+
 def test_is_partner_true():
     assert _is_partner(Role.PARTNER) is True
 
@@ -38,6 +39,7 @@ def test_is_partner_false_for_employee():
 
 
 # ── lead_start ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_lead_start_sets_state_for_partner():
@@ -58,6 +60,7 @@ async def test_lead_start_ignores_non_partner():
 
 
 # ── lead_phone ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_lead_phone_too_short_returns_error():

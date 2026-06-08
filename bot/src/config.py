@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    # Optional fallback model used after the primary model exhausts retries on
+    # transient errors. Read from env GEMINI_FALLBACK_MODEL; empty/None = disabled.
+    gemini_fallback_model: str | None = None
     gemini_stub: bool = False  # True → return hardcoded demo responses (no API call)
 
     odoo_url: str = ""

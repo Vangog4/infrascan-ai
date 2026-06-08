@@ -1,25 +1,25 @@
-# SESSION_STATE — infrascan-ai — 2026-06-08 16:25
+# SESSION_STATE — infrascan-ai — 2026-06-08 22:59
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+4a27eea chore: фикс F401 в tests/test_new_features.py + авто-доки сессии 08.06
 5b1ab1c feat: наработки сессии 22.05 (13 фич бота + редизайн меню) + фиксы тестов/линта
 a4194c7 fix: admin always notified on new lead, Premium purchase and scan pack
 97e042c feat: 13 new bot features — photo cache, WebApp live data, reminders, engineer notifications, voice hints, health endpoint, JSON logging, serial audit QC, PDF defect table, typing indicator
 0fceac5 fix: odoo.py _first_id() + install infrascan_ai addon
 49f7216 fix: Biome lint errors + session docs update
 7399d16 fix: security audit — 5 vulnerabilities patched (Gemini+Kimi review)
-daa8508 docs: session 2026-05-22 — per-project sub-agents, orchestrator fixes
 ```
 
 ## Незакоммиченные изменения
 ```
-DECISIONS.md                      |  14 ++++
- SESSION_STATE.md                  |  64 ++++-------------
- bot/logseq/journals/2026_06_08.md | 116 ++++++++++++++++++++++++++++++
- 3 files changed, 145 insertions(+), 49 deletions(-)
+DECISIONS.md                      |  31 +++++++
+ SESSION_STATE.md                  |  11 ++-
+ bot/logseq/journals/2026_06_08.md | 116 +++++++++++++++++++++++++
+ 3 files changed, 152 insertions(+), 6 deletions(-)
 ```
 
 ## Заметки сессии

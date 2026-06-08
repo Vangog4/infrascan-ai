@@ -23,6 +23,11 @@ services:
         -c checkpoint_completion_target=0.9
     networks:
       - odoo-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U odoo"]
       interval: 10s
@@ -53,6 +58,11 @@ services:
       - odoo-internal
       - npm_network
       - bot-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8069/web/health || exit 1"]
       interval: 30s
@@ -69,6 +79,11 @@ services:
       - redis_data:/data
     networks:
       - bot-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -96,6 +111,11 @@ services:
     networks:
       - bot-net
       - npm_network   # lets Nginx Proxy Manager route /bot/webhook → bot:8080
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)\""]
       interval: 30s

@@ -115,8 +115,18 @@ def test_analysis_to_webapp_basic():
         "risk_score": 0.75,
         "object_type": "wall",
         "problems": [
-            {"type": "moisture", "location": "Верхний угол", "severity": "high", "description": "Намокание"},
-            {"type": "thermal_bridge", "location": "Откос окна", "severity": "medium", "description": "Мостик холода"},
+            {
+                "type": "moisture",
+                "location": "Верхний угол",
+                "severity": "high",
+                "description": "Намокание",
+            },
+            {
+                "type": "thermal_bridge",
+                "location": "Откос окна",
+                "severity": "medium",
+                "description": "Мостик холода",
+            },
         ],
         "free_verdict": "Дефекты обнаружены.",
     }
@@ -148,11 +158,15 @@ def test_analysis_to_webapp_score_conversion():
     from src.services.gemini import analysis_to_webapp
 
     # Float 0-1 should be converted to 0-100
-    result = analysis_to_webapp({"risk_level": "MEDIUM", "risk_score": 0.58, "object_type": "wall", "problems": []})
+    result = analysis_to_webapp(
+        {"risk_level": "MEDIUM", "risk_score": 0.58, "object_type": "wall", "problems": []}
+    )
     assert result["risk_score"] == 58
 
     # Integer already in 0-100 range should stay
-    result2 = analysis_to_webapp({"risk_level": "HIGH", "risk_score": 72, "object_type": "wall", "problems": []})
+    result2 = analysis_to_webapp(
+        {"risk_level": "HIGH", "risk_score": 72, "object_type": "wall", "problems": []}
+    )
     assert result2["risk_score"] == 72
 
 
@@ -168,10 +182,19 @@ async def test_check_quality_verdict_high_score_corrected(monkeypatch):
     monkeypatch.setattr(settings, "gemini_stub", False)
 
     mock_response = MagicMock()
-    mock_response.text = json.dumps({
-        "sharpness": 20, "exposure": 18, "framing": 20, "relevance": 17,
-        "total_score": 75, "verdict": "БРАК", "reason": None, "tip": None, "object": "wall",
-    })
+    mock_response.text = json.dumps(
+        {
+            "sharpness": 20,
+            "exposure": 18,
+            "framing": 20,
+            "relevance": 17,
+            "total_score": 75,
+            "verdict": "БРАК",
+            "reason": None,
+            "tip": None,
+            "object": "wall",
+        }
+    )
 
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
@@ -193,10 +216,19 @@ async def test_check_quality_verdict_low_score_corrected(monkeypatch):
     monkeypatch.setattr(settings, "gemini_stub", False)
 
     mock_response = MagicMock()
-    mock_response.text = json.dumps({
-        "sharpness": 10, "exposure": 8, "framing": 10, "relevance": 12,
-        "total_score": 40, "verdict": "ПРИНЯТО", "reason": None, "tip": None, "object": "wall",
-    })
+    mock_response.text = json.dumps(
+        {
+            "sharpness": 10,
+            "exposure": 8,
+            "framing": 10,
+            "relevance": 12,
+            "total_score": 40,
+            "verdict": "ПРИНЯТО",
+            "reason": None,
+            "tip": None,
+            "object": "wall",
+        }
+    )
 
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
@@ -233,12 +265,20 @@ async def test_analyze_photo_context_prepended_to_prompt(monkeypatch):
     captured_contents = []
 
     mock_response = MagicMock()
-    mock_response.text = json.dumps({
-        "object_type": "wall", "risk_level": "LOW", "risk_score": 0.2,
-        "temperature_observations": [], "problems": [],
-        "free_verdict": "ok", "premium_analysis": "", "recommendations_brief": "",
-        "recommendations_detailed": [], "premium_teaser": "",
-    })
+    mock_response.text = json.dumps(
+        {
+            "object_type": "wall",
+            "risk_level": "LOW",
+            "risk_score": 0.2,
+            "temperature_observations": [],
+            "problems": [],
+            "free_verdict": "ok",
+            "premium_analysis": "",
+            "recommendations_brief": "",
+            "recommendations_detailed": [],
+            "premium_teaser": "",
+        }
+    )
 
     async def fake_generate(model, contents, config=None):
         captured_contents.extend(contents)

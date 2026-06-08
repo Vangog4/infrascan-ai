@@ -1,9 +1,9 @@
 """Tests for employee handler — tasks, photo submission, SOS."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.employee import _build_report, _is_employee, photo_select_task, sos, today_tasks
 from src.services.roles import Role
 
@@ -31,7 +31,12 @@ def _bot() -> MagicMock:
 
 
 _SAMPLE_TASKS = [
-    {"id": 1, "name": "Объект Ленина 5", "project_id": [1, "Выезды"], "date_deadline": "2026-05-20"},
+    {
+        "id": 1,
+        "name": "Объект Ленина 5",
+        "project_id": [1, "Выезды"],
+        "date_deadline": "2026-05-20",
+    },
     {"id": 2, "name": "Объект Мира 10", "project_id": [1, "Выезды"], "date_deadline": None},
 ]
 

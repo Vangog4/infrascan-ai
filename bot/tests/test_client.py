@@ -1,9 +1,9 @@
 """Tests for client handler — photo audit and heat loss calculator."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.client import audit_start, calc_area, calc_payment, calc_start
 
 

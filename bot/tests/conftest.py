@@ -1,4 +1,5 @@
 """Shared fixtures for all test modules."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -39,9 +40,7 @@ class FakeRedis:
         self._store[key].update({k: str(v) for k, v in mapping.items()})  # type: ignore[index]
         return len(mapping)
 
-    async def zrangebyscore(
-        self, key: str, min: float | str, max: float | str
-    ) -> list[str]:
+    async def zrangebyscore(self, key: str, min: float | str, max: float | str) -> list[str]:
         bucket = self._store.get(key, {})
         if not isinstance(bucket, dict):
             return []
@@ -77,6 +76,7 @@ class FakeRedis:
 
     async def scan_iter(self, pattern: str = "*"):
         import fnmatch
+
         for key in list(self._store):
             if fnmatch.fnmatch(key, pattern):
                 yield key

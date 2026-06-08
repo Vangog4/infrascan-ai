@@ -1,9 +1,9 @@
 """Tests for help/FAQ handler."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiogram.types import Message
-
 from src.handlers.help import cmd_help
 
 

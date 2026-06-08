@@ -1,4 +1,5 @@
 """Tests for referral service."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,9 +24,11 @@ def _patch_redis(r: FakeRedis):
 
 # ── Code generation ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_or_create_code_deterministic(r):
     from src.services.referral import _make_code, get_or_create_code
+
     with _patch_redis(r):
         code = await get_or_create_code(42)
     assert code == _make_code(42)
@@ -36,6 +39,7 @@ async def test_get_or_create_code_deterministic(r):
 @pytest.mark.asyncio
 async def test_get_or_create_code_idempotent(r):
     from src.services.referral import get_or_create_code
+
     with _patch_redis(r):
         code1 = await get_or_create_code(42)
         code2 = await get_or_create_code(42)
@@ -45,6 +49,7 @@ async def test_get_or_create_code_idempotent(r):
 @pytest.mark.asyncio
 async def test_reverse_lookup_stored(r):
     from src.services.referral import get_or_create_code
+
     with _patch_redis(r):
         code = await get_or_create_code(99)
     assert r._store[f"ref_to:{code}"] == "99"
@@ -52,9 +57,11 @@ async def test_reverse_lookup_stored(r):
 
 # ── register_referral ─────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_register_referral_success(r):
     from src.services.referral import get_or_create_code, register_referral
+
     with _patch_redis(r):
         code = await get_or_create_code(1)
         result = await register_referral(2, code)
@@ -65,6 +72,7 @@ async def test_register_referral_success(r):
 @pytest.mark.asyncio
 async def test_register_referral_self_referral_blocked(r):
     from src.services.referral import get_or_create_code, register_referral
+
     with _patch_redis(r):
         code = await get_or_create_code(5)
         result = await register_referral(5, code)
@@ -74,6 +82,7 @@ async def test_register_referral_self_referral_blocked(r):
 @pytest.mark.asyncio
 async def test_register_referral_unknown_code(r):
     from src.services.referral import register_referral
+
     with _patch_redis(r):
         result = await register_referral(2, "BADCODE")
     assert result is False
@@ -82,6 +91,7 @@ async def test_register_referral_unknown_code(r):
 @pytest.mark.asyncio
 async def test_register_referral_duplicate_blocked(r):
     from src.services.referral import get_or_create_code, register_referral
+
     with _patch_redis(r):
         code = await get_or_create_code(1)
         await register_referral(2, code)
@@ -91,9 +101,11 @@ async def test_register_referral_duplicate_blocked(r):
 
 # ── Bonus scans ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_add_and_get_bonus_scans(r):
     from src.services.referral import add_bonus_scans, get_bonus_scans
+
     with _patch_redis(r):
         await add_bonus_scans(10, 5)
         val = await get_bonus_scans(10)
@@ -103,6 +115,7 @@ async def test_add_and_get_bonus_scans(r):
 @pytest.mark.asyncio
 async def test_get_bonus_scans_default_zero(r):
     from src.services.referral import get_bonus_scans
+
     with _patch_redis(r):
         val = await get_bonus_scans(999)
     assert val == 0
@@ -111,6 +124,7 @@ async def test_get_bonus_scans_default_zero(r):
 @pytest.mark.asyncio
 async def test_consume_bonus_scan_success(r):
     from src.services.referral import add_bonus_scans, consume_bonus_scan, get_bonus_scans
+
     with _patch_redis(r):
         await add_bonus_scans(10, 3)
         consumed = await consume_bonus_scan(10)
@@ -122,6 +136,7 @@ async def test_consume_bonus_scan_success(r):
 @pytest.mark.asyncio
 async def test_consume_bonus_scan_empty(r):
     from src.services.referral import consume_bonus_scan, get_bonus_scans
+
     with _patch_redis(r):
         consumed = await consume_bonus_scan(10)
         balance = await get_bonus_scans(10)
@@ -130,6 +145,7 @@ async def test_consume_bonus_scan_empty(r):
 
 
 # ── reward_first_scan ─────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_reward_first_scan_credits_referrer(r):
@@ -140,6 +156,7 @@ async def test_reward_first_scan_credits_referrer(r):
         register_referral,
         reward_first_scan,
     )
+
     bot = _make_bot()
     with _patch_redis(r):
         await get_or_create_code(1)
@@ -160,6 +177,7 @@ async def test_reward_first_scan_idempotent(r):
         register_referral,
         reward_first_scan,
     )
+
     bot = _make_bot()
     with _patch_redis(r):
         await get_or_create_code(1)
@@ -175,6 +193,7 @@ async def test_reward_first_scan_idempotent(r):
 @pytest.mark.asyncio
 async def test_reward_first_scan_no_referrer(r):
     from src.services.referral import get_bonus_scans, reward_first_scan
+
     bot = _make_bot()
     with _patch_redis(r):
         await reward_first_scan(99, bot)
@@ -194,6 +213,7 @@ async def test_reward_first_scan_monthly_limit(r):
         register_referral,
         reward_first_scan,
     )
+
     bot = _make_bot()
     month_key = f"ref_month:1:{time.strftime('%Y%m')}"
     with _patch_redis(r):
@@ -210,6 +230,7 @@ async def test_reward_first_scan_monthly_limit(r):
 
 # ── reward_premium_purchase ───────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_reward_premium_purchase_grants_days(r):
     from src.services.referral import (
@@ -218,6 +239,7 @@ async def test_reward_premium_purchase_grants_days(r):
         register_referral,
         reward_premium_purchase,
     )
+
     bot = _make_bot()
     with (
         _patch_redis(r),
@@ -238,6 +260,7 @@ async def test_reward_premium_purchase_idempotent(r):
         register_referral,
         reward_premium_purchase,
     )
+
     bot = _make_bot()
     with (
         _patch_redis(r),
@@ -254,6 +277,7 @@ async def test_reward_premium_purchase_idempotent(r):
 @pytest.mark.asyncio
 async def test_reward_premium_purchase_no_referrer(r):
     from src.services.referral import reward_premium_purchase
+
     bot = _make_bot()
     with (
         _patch_redis(r),
@@ -265,9 +289,11 @@ async def test_reward_premium_purchase_no_referrer(r):
 
 # ── get_stats ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_stats_empty(r):
     from src.services.referral import get_stats
+
     with _patch_redis(r):
         stats = await get_stats(1)
     assert stats == {"count": 0, "bonus_scans": 0}
@@ -276,6 +302,7 @@ async def test_get_stats_empty(r):
 @pytest.mark.asyncio
 async def test_get_stats_with_data(r):
     from src.services.referral import add_bonus_scans, get_stats
+
     r._store["ref_count:1"] = "3"
     with _patch_redis(r):
         await add_bonus_scans(1, 15)
