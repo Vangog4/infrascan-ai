@@ -73,6 +73,30 @@ async def test_buffer_flush_error_does_not_propagate():
     assert buf._groups == {}
 
 
+@pytest.mark.asyncio
+async def test_can_accept_gates_on_capacity():
+    """can_accept: first frame True, accepts up to max_frames, then False + overflow."""
+    buf = AlbumBuffer(AsyncMock(), debounce=0, max_frames=3, sleep=AsyncMock())
+    # unseen group: first frame always fits
+    assert buf.can_accept("g") is True
+    for i in range(3):
+        assert buf.can_accept("g") is True  # still room before adding
+        buf.add("g", {"raw": bytes([i]), "mime": "image/jpeg"}, {})
+    # now at capacity (3 frames)
+    assert buf.can_accept("g") is False
+    # overflow flag set by the rejection, even though add() was never called
+    assert buf._groups["g"].overflow_notified is True
+
+
+@pytest.mark.asyncio
+async def test_can_accept_independent_per_group():
+    buf = AlbumBuffer(AsyncMock(), debounce=0, max_frames=1, sleep=AsyncMock())
+    assert buf.can_accept("a") is True
+    buf.add("a", {"raw": b"x", "mime": "image/jpeg"}, {})
+    assert buf.can_accept("a") is False  # group a full
+    assert buf.can_accept("b") is True  # group b untouched
+
+
 # ── client.py album integration ────────────────────────────────────────────────
 
 
@@ -194,6 +218,48 @@ async def test_album_overflow_limits_to_five_and_notifies():
     analyze_photos.assert_awaited_once()
     assert len(analyze_photos.await_args.args[0]) == 5  # capped
     assert any("первые 5" in t or "first 5" in t for t in notice_seen)
+    # Finding 3: frames beyond max_frames must NOT be downloaded (no DoS).
+    assert bot.download.await_count == 5
+
+
+@pytest.mark.asyncio
+async def test_album_flush_error_notifies_user():
+    """Finding 4: a failure inside flush (prepare_image) → user gets an error msg."""
+    from src.handlers import client
+    from src.services.album_buffer import AlbumBuffer
+
+    fresh_buffer = AlbumBuffer(client._flush_album, debounce=0, sleep=AsyncMock())
+    bot = _bot()
+    answered: list[str] = []
+
+    def _answer_side(text, *a, **k):
+        answered.append(text)
+        wm = MagicMock()
+        wm.delete = AsyncMock()
+        return wm
+
+    with (
+        patch.object(client, "_album_buffer", fresh_buffer),
+        patch("src.services.premium.is_premium", AsyncMock(return_value=True)),
+        patch(
+            "src.services.image_prep.prepare_image",
+            MagicMock(side_effect=RuntimeError("decode failed")),
+        ),
+        patch("src.services.gemini.analyze_photos", AsyncMock()),
+        patch("src.handlers.client.get_cached_analysis", AsyncMock(return_value=None)),
+    ):
+        state = _state()
+        msg = _msg()
+        msg.answer = AsyncMock(side_effect=_answer_side)
+        for _ in range(3):
+            await client.audit_photo(msg, state=state, bot=bot)
+        await _drain()
+
+    # AlbumBuffer swallows the re-raised exception (logged), but the user was told.
+    assert any(
+        "Не удалось обработать альбом" in t or "Could not process the album" in t for t in answered
+    )
+    assert fresh_buffer._groups == {}  # cleaned up
 
 
 @pytest.mark.asyncio

@@ -166,8 +166,6 @@ async def _flush_album(
     is_local: bool = context.get("is_local", True)
     voice_context: str = context.get("voice_context", "")
     state: FSMContext | None = context.get("state")
-    if state is not None:
-        await state.clear()
     user_id = message.from_user.id
 
     if overflow:
@@ -180,7 +178,12 @@ async def _flush_album(
 
     allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
     if not allowed:
+        # Quota exhausted — keep AuditFlow.photo so the album can be resent after
+        # upgrading; do NOT clear state here.
         return
+    # Quota OK: this album will be processed → release the FSM state now.
+    if state is not None:
+        await state.clear()
 
     metrics.inc("photo_input_total", {"kind": "album"})
     await bot.send_chat_action(message.chat.id, "upload_photo")
@@ -190,23 +193,37 @@ async def _flush_album(
         prepared: list[tuple[bytes, str]] = [
             image_prep.prepare_image(f["raw"], f["mime"]) for f in frames
         ]
+        await _analyze_and_reply(
+            message,
+            bot,
+            wait=wait,
+            typing_task=_typing,
+            frames=prepared,
+            locale=locale,
+            is_local=is_local,
+            is_prem=is_prem,
+            used_bonus=used_bonus,
+            voice_context=voice_context,
+        )
     except Exception:
+        # Preprocessing or analysis blew up. Stop typing, drop the placeholder,
+        # and tell the user plainly — but DON'T swallow the log (re-raise so the
+        # AlbumBuffer logs the traceback for diagnostics).
         _typing.cancel()
-        await wait.delete()
+        try:
+            await wait.delete()
+        except Exception:
+            logger.debug("could not delete album 'analyzing' placeholder", exc_info=True)
+        err = (
+            "⚠️ Не удалось обработать альбом, попробуйте ещё раз."
+            if locale == "ru"
+            else "⚠️ Could not process the album, please try again."
+        )
+        try:
+            await message.answer(err, reply_markup=client_menu(locale, is_local))
+        except Exception:
+            logger.debug("could not send album error notice", exc_info=True)
         raise
-
-    await _analyze_and_reply(
-        message,
-        bot,
-        wait=wait,
-        typing_task=_typing,
-        frames=prepared,
-        locale=locale,
-        is_local=is_local,
-        is_prem=is_prem,
-        used_bonus=used_bonus,
-        voice_context=voice_context,
-    )
 
 
 # Module-level album buffer (one asyncio loop → no locks needed).
@@ -252,6 +269,9 @@ async def audit_photo(
     bot: Bot,
 ) -> None:
     if getattr(message, "media_group_id", None):
+        # Capacity gate BEFORE download: never pull bytes for frames we'd drop.
+        if not _album_buffer.can_accept(message.media_group_id):
+            return  # group already at max_frames; overflow flagged for flush notice
         photo = message.photo[-1]
         if photo.file_size and photo.file_size > _MAX_PHOTO_BYTES:
             return  # skip oversized frame silently; rest of album still analyzed
@@ -262,12 +282,14 @@ async def audit_photo(
     data = await state.get_data()
     locale: str = data.get("locale", "ru")
     is_local: bool = data.get("is_local", True)
-    await state.clear()
 
     user_id = message.from_user.id
     allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
     if not allowed:
+        # Keep AuditFlow.photo so that after buying Premium / inviting a friend
+        # the user can resend the photo without re-entering the menu.
         return
+    await state.clear()
 
     metrics.inc("photo_input_total", {"kind": "photo"})
     photo = message.photo[-1]
@@ -309,13 +331,22 @@ async def _cached_analyze(frames: list[tuple[bytes, str]], locale: str, voice_co
     """Combined cache lookup + Gemini analysis for one or more frames.
 
     Cache key is sha256 of the concatenated frame bytes in the given (stable)
-    order, so re-sending the same album hits the cache. A single frame uses
-    ``analyze_photo``; several frames use ``analyze_photos`` (one multimodal
-    call). Result is cached unless it is an error.
+    order PLUS the voice context, so re-sending the same album hits the cache
+    only when the user comment is identical; a new voice note yields a fresh
+    analysis. A single frame uses ``analyze_photo``; several frames use
+    ``analyze_photos`` (one multimodal call). Result is cached unless it is an error.
     """
     h = hashlib.sha256()
     for data, _mime in frames:
         h.update(data)
+    # Mix in the voice context so the same photo + a different comment is not
+    # served a stale cached result. A length prefix avoids byte-boundary
+    # collisions with the image bytes above.
+    ctx_bytes = voice_context.encode("utf-8")
+    h.update(b"|ctx|")
+    h.update(str(len(ctx_bytes)).encode("ascii"))
+    h.update(b"|")
+    h.update(ctx_bytes)
     photo_hash = h.hexdigest()
 
     result = await get_cached_analysis(photo_hash)
@@ -359,8 +390,12 @@ async def _analyze_and_reply(
         result = await _cached_analyze(frames, locale, voice_context)
     finally:
         typing_task.cancel()
-
-    await wait.delete()
+        # Always remove the "analyzing…" placeholder, even if analysis raised,
+        # so it never lingers forever. Swallow delete errors (msg already gone).
+        try:
+            await wait.delete()
+        except Exception:
+            logger.debug("could not delete 'analyzing' placeholder", exc_info=True)
 
     # Before/After comparison
     prev = await get_last_analysis(user_id)
@@ -455,6 +490,9 @@ async def audit_document(
         # frames silently; the rest of the album is still analyzed.
         if mime not in _SUPPORTED_DOC_MIME:
             return
+        # Capacity gate BEFORE download: never pull bytes for frames we'd drop.
+        if not _album_buffer.can_accept(message.media_group_id):
+            return  # group already at max_frames; overflow flagged for flush notice
         if doc.file_size and doc.file_size > _MAX_PHOTO_BYTES:
             return
         file_io = await bot.download(doc)
@@ -473,12 +511,12 @@ async def audit_document(
         await message.answer(err)
         return
 
-    await state.clear()
-
     user_id = message.from_user.id
     allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
     if not allowed:
+        # Keep AuditFlow.photo so the user can resend after upgrading.
         return
+    await state.clear()
 
     metrics.inc("photo_input_total", {"kind": "document"})
     if doc.file_size and doc.file_size > _MAX_PHOTO_BYTES:

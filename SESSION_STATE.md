@@ -1,17 +1,17 @@
-# SESSION_STATE — infrascan-ai — 2026-06-09 11:15
+# SESSION_STATE — infrascan-ai — 2026-06-09 11:49
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+df1fb08 feat: мульти-фото анализ альбомов (analyze_photos + буфер media_group_id + общий пайплайн)
 09ae852 feat: приём изображений-документов + даунскейл крупных снимков + общий пайплайн анализа
 b2cb72a feat: включён GEMINI_FALLBACK_MODEL=gemini-2.5-flash-lite
 eb68e6a feat: лёгкие метрики + эндпоинт /metrics (Prometheus, без новых зависимостей)
 1818d3b feat: устойчивость Gemini (ретраи+fallback) + ротация логов compose + judge покрывает tests/
 4a27eea chore: фикс F401 в tests/test_new_features.py + авто-доки сессии 08.06
 5b1ab1c feat: наработки сессии 22.05 (13 фич бота + редизайн меню) + фиксы тестов/линта
-a4194c7 fix: admin always notified on new lead, Premium purchase and scan pack
 ```
 
 ## Незакоммиченные изменения
@@ -19,6 +19,21 @@ a4194c7 fix: admin always notified on new lead, Premium purchase and scan pack
 
 ## Заметки сессии
 # SESSION_NOTES — InfraScan AI
+
+## Сессия: 09.06.2026 — мульти-фото анализ альбомов (media_group_id)
+
+### Что сделано
+1. **gemini.py — `analyze_photos(images: list[tuple[bytes,str]], locale="ru", context="") -> dict`.** Несколько кадров ОДНОГО объекта → ОДИН мультимодальный вызов. Общая логика generate→parse→fallback вынесена в `_run_audit(contents, locale)`; `_audit_prompt(locale, context)` строит базовый промпт с голосовым контекстом. `analyze_photo` теперь тонкая обёртка над `_run_audit` (поведение и все старые тесты не изменились). Для N>1 кадров добавляется префикс `_MULTI_PREFIX[ru/en]` (явно: несколько ракурсов одного объекта, ЕДИНЫЙ агрегированный JSON в той же схеме). `analyze_photos` с 1 кадром делегирует в `analyze_photo` (без мульти-префикса). Stub/пустой список/api_error обработаны.
+2. **`bot/src/services/album_buffer.py` — класс `AlbumBuffer`.** In-memory `dict media_group_id -> _Group(frames, task, overflow, context)`. Каждый кадр (пере)армирует один отложенный flush-таск с дебаунсом (default 1.5с после ПОСЛЕДНЕГО кадра). `flush_cb`, `debounce`, `max_frames`, `sleep` инъектируются → в тестах `debounce=0` + `sleep=AsyncMock()` (никакого реального ожидания). Гарантии: (а) НЕТ двойной обработки — `_flush` сначала `pop`-ает группу из dict, повторный flush видит None и выходит; (б) дебаунс — отмена старого таска при новом кадре; (в) ошибки внутри flush ловятся (`logger.exception`) и не роняют бота; (г) лимит `MAX_FRAMES=5` — лишние кадры дропаются на add-time, ставится `overflow`.
+3. **client.py — интеграция альбомов.**
+   - `audit_photo` / `audit_document`: если `getattr(message,'media_group_id',None)` → скачиваем кадр, `_buffer_album_frame(...)` и выход. Иначе — прежний одиночный путь (без изменений).
+   - `_buffer_album_frame` НЕ чистит FSM — состояние остаётся `AuditFlow.photo`, чтобы ВСЕ кадры группы попадали в audit-хендлеры; контекст (locale/is_local/voice/message/bot/state) берётся из ПЕРВОГО кадра. Чистка состояния — один раз во flush.
+   - `_flush_album(media_group_id, frames, context, overflow)`: overflow-уведомление (RU/EN) → `_check_quota` ОДИН раз → `prepare_image` каждого кадра → общий `_analyze_and_reply` со всеми кадрами. Метрика `photo_input_total{kind=album}`.
+   - `_analyze_and_reply` теперь принимает `frames: list[tuple[bytes,str]]` (а не одиночные `photo_bytes/mime`). Кэш+анализ вынесены в `_cached_analyze(frames, locale, voice)`: ключ = sha256 конкатенации байт всех кадров в стабильном порядке; 1 кадр → `analyze_photo`, N → `analyze_photos`; cache hit → Gemini не вызывается. Квота списывается ОДИН раз на альбом (логика рендера free/premium не изменилась).
+4. **Слабые места буфера (честно):** (1) рестарт процесса теряет несобранные альбомы — смягчено коротким окном дебаунса (~1.5с) и тем, что пользователь просто переотправит; в Redis частичные альбомы НЕ персистим (сложность/цена не оправданы для <2с окна). (2) Гонки исключены однопоточным asyncio-loop + pop-перед-flush. (3) Кадр, не влезший в лимит, дропается тихо (один общий overflow-нотис).
+5. **Тесты:** `bot/tests/test_album_buffer.py` (8: примитив буфера — один flush со всеми кадрами/cleanup, cap+overflow, ошибка flush не пробрасывается; интеграция — 3 кадра → ОДИН `analyze_photos` + квота списана 1 раз, >5 → 5 кадров + overflow-нотис, комбинированный кэш-hit → Gemini не зван) и +5 тестов в `test_gemini.py` (N частей+промпт, 1 кадр делегирует, stub без сети, fallback на тексте, api_error). Все одиночные фото/документ тесты зелёные (регрессия).
+6. `./judge.sh` → EXIT 0 (Passed 7 / Failed 0). Полный pytest: 255 passed.
+7. **Деплой:** `build bot` → `podman stop/rm infrascan-ai_bot` → `up -d --no-deps bot`. Бот на НОВОМ образе 7f396575f8e1, healthy за ~15с. db/redis/web НЕ тронуты («Up 6 hours»). /health = {"status":"ok","redis":true}. БД цела: res.partner count = 7 (XML-RPC из контейнера бота, uid=7).
 
 ## Сессия: 09.06.2026 — приём изображений-документов + даунскейл крупных снимков
 

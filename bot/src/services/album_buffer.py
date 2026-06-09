@@ -76,6 +76,23 @@ class AlbumBuffer:
         self._sleep = sleep
         self._groups: dict[str, _Group] = {}
 
+    def can_accept(self, media_group_id: str) -> bool:
+        """Whether another frame for this group still fits under ``max_frames``.
+
+        Callers use this BEFORE downloading a frame's bytes so an oversized album
+        cannot force the bot to download/hold frames it will only drop. The first
+        frame of a not-yet-seen group always fits (returns True). Once the group
+        is at capacity this returns False — the caller skips the download; the
+        overflow notice is handled at flush time (the user is told once).
+        """
+        group = self._groups.get(media_group_id)
+        if group is None:
+            return True
+        if len(group.frames) >= self._max_frames:
+            group.overflow_notified = True  # mark overflow now (frame never downloaded)
+            return False
+        return True
+
     def add(self, media_group_id: str, frame: Any, context: dict[str, Any]) -> None:
         """Add one frame to its album, (re)arming the debounced flush.
 

@@ -348,3 +348,72 @@ async def test_no_fallback_raises_after_exhausted(monkeypatch):
         result = await gemini.analyze_photo(b"fake")
     assert result["error"] == "api_error"
     assert mock_gen.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_fallback_retries_on_its_own_transient_then_succeeds(monkeypatch):
+    """Fallback тоже ретраит на СВОЁМ транзиентном сбое, затем успех.
+
+    Основная модель исчерпывает 3 транзиентные попытки → fallback падает 503
+    дважды, затем отвечает. Итог: 3 вызова основной + 3 вызова fallback.
+    """
+    monkeypatch.setattr(gemini.settings, "gemini_fallback_model", "gemini-1.5-flash")
+    monkeypatch.setattr(gemini.settings, "gemini_model", "gemini-2.5-flash")
+    ok_response = _make_response(json.dumps(_SAMPLE_RESULT))
+    models_used = []
+    fallback_calls = {"n": 0}
+
+    async def _gen(*, model, contents, config=None):
+        models_used.append(model)
+        if model == "gemini-2.5-flash":
+            raise _FakeAPIError(code=503, status="UNAVAILABLE")
+        # fallback: fail twice transiently, succeed on the third attempt
+        fallback_calls["n"] += 1
+        if fallback_calls["n"] < 3:
+            raise _FakeAPIError(code=503, status="UNAVAILABLE")
+        return ok_response
+
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = AsyncMock(side_effect=_gen)
+        result = await gemini.analyze_photo(b"fake")
+
+    assert result["risk_level"] == "MEDIUM"
+    assert models_used == ["gemini-2.5-flash"] * 3 + ["gemini-1.5-flash"] * 3
+
+
+@pytest.mark.asyncio
+async def test_fallback_retries_then_final_fail(monkeypatch):
+    """Fallback ретраит свой транзиентный сбой, исчерпывает попытки → деградация.
+
+    Основная 3× 503, fallback тоже 3× 503 → итог api_error, 6 вызовов всего.
+    """
+    monkeypatch.setattr(gemini.settings, "gemini_fallback_model", "gemini-1.5-flash")
+    monkeypatch.setattr(gemini.settings, "gemini_model", "gemini-2.5-flash")
+    mock_gen = AsyncMock(side_effect=_FakeAPIError(code=503, status="UNAVAILABLE"))
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = mock_gen
+        result = await gemini.analyze_photo(b"fake")
+    assert result["error"] == "api_error"
+    # 3 attempts on primary + 3 attempts on fallback
+    assert mock_gen.call_count == 6
+
+
+@pytest.mark.asyncio
+async def test_fallback_not_retried_on_non_transient(monkeypatch):
+    """Если fallback падает НЕтранзиентно — ретрая на нём нет (1 вызов fallback)."""
+    monkeypatch.setattr(gemini.settings, "gemini_fallback_model", "gemini-1.5-flash")
+    monkeypatch.setattr(gemini.settings, "gemini_model", "gemini-2.5-flash")
+    models_used = []
+
+    async def _gen(*, model, contents, config=None):
+        models_used.append(model)
+        if model == "gemini-2.5-flash":
+            raise _FakeAPIError(code=503, status="UNAVAILABLE")
+        raise _FakeAPIError(code=400, status="INVALID_ARGUMENT")
+
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = AsyncMock(side_effect=_gen)
+        result = await gemini.analyze_photo(b"fake")
+    assert result["error"] == "api_error"
+    # 3 primary attempts + exactly 1 fallback attempt (no retry on 400)
+    assert models_used == ["gemini-2.5-flash"] * 3 + ["gemini-1.5-flash"]

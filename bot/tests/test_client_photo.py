@@ -175,6 +175,128 @@ async def test_audit_photo_premium_user_saves_report():
     msg.answer.assert_called()
 
 
+# ── quota refusal must NOT clear FSM state (finding 5) ────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_audit_photo_quota_exhausted_keeps_state():
+    """When the daily limit is hit, state stays in AuditFlow.photo for resend."""
+    msg = _msg()
+    msg.photo = [_photo()]
+    state = _state()
+    with (
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=0)),
+        patch("src.services.referral.consume_bonus_scan", AsyncMock(return_value=False)),
+    ):
+        await audit_photo(msg, state=state, bot=_bot())
+    state.clear.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_audit_photo_quota_ok_clears_state():
+    """Successful quota → state cleared exactly once."""
+    msg = _msg()
+    msg.photo = [_photo()]
+    state = _state()
+    fake_result = {"risk": "low"}
+    with (
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
+        patch("src.services.premium.increment_scan", AsyncMock()),
+        patch("src.services.gemini.analyze_photo", AsyncMock(return_value=fake_result)),
+        patch("src.services.gemini.format_analysis_free", MagicMock(return_value="ok")),
+        patch("src.services.referral.reward_first_scan", AsyncMock()),
+        patch("src.services.referral.get_bonus_scans", AsyncMock(return_value=0)),
+        patch("src.handlers.client.get_last_analysis", AsyncMock(return_value=None)),
+        patch("src.handlers.client.save_last_analysis", AsyncMock()),
+        patch("src.handlers.client.get_cached_analysis", AsyncMock(return_value=None)),
+        patch("src.handlers.client.cache_analysis", AsyncMock()),
+        patch("src.handlers.client.schedule_reminder", AsyncMock()),
+        patch("src.services.odoo.save_report", AsyncMock()),
+    ):
+        await audit_photo(msg, state=state, bot=_bot())
+    state.clear.assert_called_once()
+
+
+# ── 'analyzing…' placeholder removed even on analysis failure (finding 2) ──────
+
+
+@pytest.mark.asyncio
+async def test_audit_photo_wait_deleted_on_analysis_exception():
+    """If Gemini analysis raises, the 'analyzing…' message is still deleted."""
+    msg = _msg()
+    msg.photo = [_photo()]
+    state = _state()
+    wait_msg = MagicMock()
+    wait_msg.delete = AsyncMock()
+    msg.answer = AsyncMock(return_value=wait_msg)
+    with (
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
+        patch("src.handlers.client.get_cached_analysis", AsyncMock(return_value=None)),
+        patch(
+            "src.services.gemini.analyze_photo",
+            AsyncMock(side_effect=RuntimeError("boom")),
+        ),
+    ):
+        with pytest.raises(RuntimeError):
+            await audit_photo(msg, state=state, bot=_bot())
+    wait_msg.delete.assert_awaited_once()
+
+
+# ── cache key incorporates voice_context (finding 1) ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cached_analyze_distinct_keys_per_voice_context():
+    """Same photo bytes + different voice context → different cache keys + fresh call."""
+    from src.handlers import client
+
+    frames = [(b"same_photo_bytes", "image/jpeg")]
+    seen_keys: list[str] = []
+
+    async def _fake_get(key):
+        seen_keys.append(key)
+        return None
+
+    analyze_photo = AsyncMock(return_value={"risk_level": "LOW"})
+    with (
+        patch("src.handlers.client.get_cached_analysis", _fake_get),
+        patch("src.handlers.client.cache_analysis", AsyncMock()),
+        patch("src.services.gemini.analyze_photo", analyze_photo),
+    ):
+        await client._cached_analyze(frames, "ru", "комментарий A")
+        await client._cached_analyze(frames, "ru", "комментарий B")
+
+    assert len(seen_keys) == 2
+    assert seen_keys[0] != seen_keys[1]  # voice context changes the key
+    assert analyze_photo.await_count == 2  # no stale reuse across contexts
+
+
+@pytest.mark.asyncio
+async def test_cached_analyze_same_voice_context_same_key():
+    """Identical photo + identical voice context → identical cache key."""
+    from src.handlers import client
+
+    frames = [(b"same_photo_bytes", "image/jpeg")]
+    seen_keys: list[str] = []
+
+    async def _fake_get(key):
+        seen_keys.append(key)
+        return None
+
+    with (
+        patch("src.handlers.client.get_cached_analysis", _fake_get),
+        patch("src.handlers.client.cache_analysis", AsyncMock()),
+        patch("src.services.gemini.analyze_photo", AsyncMock(return_value={"risk_level": "LOW"})),
+    ):
+        await client._cached_analyze(frames, "ru", "тот же комментарий")
+        await client._cached_analyze(frames, "ru", "тот же комментарий")
+
+    assert seen_keys[0] == seen_keys[1]
+
+
 # ── lead_contact ──────────────────────────────────────────────────────────────
 
 

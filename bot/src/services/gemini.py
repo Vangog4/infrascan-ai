@@ -76,71 +76,87 @@ async def _generate_with_retry(*, model: str, contents, config=None):
       timeouts/network). Non-transient errors (4xx except 429, JSONDecode, etc.) are
       raised immediately.
     - After the primary model is exhausted, if ``settings.gemini_fallback_model`` is
-      set, one attempt is made on the fallback model. Otherwise the last error is raised.
+      set, the fallback model also gets up to ``_MAX_ATTEMPTS`` retried attempts with
+      the same backoff/transient semantics. Otherwise the last error is raised.
     """
-    last_exc: Exception | None = None
-    for attempt in range(1, _MAX_ATTEMPTS + 1):
-        try:
-            t0 = time.monotonic()
-            resp = await _get().aio.models.generate_content(
-                model=model, contents=contents, config=config
-            )
-            metrics.observe(
-                "gemini_request_duration_seconds", time.monotonic() - t0, {"model": model}
-            )
-            # outcome=ok on first attempt, outcome=retry if it took a retry to succeed
-            outcome = "ok" if attempt == 1 else "retry"
-            metrics.inc("gemini_requests_total", {"model": model, "outcome": outcome})
-            return resp
-        except Exception as e:
-            if not _is_transient(e):
-                metrics.inc("gemini_requests_total", {"model": model, "outcome": "error"})
-                raise
-            last_exc = e
-            if attempt < _MAX_ATTEMPTS:
-                metrics.inc("gemini_retries_total", {"model": model})
-                delay = _BACKOFF_BASE * (2 ** (attempt - 1)) + random.uniform(0, 0.25)
-                logger.warning(
-                    "Gemini transient error on %s (attempt %d/%d): %s — retrying in %.2fs",
-                    model,
-                    attempt,
-                    _MAX_ATTEMPTS,
-                    e,
-                    delay,
-                )
-                await asyncio.sleep(delay)
 
-    fallback = settings.gemini_fallback_model
-    if fallback:
-        logger.warning(
-            "Gemini primary model %s exhausted after %d attempts, trying fallback %s",
-            model,
-            _MAX_ATTEMPTS,
-            fallback,
-        )
-        try:
-            t0 = time.monotonic()
-            resp = await _get().aio.models.generate_content(
-                model=fallback, contents=contents, config=config
-            )
-            metrics.observe(
-                "gemini_request_duration_seconds", time.monotonic() - t0, {"model": fallback}
-            )
-            metrics.inc("gemini_requests_total", {"model": fallback, "outcome": "fallback"})
-            return resp
-        except Exception:
-            metrics.inc("gemini_requests_total", {"model": fallback, "outcome": "error"})
+    async def _attempt(target_model: str, *, is_fallback: bool):
+        """Run up to ``_MAX_ATTEMPTS`` retried calls on one model.
+
+        Returns the response on success. On a non-transient error, re-raises it
+        immediately. If all attempts are exhausted with transient errors, raises
+        the last transient exception (caller decides on fallback).
+        """
+        last: Exception | None = None
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            try:
+                t0 = time.monotonic()
+                resp = await _get().aio.models.generate_content(
+                    model=target_model, contents=contents, config=config
+                )
+                metrics.observe(
+                    "gemini_request_duration_seconds",
+                    time.monotonic() - t0,
+                    {"model": target_model},
+                )
+                if is_fallback:
+                    outcome = "fallback"
+                else:
+                    # ok on first attempt, retry if a retry was needed to succeed
+                    outcome = "ok" if attempt == 1 else "retry"
+                metrics.inc("gemini_requests_total", {"model": target_model, "outcome": outcome})
+                return resp
+            except Exception as e:
+                if not _is_transient(e):
+                    metrics.inc(
+                        "gemini_requests_total", {"model": target_model, "outcome": "error"}
+                    )
+                    raise
+                last = e
+                if attempt < _MAX_ATTEMPTS:
+                    metrics.inc("gemini_retries_total", {"model": target_model})
+                    delay = _BACKOFF_BASE * (2 ** (attempt - 1)) + random.uniform(0, 0.25)
+                    logger.warning(
+                        "Gemini transient error on %s (attempt %d/%d): %s — retrying in %.2fs",
+                        target_model,
+                        attempt,
+                        _MAX_ATTEMPTS,
+                        e,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+        assert last is not None
+        raise last
+
+    try:
+        return await _attempt(model, is_fallback=False)
+    except Exception as primary_exc:
+        if not _is_transient(primary_exc):
+            # Non-transient already counted + propagated by _attempt.
             raise
 
-    logger.error(
-        "Gemini model %s failed after %d attempts, no fallback configured: %s",
-        model,
-        _MAX_ATTEMPTS,
-        last_exc,
-    )
-    metrics.inc("gemini_requests_total", {"model": model, "outcome": "error"})
-    assert last_exc is not None
-    raise last_exc
+        fallback = settings.gemini_fallback_model
+        if fallback:
+            logger.warning(
+                "Gemini primary model %s exhausted after %d attempts, trying fallback %s",
+                model,
+                _MAX_ATTEMPTS,
+                fallback,
+            )
+            try:
+                return await _attempt(fallback, is_fallback=True)
+            except Exception:
+                metrics.inc("gemini_requests_total", {"model": fallback, "outcome": "error"})
+                raise
+
+        logger.error(
+            "Gemini model %s failed after %d attempts, no fallback configured: %s",
+            model,
+            _MAX_ATTEMPTS,
+            primary_exc,
+        )
+        metrics.inc("gemini_requests_total", {"model": model, "outcome": "error"})
+        raise
 
 
 # ── Stubs (GEMINI_STUB=true) ──────────────────────────────────────────────────
