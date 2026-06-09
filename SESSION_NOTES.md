@@ -1,5 +1,25 @@
 # SESSION_NOTES — InfraScan AI
 
+## Сессия: 09.06.2026 — лёгкие метрики + эндпоинт /metrics (наблюдаемость)
+
+### Что сделано
+1. **Новый модуль `bot/src/services/metrics.py`** — in-process реестр без новых зависимостей. Counter и Histogram (только sum/count), рендер в Prometheus text exposition (`# HELP`/`# TYPE` + строки `name{labels} value`). API: `inc(name, labels, value)`, `observe(name, value, labels)`, `render()`, `reset()` (для тестов). Бот однопроцессный async → обычные int/float-инкременты, без локов. Пустой реестр → валидный пустой вывод, `render()` не падает.
+2. **5 метрик:**
+   - `gemini_requests_total{model,outcome}` (counter) — outcome ok/retry/fallback/error.
+   - `gemini_retries_total{model}` (counter).
+   - `gemini_request_duration_seconds{model}` (histogram sum/count) — латентность generate_content.
+   - `photo_analysis_total{kind,outcome}` (counter) — kind=analyze (ok/not_a_building/api_error) и kind=quality (ok/quality_reject/api_error).
+   - `photo_cache_total{result}` (counter) — hit/miss.
+3. **Инструментация (минимально-инвазивно):** `gemini._generate_with_retry` — таймер вокруг каждого вызова, счёт ретраев, исходов (ok на 1-й попытке / retry если успех после ретраев / fallback на fallback-модели / error). `analyze_photo` и `check_quality` — счётчики исходов. Photo-cache hits/misses — в `handlers/client.py` (там, где `get_cached_analysis`).
+4. **Маршрут `GET /metrics`** (+ `/bot/metrics` для NPM-префикса) рядом с `/health` в `bot.py`. `text/plain; charset=utf-8`, HTTP 200, не падает на пустом реестре.
+5. **Stub-режим (GEMINI_STUB):** аналитические функции возвращают заглушки до `_get()`/сети — метрики generate_content не растут, краша нет. Покрыто тестом (`g.assert_not_called()`).
+6. **Тесты:** новый `bot/tests/test_metrics.py` (13 тестов) — примитивы реестра (пустой/counter/histogram), рост счётчиков при вызовах хелпера (generate_content замокан, sleep замокан, без сети), ретраи/fallback/error/quality_reject исходы, stub без сети, `/metrics` через прямой вызов `_metrics_handler` (валидный Prometheus-текст + пустой реестр).
+7. `./judge.sh` → EXIT 0 (Passed 7 / Failed 0).
+8. **Деплой:** `build bot` + `up -d --no-deps bot`. ВАЖНО: `--no-deps` сам по себе не пересоздаёт bot (podman-compose падает на name-in-use и делает `podman start` старого контейнера со СТАРЫМ образом). Поэтому: `podman stop/rm infrascan-ai_bot` → `up -d --no-deps bot` → бот поднялся на НОВОМ образе 2ac1c42ca487, healthy. db/web/redis НЕ трогались (uptime сохранён: «Up 56 minutes», созданы 2026-06-08 23:11–23:12). /health = {"status":"ok","redis":true}. /metrics = HTTP 200, пустой (метрик ещё нет — реестр обнулился при рестарте, это норма).
+
+### Важно (урок)
+- Флаг `--no-deps` НЕ гарантирует пересоздание сервиса на новом образе в podman-compose 1.0.6: если контейнер с тем же именем существует, compose делает `podman start` старого (старый образ остаётся!). Правильный деплой ОДНОГО сервиса без задевания соседей: `podman stop <svc> && podman rm <svc> && podman-compose up -d --no-deps <svc>`. Это пересоздаёт только целевой контейнер из свежего образа и не трогает db/web/redis.
+
 ## Сессия: 08.06.2026 (вечер) — устойчивость Gemini + ротация логов + judge tests/
 
 ### Что сделано

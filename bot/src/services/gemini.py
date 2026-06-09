@@ -10,11 +10,13 @@ import json
 import logging
 import random
 import re
+import time
 
 from google import genai
 from google.genai import types
 
 from src.config import settings
+from src.services import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -79,14 +81,24 @@ async def _generate_with_retry(*, model: str, contents, config=None):
     last_exc: Exception | None = None
     for attempt in range(1, _MAX_ATTEMPTS + 1):
         try:
-            return await _get().aio.models.generate_content(
+            t0 = time.monotonic()
+            resp = await _get().aio.models.generate_content(
                 model=model, contents=contents, config=config
             )
+            metrics.observe(
+                "gemini_request_duration_seconds", time.monotonic() - t0, {"model": model}
+            )
+            # outcome=ok on first attempt, outcome=retry if it took a retry to succeed
+            outcome = "ok" if attempt == 1 else "retry"
+            metrics.inc("gemini_requests_total", {"model": model, "outcome": outcome})
+            return resp
         except Exception as e:
             if not _is_transient(e):
+                metrics.inc("gemini_requests_total", {"model": model, "outcome": "error"})
                 raise
             last_exc = e
             if attempt < _MAX_ATTEMPTS:
+                metrics.inc("gemini_retries_total", {"model": model})
                 delay = _BACKOFF_BASE * (2 ** (attempt - 1)) + random.uniform(0, 0.25)
                 logger.warning(
                     "Gemini transient error on %s (attempt %d/%d): %s — retrying in %.2fs",
@@ -106,9 +118,19 @@ async def _generate_with_retry(*, model: str, contents, config=None):
             _MAX_ATTEMPTS,
             fallback,
         )
-        return await _get().aio.models.generate_content(
-            model=fallback, contents=contents, config=config
-        )
+        try:
+            t0 = time.monotonic()
+            resp = await _get().aio.models.generate_content(
+                model=fallback, contents=contents, config=config
+            )
+            metrics.observe(
+                "gemini_request_duration_seconds", time.monotonic() - t0, {"model": fallback}
+            )
+            metrics.inc("gemini_requests_total", {"model": fallback, "outcome": "fallback"})
+            return resp
+        except Exception:
+            metrics.inc("gemini_requests_total", {"model": fallback, "outcome": "error"})
+            raise
 
     logger.error(
         "Gemini model %s failed after %d attempts, no fallback configured: %s",
@@ -116,6 +138,7 @@ async def _generate_with_retry(*, model: str, contents, config=None):
         _MAX_ATTEMPTS,
         last_exc,
     )
+    metrics.inc("gemini_requests_total", {"model": model, "outcome": "error"})
     assert last_exc is not None
     raise last_exc
 
@@ -365,9 +388,13 @@ async def analyze_photo(
             contents=[types.Part.from_bytes(data=data, mime_type=mime), prompt],
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        return json.loads(_strip_fences(r.text))
+        parsed = json.loads(_strip_fences(r.text))
+        outcome = "not_a_building" if parsed.get("error") == "not_a_building" else "ok"
+        metrics.inc("photo_analysis_total", {"kind": "analyze", "outcome": outcome})
+        return parsed
     except json.JSONDecodeError:
         logger.warning("Gemini returned non-JSON, wrapping as fallback")
+        metrics.inc("photo_analysis_total", {"kind": "analyze", "outcome": "ok"})
         text = r.text if r is not None else "Analysis unavailable"
         return {
             "object_type": "other",
@@ -384,6 +411,7 @@ async def analyze_photo(
         }
     except Exception as e:
         logger.error("Gemini analyze_photo: %s", e)
+        metrics.inc("photo_analysis_total", {"kind": "analyze", "outcome": "api_error"})
         msg = (
             "⚠️ Анализ временно недоступен. Попробуйте через минуту."
             if locale == "ru"
@@ -436,8 +464,13 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
             verdict = "ПРИНЯТО"
         elif score < 50 and verdict == "ПРИНЯТО":
             verdict = "БРАК"
+        ok = verdict in ("ПРИНЯТО", "ЗАМЕЧАНИЕ")
+        metrics.inc(
+            "photo_analysis_total",
+            {"kind": "quality", "outcome": "ok" if ok else "quality_reject"},
+        )
         return {
-            "ok": verdict in ("ПРИНЯТО", "ЗАМЕЧАНИЕ"),
+            "ok": ok,
             "score": score,
             "verdict": verdict,
             "reason": parsed.get("reason"),
@@ -446,6 +479,7 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
         }
     except Exception as e:
         logger.error("Gemini check_quality: %s", e)
+        metrics.inc("photo_analysis_total", {"kind": "quality", "outcome": "api_error"})
         # fail-open: don't block engineer when API is down
         return {
             "ok": True,

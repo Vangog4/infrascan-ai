@@ -30,7 +30,7 @@ from src.keyboards.menus import (
     heating_kb,
     order_kb,
 )
-from src.services import gemini, odoo, roles
+from src.services import gemini, metrics, odoo, roles
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
 from src.services.comparison import format_comparison
@@ -163,9 +163,12 @@ async def audit_photo(
 
         result = await get_cached_analysis(photo_hash)
         if result is None:
+            metrics.inc("photo_cache_total", {"result": "miss"})
             result = await gemini.analyze_photo(photo_bytes, locale=locale, context=voice_context)
             if "error" not in result:
                 await cache_analysis(photo_hash, result)
+        else:
+            metrics.inc("photo_cache_total", {"result": "hit"})
     finally:
         _typing.cancel()
 

@@ -198,6 +198,19 @@ async def _health_handler(request):  # type: ignore[no-untyped-def]
     )
 
 
+async def _metrics_handler(request):  # type: ignore[no-untyped-def]
+    from aiohttp import web
+
+    from src.services import metrics
+
+    body = metrics.render()
+    return web.Response(
+        text=body,
+        content_type="text/plain",
+        charset="utf-8",
+    )
+
+
 async def _webapp_data_handler(request):  # type: ignore[no-untyped-def]
     from aiohttp import web
 
@@ -232,6 +245,8 @@ async def _run_webhook(bot: Bot, dp: Dispatcher) -> None:
 
     app.router.add_get("/health", _health_handler)
     app.router.add_get("/bot/health", _health_handler)
+    app.router.add_get("/metrics", _metrics_handler)
+    app.router.add_get("/bot/metrics", _metrics_handler)
     app.router.add_get("/webapp-data/{key}", _webapp_data_handler)
     app.router.add_get("/bot/webapp-data/{key}", _webapp_data_handler)
 
