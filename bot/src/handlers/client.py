@@ -33,6 +33,8 @@ from src.keyboards.menus import (
 from src.services import gemini, image_prep, metrics, odoo, roles
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
+from src.services.album_buffer import MAX_FRAMES as ALBUM_MAX_FRAMES
+from src.services.album_buffer import AlbumBuffer
 from src.services.comparison import format_comparison
 from src.services.i18n import t
 from src.services.redis import (
@@ -145,12 +147,118 @@ async def _check_quota(
     return True, is_prem, used_bonus
 
 
+async def _flush_album(
+    media_group_id: str,
+    frames: list[dict],
+    context: dict,
+    overflow: bool,
+) -> None:
+    """Process a buffered album as ONE analysis (one quota charge, one reply).
+
+    ``frames`` items are ``{"raw": bytes, "mime": str}`` (raw downloaded bytes;
+    photos use image/jpeg). Runs quota once, downscales each frame, then routes
+    through the shared :func:`_analyze_and_reply` pipeline with all frames.
+    Any failure is contained so the bot never crashes (logged).
+    """
+    message: Message = context["message"]
+    bot: Bot = context["bot"]
+    locale: str = context.get("locale", "ru")
+    is_local: bool = context.get("is_local", True)
+    voice_context: str = context.get("voice_context", "")
+    state: FSMContext | None = context.get("state")
+    if state is not None:
+        await state.clear()
+    user_id = message.from_user.id
+
+    if overflow:
+        note = (
+            f"ℹ️ В альбоме больше {ALBUM_MAX_FRAMES} фото — анализирую первые {ALBUM_MAX_FRAMES}."
+            if locale == "ru"
+            else f"ℹ️ Album has more than {ALBUM_MAX_FRAMES} photos — analyzing the first {ALBUM_MAX_FRAMES}."
+        )
+        await message.answer(note)
+
+    allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
+    if not allowed:
+        return
+
+    metrics.inc("photo_input_total", {"kind": "album"})
+    await bot.send_chat_action(message.chat.id, "upload_photo")
+    wait = await message.answer(t("analyzing", locale))
+    _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
+    try:
+        prepared: list[tuple[bytes, str]] = [
+            image_prep.prepare_image(f["raw"], f["mime"]) for f in frames
+        ]
+    except Exception:
+        _typing.cancel()
+        await wait.delete()
+        raise
+
+    await _analyze_and_reply(
+        message,
+        bot,
+        wait=wait,
+        typing_task=_typing,
+        frames=prepared,
+        locale=locale,
+        is_local=is_local,
+        is_prem=is_prem,
+        used_bonus=used_bonus,
+        voice_context=voice_context,
+    )
+
+
+# Module-level album buffer (one asyncio loop → no locks needed).
+_album_buffer = AlbumBuffer(_flush_album, max_frames=ALBUM_MAX_FRAMES)
+
+
+async def _buffer_album_frame(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    *,
+    raw: bytes,
+    mime: str,
+) -> None:
+    """Add one album frame to the debounced buffer.
+
+    Context (locale/is_local/voice/message/bot/state) is captured from the FIRST
+    frame. FSM state is NOT cleared here — it stays in AuditFlow.photo so every
+    frame of the group keeps matching the audit handlers; it is cleared once at
+    flush time."""
+    data = await state.get_data()
+    locale: str = data.get("locale", "ru")
+    is_local: bool = data.get("is_local", True)
+    voice_context: str = data.get("voice_context", "")
+    _album_buffer.add(
+        message.media_group_id,
+        {"raw": raw, "mime": mime},
+        {
+            "message": message,
+            "bot": bot,
+            "state": state,
+            "locale": locale,
+            "is_local": is_local,
+            "voice_context": voice_context,
+        },
+    )
+
+
 @router.message(AuditFlow.photo, F.photo)
 async def audit_photo(
     message: Message,
     state: FSMContext,
     bot: Bot,
 ) -> None:
+    if getattr(message, "media_group_id", None):
+        photo = message.photo[-1]
+        if photo.file_size and photo.file_size > _MAX_PHOTO_BYTES:
+            return  # skip oversized frame silently; rest of album still analyzed
+        file_io = await bot.download(photo)
+        await _buffer_album_frame(message, state, bot, raw=file_io.read(), mime="image/jpeg")
+        return
+
     data = await state.get_data()
     locale: str = data.get("locale", "ru")
     is_local: bool = data.get("is_local", True)
@@ -188,8 +296,7 @@ async def audit_photo(
         bot,
         wait=wait,
         typing_task=_typing,
-        photo_bytes=photo_bytes,
-        mime="image/jpeg",
+        frames=[(photo_bytes, "image/jpeg")],
         locale=locale,
         is_local=is_local,
         is_prem=is_prem,
@@ -198,40 +305,58 @@ async def audit_photo(
     )
 
 
+async def _cached_analyze(frames: list[tuple[bytes, str]], locale: str, voice_context: str) -> dict:
+    """Combined cache lookup + Gemini analysis for one or more frames.
+
+    Cache key is sha256 of the concatenated frame bytes in the given (stable)
+    order, so re-sending the same album hits the cache. A single frame uses
+    ``analyze_photo``; several frames use ``analyze_photos`` (one multimodal
+    call). Result is cached unless it is an error.
+    """
+    h = hashlib.sha256()
+    for data, _mime in frames:
+        h.update(data)
+    photo_hash = h.hexdigest()
+
+    result = await get_cached_analysis(photo_hash)
+    if result is not None:
+        metrics.inc("photo_cache_total", {"result": "hit"})
+        return result
+
+    metrics.inc("photo_cache_total", {"result": "miss"})
+    if len(frames) == 1:
+        data, mime = frames[0]
+        result = await gemini.analyze_photo(data, locale=locale, mime=mime, context=voice_context)
+    else:
+        result = await gemini.analyze_photos(frames, locale=locale, context=voice_context)
+    if "error" not in result:
+        await cache_analysis(photo_hash, result)
+    return result
+
+
 async def _analyze_and_reply(
     message: Message,
     bot: Bot,
     *,
     wait: Message,
     typing_task: asyncio.Task,
-    photo_bytes: bytes,
-    mime: str,
+    frames: list[tuple[bytes, str]],
     locale: str,
     is_local: bool,
     is_prem: bool,
     used_bonus: bool,
     voice_context: str = "",
 ) -> None:
-    """Shared post-download pipeline for photo and document audit paths.
+    """Shared post-download pipeline for photo, document and album audit paths.
 
-    Runs cache lookup / Gemini analysis, before/after comparison, persistence,
-    reminders, referral reward, and renders the free/premium response. ``wait``
-    is the "analyzing…" placeholder message and ``typing_task`` the typing
-    indicator — both owned (cancelled/deleted) here.
+    Runs cache lookup / Gemini analysis (single or multi-frame), before/after
+    comparison, persistence, reminders, referral reward, and renders the
+    free/premium response. ``wait`` is the "analyzing…" placeholder message and
+    ``typing_task`` the typing indicator — both owned (cancelled/deleted) here.
     """
     user_id = message.from_user.id
     try:
-        photo_hash = hashlib.sha256(photo_bytes).hexdigest()
-        result = await get_cached_analysis(photo_hash)
-        if result is None:
-            metrics.inc("photo_cache_total", {"result": "miss"})
-            result = await gemini.analyze_photo(
-                photo_bytes, locale=locale, mime=mime, context=voice_context
-            )
-            if "error" not in result:
-                await cache_analysis(photo_hash, result)
-        else:
-            metrics.inc("photo_cache_total", {"result": "hit"})
+        result = await _cached_analyze(frames, locale, voice_context)
     finally:
         typing_task.cancel()
 
@@ -324,6 +449,18 @@ async def audit_document(
 
     doc = message.document
     mime = (doc.mime_type or "").lower()
+
+    if getattr(message, "media_group_id", None):
+        # Album frame sent as an image-document. Skip non-image / oversized
+        # frames silently; the rest of the album is still analyzed.
+        if mime not in _SUPPORTED_DOC_MIME:
+            return
+        if doc.file_size and doc.file_size > _MAX_PHOTO_BYTES:
+            return
+        file_io = await bot.download(doc)
+        await _buffer_album_frame(message, state, bot, raw=file_io.read(), mime=mime)
+        return
+
     if mime not in _SUPPORTED_DOC_MIME:
         # Not an image — keep the user in AuditFlow.photo so they can retry.
         err = (
@@ -372,8 +509,7 @@ async def audit_document(
         bot,
         wait=wait,
         typing_task=_typing,
-        photo_bytes=prepared_bytes,
-        mime=prepared_mime,
+        frames=[(prepared_bytes, prepared_mime)],
         locale=locale,
         is_local=is_local,
         is_prem=is_prem,

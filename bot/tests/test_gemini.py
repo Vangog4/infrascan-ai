@@ -179,6 +179,75 @@ async def test_check_quality_failopen_on_exception():
     assert result["score"] == 75
 
 
+# ── analyze_photos (multi-image) ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_analyze_photos_returns_dict_and_sends_all_parts():
+    """N images → one aggregated dict; contents = N image Parts + 1 prompt."""
+    mock_response = _make_response(json.dumps(_SAMPLE_RESULT))
+    mock_gen = AsyncMock(return_value=mock_response)
+    images = [(b"img1", "image/jpeg"), (b"img2", "image/png"), (b"img3", "image/jpeg")]
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = mock_gen
+        result = await gemini.analyze_photos(images, locale="ru")
+    assert isinstance(result, dict)
+    assert result["risk_level"] == "MEDIUM"
+    # Exactly one generate_content call
+    assert mock_gen.call_count == 1
+    contents = mock_gen.call_args.kwargs["contents"]
+    # 3 image parts + 1 prompt string at the end
+    assert len(contents) == 4
+    assert isinstance(contents[-1], str)
+    assert "JSON" in contents[-1] or "json" in contents[-1].lower()
+
+
+@pytest.mark.asyncio
+async def test_analyze_photos_single_frame_delegates_to_analyze_photo():
+    """One image → behaves like analyze_photo (single Part + prompt)."""
+    mock_response = _make_response(json.dumps(_SAMPLE_RESULT))
+    mock_gen = AsyncMock(return_value=mock_response)
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = mock_gen
+        result = await gemini.analyze_photos([(b"only", "image/jpeg")], locale="ru")
+    assert result["risk_level"] == "MEDIUM"
+    contents = mock_gen.call_args.kwargs["contents"]
+    assert len(contents) == 2  # 1 image + prompt
+
+
+@pytest.mark.asyncio
+async def test_analyze_photos_stub_no_network():
+    """Stub mode → returns stub analysis without any generate_content call."""
+    mock_gen = AsyncMock()
+    with (
+        patch.object(gemini.settings, "gemini_stub", True),
+        patch("src.services.gemini._get") as mock_get,
+    ):
+        mock_get.return_value.aio.models.generate_content = mock_gen
+        result = await gemini.analyze_photos([(b"a", "image/jpeg"), (b"b", "image/jpeg")])
+    assert result is gemini._STUB_ANALYSIS
+    mock_gen.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_analyze_photos_fallback_on_plain_text():
+    mock_response = _make_response("<b>Объект:</b> стена")
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        result = await gemini.analyze_photos([(b"a", "image/jpeg"), (b"b", "image/jpeg")])
+    assert "_fallback" in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_photos_error_on_exception():
+    with patch("src.services.gemini._get") as mock_get:
+        mock_get.return_value.aio.models.generate_content = AsyncMock(
+            side_effect=Exception("API down")
+        )
+        result = await gemini.analyze_photos([(b"a", "image/jpeg"), (b"b", "image/jpeg")])
+    assert result["error"] == "api_error"
+
+
 # ── Retry / fallback ────────────────────────────────────────────────────────────
 
 

@@ -292,6 +292,27 @@ Expertise rules:
 _AUDIT_PROMPT_RU = _AUDIT_PROMPT.format(language="Russian")
 _AUDIT_PROMPT_EN = _AUDIT_PROMPT.format(language="English")
 
+# Multi-image audit: several frames of ONE object/series (different angles).
+# The model must produce a SINGLE aggregated verdict in the same JSON schema.
+_MULTI_PREFIX = {
+    "ru": (
+        "Тебе переданы НЕСКОЛЬКО снимков ({n} шт.) ОДНОГО объекта/серии "
+        "(разные ракурсы, разные зоны одного здания или один объект с разных сторон). "
+        "Проанализируй их ВМЕСТЕ как единый материал и верни ОДИН агрегированный "
+        "вывод в той же JSON-схеме, что и для одиночного снимка (НЕ массив, НЕ по "
+        "кадру отдельно). В problems/temperature_observations объединяй находки со "
+        "всех кадров; в location указывай, на каком ракурсе/кадре виден дефект.\n\n"
+    ),
+    "en": (
+        "You are given SEVERAL images ({n}) of ONE object/series "
+        "(different angles, different zones of one building, or one object from "
+        "multiple sides). Analyze them TOGETHER as a single set and return ONE "
+        "aggregated result in the same JSON schema as for a single photo (NOT an "
+        "array, NOT per-frame). In problems/temperature_observations merge findings "
+        "across all frames; in location note which angle/frame the defect appears on.\n\n"
+    ),
+}
+
 _CALC_PROMPT = """
 Ты — эксперт по энергоаудиту зданий.
 Рассчитай теплопотери и экономический эффект диагностики.
@@ -367,12 +388,8 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-async def analyze_photo(
-    data: bytes, locale: str = "ru", mime: str = "image/jpeg", context: str = ""
-) -> dict:
-    """Return structured analysis dict. Callers use format_analysis_free/premium to render."""
-    if settings.gemini_stub:
-        return _STUB_ANALYSIS
+def _audit_prompt(locale: str, context: str) -> str:
+    """Base audit prompt with optional user voice context prefix."""
     prompt = _AUDIT_PROMPT_RU if locale == "ru" else _AUDIT_PROMPT_EN
     if context:
         prefix = (
@@ -381,11 +398,20 @@ async def analyze_photo(
             else f"User context (voice): {context}\n\n"
         )
         prompt = prefix + prompt
+    return prompt
+
+
+async def _run_audit(contents: list, locale: str) -> dict:
+    """Shared audit call: generate → parse JSON → metrics, with identical
+    JSONDecode/fallback and api_error handling for single- and multi-image paths.
+
+    ``contents`` is the fully-built list of image Part(s) followed by the prompt.
+    """
     r = None
     try:
         r = await _generate_with_retry(
             model=settings.gemini_model,
-            contents=[types.Part.from_bytes(data=data, mime_type=mime), prompt],
+            contents=contents,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
         parsed = json.loads(_strip_fences(r.text))
@@ -410,7 +436,7 @@ async def analyze_photo(
             "_fallback": True,
         }
     except Exception as e:
-        logger.error("Gemini analyze_photo: %s", e)
+        logger.error("Gemini audit: %s", e)
         metrics.inc("photo_analysis_total", {"kind": "analyze", "outcome": "api_error"})
         msg = (
             "⚠️ Анализ временно недоступен. Попробуйте через минуту."
@@ -418,6 +444,41 @@ async def analyze_photo(
             else "⚠️ Analysis temporarily unavailable. Please try again in a minute."
         )
         return {"error": "api_error", "free_verdict": msg}
+
+
+async def analyze_photo(
+    data: bytes, locale: str = "ru", mime: str = "image/jpeg", context: str = ""
+) -> dict:
+    """Return structured analysis dict. Callers use format_analysis_free/premium to render."""
+    if settings.gemini_stub:
+        return _STUB_ANALYSIS
+    prompt = _audit_prompt(locale, context)
+    return await _run_audit([types.Part.from_bytes(data=data, mime_type=mime), prompt], locale)
+
+
+async def analyze_photos(
+    images: list[tuple[bytes, str]], locale: str = "ru", context: str = ""
+) -> dict:
+    """Analyze MULTIPLE frames of one object/series in a SINGLE Gemini call.
+
+    ``images`` is a list of ``(bytes, mime)`` tuples (already downscaled by the
+    caller). Returns ONE aggregated analysis dict in the same JSON schema as
+    :func:`analyze_photo`. Reuses the same retry/parse/fallback logic.
+    """
+    if settings.gemini_stub:
+        return _STUB_ANALYSIS
+    if not images:
+        return {"error": "api_error", "free_verdict": "⚠️ Нет кадров для анализа."}
+    if len(images) == 1:
+        # Single frame: behave exactly like analyze_photo (no multi-prefix).
+        data, mime = images[0]
+        return await analyze_photo(data, locale=locale, mime=mime, context=context)
+
+    multi = _MULTI_PREFIX.get(locale, _MULTI_PREFIX["en"]).format(n=len(images))
+    prompt = multi + _audit_prompt(locale, context)
+    parts = [types.Part.from_bytes(data=data, mime_type=mime) for data, mime in images]
+    parts.append(prompt)
+    return await _run_audit(parts, locale)
 
 
 async def calculate_losses(area: float, heating: str, payment: float, weather_ctx: str = "") -> str:
