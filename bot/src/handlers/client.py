@@ -30,7 +30,7 @@ from src.keyboards.menus import (
     heating_kb,
     order_kb,
 )
-from src.services import gemini, metrics, odoo, roles
+from src.services import gemini, image_prep, metrics, odoo, roles
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
 from src.services.comparison import format_comparison
@@ -71,19 +71,20 @@ async def audit_start(
 
 _MAX_PHOTO_BYTES = 20 * 1024 * 1024  # 20 MB — Gemini hard limit
 
+# MIME types accepted from image documents (subset Gemini Vision supports).
+_SUPPORTED_DOC_MIME = frozenset(
+    {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+)
 
-@router.message(AuditFlow.photo, F.photo)
-async def audit_photo(
-    message: Message,
-    state: FSMContext,
-    bot: Bot,
-) -> None:
-    data = await state.get_data()
-    locale: str = data.get("locale", "ru")
-    is_local: bool = data.get("is_local", True)
-    await state.clear()
 
-    user_id = message.from_user.id
+async def _check_quota(
+    message: Message, user_id: int, locale: str, is_local: bool
+) -> tuple[bool, bool, bool]:
+    """Resolve premium/quota state for an audit request.
+
+    Returns ``(allowed, is_prem, used_bonus)``. When ``allowed`` is False the
+    upgrade/limit message has already been sent to the user.
+    """
     is_prem = await premium_svc.is_premium(user_id)
     used_bonus = False
 
@@ -139,8 +140,28 @@ async def audit_photo(
                         "  🎁 Invite a friend — earn +5 bonus scans",
                         reply_markup=upgrade_b.as_markup(),
                     )
-                return
+                return False, is_prem, used_bonus
 
+    return True, is_prem, used_bonus
+
+
+@router.message(AuditFlow.photo, F.photo)
+async def audit_photo(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+) -> None:
+    data = await state.get_data()
+    locale: str = data.get("locale", "ru")
+    is_local: bool = data.get("is_local", True)
+    await state.clear()
+
+    user_id = message.from_user.id
+    allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
+    if not allowed:
+        return
+
+    metrics.inc("photo_input_total", {"kind": "photo"})
     photo = message.photo[-1]
     if photo.file_size and photo.file_size > _MAX_PHOTO_BYTES:
         err = (
@@ -154,23 +175,65 @@ async def audit_photo(
     await bot.send_chat_action(message.chat.id, "upload_photo")
     wait = await message.answer(t("analyzing", locale))
     _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
-
     try:
         file_io = await bot.download(photo)
         photo_bytes = file_io.read()
-        photo_hash = hashlib.sha256(photo_bytes).hexdigest()
-        voice_context = data.get("voice_context", "")
+    except Exception:
+        _typing.cancel()
+        await wait.delete()
+        raise
 
+    await _analyze_and_reply(
+        message,
+        bot,
+        wait=wait,
+        typing_task=_typing,
+        photo_bytes=photo_bytes,
+        mime="image/jpeg",
+        locale=locale,
+        is_local=is_local,
+        is_prem=is_prem,
+        used_bonus=used_bonus,
+        voice_context=data.get("voice_context", ""),
+    )
+
+
+async def _analyze_and_reply(
+    message: Message,
+    bot: Bot,
+    *,
+    wait: Message,
+    typing_task: asyncio.Task,
+    photo_bytes: bytes,
+    mime: str,
+    locale: str,
+    is_local: bool,
+    is_prem: bool,
+    used_bonus: bool,
+    voice_context: str = "",
+) -> None:
+    """Shared post-download pipeline for photo and document audit paths.
+
+    Runs cache lookup / Gemini analysis, before/after comparison, persistence,
+    reminders, referral reward, and renders the free/premium response. ``wait``
+    is the "analyzing…" placeholder message and ``typing_task`` the typing
+    indicator — both owned (cancelled/deleted) here.
+    """
+    user_id = message.from_user.id
+    try:
+        photo_hash = hashlib.sha256(photo_bytes).hexdigest()
         result = await get_cached_analysis(photo_hash)
         if result is None:
             metrics.inc("photo_cache_total", {"result": "miss"})
-            result = await gemini.analyze_photo(photo_bytes, locale=locale, context=voice_context)
+            result = await gemini.analyze_photo(
+                photo_bytes, locale=locale, mime=mime, context=voice_context
+            )
             if "error" not in result:
                 await cache_analysis(photo_hash, result)
         else:
             metrics.inc("photo_cache_total", {"result": "hit"})
     finally:
-        _typing.cancel()
+        typing_task.cancel()
 
     await wait.delete()
 
@@ -238,6 +301,85 @@ async def audit_photo(
                 )
             )
         await message.answer(text, reply_markup=b.as_markup())
+
+
+# ── Photo Audit (sent as uncompressed document) ────────────────────────────────
+
+
+@router.message(AuditFlow.photo, F.document)
+async def audit_document(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+) -> None:
+    """Accept thermal images sent as a *file* (full quality, no Telegram compression).
+
+    Engineers send thermograms uncompressed to keep the temperature scale and
+    detail intact. We accept only image MIME types, downscale oversized images,
+    then route through the same analysis pipeline as compressed photos.
+    """
+    data = await state.get_data()
+    locale: str = data.get("locale", "ru")
+    is_local: bool = data.get("is_local", True)
+
+    doc = message.document
+    mime = (doc.mime_type or "").lower()
+    if mime not in _SUPPORTED_DOC_MIME:
+        # Not an image — keep the user in AuditFlow.photo so they can retry.
+        err = (
+            "⚠️ Это не изображение. Отправьте термоснимок картинкой "
+            "(JPEG/PNG/WebP/HEIC) — фото или файлом-изображением."
+            if locale == "ru"
+            else "⚠️ That's not an image. Send a thermal photo as an image "
+            "(JPEG/PNG/WebP/HEIC) — either a photo or an image file."
+        )
+        await message.answer(err)
+        return
+
+    await state.clear()
+
+    user_id = message.from_user.id
+    allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
+    if not allowed:
+        return
+
+    metrics.inc("photo_input_total", {"kind": "document"})
+    if doc.file_size and doc.file_size > _MAX_PHOTO_BYTES:
+        err = (
+            "⚠️ Файл слишком большой (максимум 20 МБ). Отправьте снимок меньшего размера."
+            if locale == "ru"
+            else "⚠️ File is too large (max 20 MB). Please send a smaller image."
+        )
+        await message.answer(err, reply_markup=client_menu(locale, is_local))
+        return
+
+    await bot.send_chat_action(message.chat.id, "upload_photo")
+    wait = await message.answer(t("analyzing", locale))
+    _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
+    try:
+        file_io = await bot.download(doc)
+        raw_bytes = file_io.read()
+        # Downscale large/heavy images; hash is computed after preprocessing
+        # inside the shared helper so cache keys match the analysed payload.
+        prepared_bytes, prepared_mime = image_prep.prepare_image(raw_bytes, mime)
+    except Exception:
+        _typing.cancel()
+        await wait.delete()
+        raise
+
+    await _analyze_and_reply(
+        message,
+        bot,
+        wait=wait,
+        typing_task=_typing,
+        photo_bytes=prepared_bytes,
+        mime=prepared_mime,
+        locale=locale,
+        is_local=is_local,
+        is_prem=is_prem,
+        used_bonus=used_bonus,
+        voice_context=data.get("voice_context", ""),
+    )
 
 
 # ── Voice context hint ────────────────────────────────────────────────────────

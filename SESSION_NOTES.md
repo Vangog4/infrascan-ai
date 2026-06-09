@@ -1,5 +1,19 @@
 # SESSION_NOTES — InfraScan AI
 
+## Сессия: 09.06.2026 — приём изображений-документов + даунскейл крупных снимков
+
+### Что сделано
+1. **Pillow** добавлен в `bot/pyproject.toml` через `uv add pillow` (12.2.0). uv.lock обновлён, образ пересобран, наличие проверено (`PIL 12.2.0` в контейнере).
+2. **`bot/src/services/image_prep.py`** — `prepare_image(data, mime) -> (bytes, mime)`. Пороги: `_MAX_SIDE=2048`, `_MAX_BYTES=4MB`, `_JPEG_QUALITY=88`. Даунскейл LANCZOS если длинная сторона > 2048px ИЛИ объём > 4 МБ → JPEG q88 (RGBA/LA/P флэттится на белый фон; EXIF-ориентация). Иначе возврат БЕЗ перекодирования (важно: не размывать текст температурной шкалы у мелких Telegram-фото). Любая ошибка декодирования → возврат оригинала (broad except + warning-лог).
+3. **Рефакторинг `client.py`:**
+   - `_check_quota(message, user_id, locale, is_local) -> (allowed, is_prem, used_bonus)` — премиум/лимит/бонус-логика (сообщение об апгрейде шлёт сам).
+   - `_analyze_and_reply(message, bot, *, wait, typing_task, photo_bytes, mime, locale, is_local, is_prem, used_bonus, voice_context)` — ОБЩИЙ пост-download пайплайн: hash(after-preprocess) → cache lookup → analyze_photo(mime=...) → before/after comparison → save_last_analysis → odoo.save_report → schedule_reminder → reward_first_scan → рендер free/premium (PDF/voice/webapp клавиатуры). Владеет `wait`/`typing_task` (отменяет/удаляет).
+   - `audit_photo` переписан на `_check_quota` + `_analyze_and_reply` — наблюдаемое поведение фото-пути НЕ изменено (10 фото-тестов зелёные). mime фото = image/jpeg.
+4. **Новый хендлер `audit_document` (`@router.message(AuditFlow.photo, F.document)`):** проверка `mime ∈ {image/jpeg,png,webp,heic,heif}` → иначе вежливый отказ RU/EN и состояние НЕ сбрасывается (ретрай). Guard `_MAX_PHOTO_BYTES`. download → `image_prep.prepare_image` → общий helper. В Gemini идёт mime ПОСЛЕ препроцессинга. Метрика `photo_input_total{kind=photo|document}`.
+5. **Тесты:** `bot/tests/test_image_prep.py` (5: даунскейл большого + сохранение пропорций + объём↓, мелкое без изменений `out is data`, тяжёлое мелкое перекодируется, RGBA→RGB JPEG, битый файл → оригинал) и `bot/tests/test_client_document.py` (4: image happy-path + проверка mime=image/jpeg в analyze, pdf-отказ RU/EN без analyze/download, oversized без analyze). Фото-путь зелёный (регрессия).
+6. `./judge.sh` → EXIT 0 (Passed 7 / Failed 0).
+7. **Деплой:** build bot → `podman stop infrascan-ai_bot; podman rm; up -d --no-deps bot`. Бот на новом образе, healthy. db/web/redis НЕ тронуты (uptime «Up 6 hours» сохранён). /health = {"status":"ok","redis":true}. БД цела: res.partner count = 7 (XML-RPC из контейнера бота, uid=7).
+
 ## Сессия: 09.06.2026 — лёгкие метрики + эндпоинт /metrics (наблюдаемость)
 
 ### Что сделано
