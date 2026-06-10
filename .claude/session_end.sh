@@ -1,7 +1,7 @@
 #!/bin/bash
 # Автозапись при завершении сессии Claude
 
-BOT_DIR="/root/infrascan-ai/bot"
+BOT_DIR="/root/infrascan/backend/bot"
 DATE=$(date +%Y_%m_%d)
 JOURNAL="${BOT_DIR}/logseq/journals/${DATE}.md"
 TIMESTAMP=$(date '+%H:%M')

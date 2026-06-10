@@ -177,8 +177,8 @@ quick_reference:
     bash hooks/gemini_agent.sh redteam
     bash hooks/gemini_agent.sh retrospective
   kimi: |
-    kimi_agent analyze /root/infrascan-ai/bot/src/
-    kimi_agent bulk /root/infrascan-ai/bot.log
+    kimi_agent analyze /root/infrascan/backend/bot/src/
+    kimi_agent bulk /root/infrascan/backend/bot.log
     kimi_agent draft "идея для новой фичи"
     kimi_agent migrate /root/astrotara_bot/bot_app/src/database/models.py
     kimi_agent compare "Redis pub/sub vs Kafka"

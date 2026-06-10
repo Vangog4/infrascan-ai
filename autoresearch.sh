@@ -44,12 +44,12 @@ print('version:', v['server_version'])
 
 echo ""
 echo "--- Bot source syntax ---"
-check "bot config parseable"  "cd /root/infrascan-ai/bot && uv run python -c 'import src.config'"
-check "bot handlers importable" "cd /root/infrascan-ai/bot && uv run python -c 'import src.bot'"
+check "bot config parseable"  "cd /root/infrascan/backend/bot && uv run python -c 'import src.config'"
+check "bot handlers importable" "cd /root/infrascan/backend/bot && uv run python -c 'import src.bot'"
 
 echo ""
 echo "--- Bot unit tests ---"
-check "pytest (unit only)" "cd /root/infrascan-ai/bot && uv run pytest tests/ -x -q --ignore=tests/test_odoo.py 2>&1 | tail -3"
+check "pytest (unit only)" "cd /root/infrascan/backend/bot && uv run pytest tests/ -x -q --ignore=tests/test_odoo.py 2>&1 | tail -3"
 
 echo ""
 echo "--- Redis ---"

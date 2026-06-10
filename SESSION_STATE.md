@@ -1,24 +1,66 @@
-# SESSION_STATE — infrascan-ai — 2026-06-09 11:49
+# SESSION_STATE — backend — 2026-06-10 14:12
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+a4300d5 fix: исправления по результатам кросс-модельного ревью (Gemini, после df1fb08)
 df1fb08 feat: мульти-фото анализ альбомов (analyze_photos + буфер media_group_id + общий пайплайн)
 09ae852 feat: приём изображений-документов + даунскейл крупных снимков + общий пайплайн анализа
 b2cb72a feat: включён GEMINI_FALLBACK_MODEL=gemini-2.5-flash-lite
 eb68e6a feat: лёгкие метрики + эндпоинт /metrics (Prometheus, без новых зависимостей)
 1818d3b feat: устойчивость Gemini (ретраи+fallback) + ротация логов compose + judge покрывает tests/
 4a27eea chore: фикс F401 в tests/test_new_features.py + авто-доки сессии 08.06
-5b1ab1c feat: наработки сессии 22.05 (13 фич бота + редизайн меню) + фиксы тестов/линта
 ```
 
 ## Незакоммиченные изменения
-Чисто.
+```
+.claude/session_end.sh            |   2 +-
+ AGENT.md                          |   6 +-
+ CLAUDE.md                         |  18 +-
+ DECISIONS.md                      | 194 ++++++++++
+ GEMINI.md                         |   6 +-
+ SESSION_STATE.md                  |  48 ++-
+ autoresearch.sh                   |   6 +-
+ bot/logseq/journals/2026_06_09.md | 586 ++++++++++++++++++++++++++++++
+ bot/src/config.py                 |   2 +
+ bot/src/services/odoo.py          |  88 +++--
+ bot/tests/test_odoo.py            | 198 +++++++---
+ config/collaboration.yaml         |   4 +-
+ hooks/llm_council.py              |   2 +-
+ hooks/run_pytest.sh               |   2 +-
+ 14 files changed, 1064 insertions(+), 98 deletions(-)
+```
+
+## Неотслеживаемые файлы
+```
+bot/logseq/journals/2026_06_10.md
+```
 
 ## Заметки сессии
 # SESSION_NOTES — InfraScan AI
+
+## Сессия: 09.06.2026 — фиксы кросс-модельного ревью (Gemini, коммит df1fb08)
+
+### Что сделано (6 находок ревью, все валидны)
+1. **Кэш игнорировал voice_context** (`client.py:_cached_analyze`). Ключ был sha256 только от байт кадров → то же фото + новый голосовой комментарий отдавал старый результат. Фикс: подмешиваем `voice_context` в хэш с разделителем и длиной-префиксом (`|ctx|<len>|<bytes>`) во избежание коллизий на границе байт. Единый путь для одиночного и альбомного анализа.
+2. **`wait` («Анализирую…») висел при исключении** (`client.py:_analyze_and_reply`). `wait.delete()` был ПОСЛЕ try/finally → при ошибке анализа не вызывался. Фикс: удаление перенесено в `finally` (после `typing_task.cancel()`), завёрнуто в try/except (без падения и двойного удаления).
+3. **Скачивание кадров до проверки лимита** (`client.py:audit_photo/audit_document` альбомный путь). Большой альбом тянул bytes ДО проверки MAX_FRAMES → перерасход памяти/DoS. Фикс: новый метод `AlbumBuffer.can_accept(media_group_id)` (True пока группа < max_frames, ставит overflow при отказе), проверяется ДО `bot.download` для альбомных кадров. Первый кадр группы всегда True.
+4. **Ошибка внутри flush — молчок пользователю** (`client.py:_flush_album`). `AlbumBuffer._flush` ловил/логировал, но юзер ничего не видел. Фикс: `_flush_album` оборачивает prepare_image+анализ в try/except → отменяет typing, удаляет wait, шлёт «Не удалось обработать альбом, попробуйте ещё раз» (RU/EN) и **re-raise** (логирование AlbumBuffer сохранено).
+5. **`state.clear()` до проверки квоты** (`client.py:audit_photo/audit_document/_flush_album`). При исчерпанной квоте состояние `AuditFlow.photo` сбрасывалось → после покупки Premium юзеру надо заново лезть в меню. Фикс: `clear()` только при `allowed=True`. Для альбома clear перенесён после успешной квоты (квота по-прежнему списывается один раз во flush).
+6. **Fallback-модель без ретрая** (`gemini.py:_generate_with_retry`). Fallback вызывался ровно 1 раз, без ретрая на своём 503/timeout. Фикс: внутренняя `_attempt(model, is_fallback)` с циклом попыток+бэкоффом применяется И к основной, И к fallback. Семантика детекта транзиентности и финального проброса/деградации сохранена; счётчики метрик не дублируют `error` при наличии fallback.
+
+### Тесты (+11 новых, регрессии нет)
+- `test_gemini.py`: fallback ретраит свой транзиентный 503 затем успех (3+3 вызова); fallback исчерпывает попытки → деградация (6 вызовов); fallback НЕ ретраит на нетранзиентном 400 (3+1).
+- `test_album_buffer.py`: `can_accept` гейт по вместимости + overflow-флаг; независимость по группам; альбом-overflow НЕ качает лишние кадры (`bot.download` ровно 5); ошибка flush → юзер получает сообщение.
+- `test_client_photo.py`: квота исчерпана → `state.clear` НЕ зван; квота ок → `clear` один раз; `wait.delete` вызывается при исключении анализа; `_cached_analyze` даёт разные ключи на разный voice_context и одинаковые на одинаковый.
+
+### Результат
+- `./judge.sh` → EXIT 0 (Passed 7 / Failed 0). Полный pytest: **266 passed** (было 255 + 11 новых).
+- Деплой: build OK → recreate `infrascan-ai_bot` → `/health` = `{"status":"ok","redis":true}`, контейнер healthy. БД цела: res.partner count = 7 (XML-RPC из контейнера бота). Webhook установлен, ошибок в логах нет.
+
+---
 
 ## Сессия: 09.06.2026 — мульти-фото анализ альбомов (media_group_id)
 

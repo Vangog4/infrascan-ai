@@ -13,8 +13,6 @@ from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-_LEADS_PROJECT_ID = 1  # "Выезд"
-
 _client: httpx.AsyncClient | None = None
 
 
@@ -53,10 +51,36 @@ async def _call(model: str, method: str, **kwargs: Any) -> Any:
     client = _get_client()
     try:
         resp = await client.post(f"/json/2/{model}/{method}", json=kwargs)
-        if resp.status_code == 200:
+        if resp.status_code != 200:
+            logger.warning(
+                "Odoo %s.%s → HTTP %d: %s", model, method, resp.status_code, resp.text[:300]
+            )
+            return None
+        # A 200 does not guarantee JSON: an expired session can yield the Odoo
+        # login HTML page (text/html). Parsing that as JSON would raise and
+        # bubble up. Treat any non-JSON / unexpected body as an API failure
+        # (same safe None as the error paths) and log a slice of the body.
+        content_type = resp.headers.get("content-type", "")
+        if "json" not in content_type.lower():
+            logger.error(
+                "Odoo %s.%s → unexpected content-type %r: %s",
+                model,
+                method,
+                content_type,
+                resp.text[:300],
+            )
+            return None
+        try:
             return resp.json()
-        logger.warning("Odoo %s.%s → HTTP %d: %s", model, method, resp.status_code, resp.text[:300])
-        return None
+        except ValueError as e:
+            logger.error(
+                "Odoo %s.%s → non-JSON 200 body (%s): %s",
+                model,
+                method,
+                e,
+                resp.text[:300],
+            )
+            return None
     except Exception as e:
         logger.warning("Odoo %s.%s: %s", model, method, e)
         return None
@@ -66,8 +90,6 @@ async def _call(model: str, method: str, **kwargs: Any) -> Any:
 
 
 async def create_lead(name: str, phone: str, description: str = "") -> int | None:
-    task_desc = f"📞 Телефон: {phone}\n\n{description}"
-
     # Primary: crm.lead
     result = await _call(
         "crm.lead",
@@ -79,12 +101,17 @@ async def create_lead(name: str, phone: str, description: str = "") -> int | Non
         logger.info("CRM lead created: id=%d phone=%s", lead_id, phone)
         return lead_id
 
-    # Fallback: project.task
+    # Fallback: project.task (phone goes into the description here, no dedicated field)
+    task_desc = f"📞 Телефон: {phone}\n\n{description}"
     result = await _call(
         "project.task",
         "create",
         vals_list=[
-            {"name": f"[Лид] {name}", "project_id": _LEADS_PROJECT_ID, "description": task_desc}
+            {
+                "name": f"[Лид] {name}",
+                "project_id": settings.leads_project_id,
+                "description": task_desc,
+            }
         ],
     )
     task_id = _first_id(result)
@@ -140,16 +167,36 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
     from datetime import date
 
     today = date.today().isoformat()
+    tg_str = str(telegram_id)
+
+    # Server-side filtering: every condition that used to run in Python after
+    # limit=50 now lives in the domain, so the limit applies to the already
+    # filtered set (an engineer's tasks can no longer fall outside the slice).
+    #
+    # Semantics preserved 1:1 from the previous client-side logic:
+    #   - project_id == leads_project_id ("Выезд")
+    #   - date_deadline == today OR empty
+    #   - name does NOT start with "[Лид]"  → "not =like" "[Лид]%"
+    #   - x_telegram_id == this engineer (str) OR empty (visible to all)
+    #     x_telegram_id is a Char field; empty in Odoo is False, but a stored
+    #     "" is possible too, so both are accepted.
+    domain = [
+        ["project_id", "=", settings.leads_project_id],
+        ["name", "not =like", "[Лид]%"],
+        "|",
+        ["date_deadline", "=", today],
+        ["date_deadline", "=", False],
+        "|",
+        "|",
+        ["x_telegram_id", "=", tg_str],
+        ["x_telegram_id", "=", False],
+        ["x_telegram_id", "=", ""],
+    ]
 
     result = await _call(
         "project.task",
         "search_read",
-        domain=[
-            ["project_id", "=", _LEADS_PROJECT_ID],
-            "|",
-            ["date_deadline", "=", today],
-            ["date_deadline", "=", False],
-        ],
+        domain=domain,
         fields=[
             "id",
             "name",
@@ -161,16 +208,7 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
         ],
         limit=50,
     )
-    tasks = []
-    tg_str = str(telegram_id)
-    for t in result or []:
-        if t["name"].startswith("[Лид]"):
-            continue
-        assigned = str(t.get("x_telegram_id") or "")
-        if assigned and assigned.strip() != tg_str:
-            continue
-        tasks.append(t)
-    return tasks
+    return result or []
 
 
 async def save_analysis_report(task_id: int, report: str) -> bool:

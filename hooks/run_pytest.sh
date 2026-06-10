@@ -24,7 +24,7 @@ except Exception:
 " 2>/dev/null)
 
 if echo "$FILE" | grep -qE "/bot/(src|tests)/.*\.py$"; then
-    cd /root/infrascan-ai/bot
+    cd /root/infrascan/backend/bot
 
     echo "🔍 ruff check $FILE..."
     if ! uvx ruff check "$FILE" 2>&1; then

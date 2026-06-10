@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     odoo_username: str = ""
     odoo_password: str = ""
     odoo_api_key: str = ""  # Bearer token for JSON-2 API (Odoo 19)
+    # project.task "Выезд": leads fallback + engineer tasks (env LEADS_PROJECT_ID)
+    leads_project_id: int = 1
 
     redis_url: str = "redis://infrascan-ai_redis:6379/0"
 

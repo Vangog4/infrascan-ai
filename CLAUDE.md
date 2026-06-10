@@ -8,7 +8,7 @@
 3. Выполни чеклист ниже
 
 ### В течение сессии (ОБЯЗАТЕЛЬНО):
-Обновляй `/root/infrascan-ai/SESSION_NOTES.md` при каждом важном шаге:
+Обновляй `/root/infrascan/backend/SESSION_NOTES.md` при каждом важном шаге:
 - Что делаю прямо сейчас
 - Ключевые решения и почему
 - Что ещё нужно сделать (следующие шаги)
@@ -22,10 +22,10 @@ Stop hook автоматически запишет `SESSION_STATE.md` на ос
 
 ## Pre-Session Checklist (выполнять перед каждой сессией)
 ```bash
-cat /root/infrascan-ai/SESSION_STATE.md             # контекст прошлой сессии!
-cat /root/infrascan-ai/SESSION_NOTES.md             # незавершённые задачи!
-python3 /root/infrascan-ai/hooks/process_watch.py   # все сервисы up?
-git -C /root/infrascan-ai status                    # нет незакоммиченного мусора?
+cat /root/infrascan/backend/SESSION_STATE.md             # контекст прошлой сессии!
+cat /root/infrascan/backend/SESSION_NOTES.md             # незавершённые задачи!
+python3 /root/infrascan/backend/hooks/process_watch.py   # все сервисы up?
+git -C /root/infrascan/backend status                    # нет незакоммиченного мусора?
 df -h /                                             # диск > 10% свободно?
 ```
 Если диск < 10% → сначала: `podman image prune -f` (безопасно)
@@ -252,14 +252,14 @@ bash hooks/gemini_agent.sh retrospective   # ретроспектива сесс
 ### Kimi Quick Reference
 
 ```bash
-kimi_agent analyze /root/infrascan-ai/bot/src/   # весь bot/src/ за раз (262K ctx)
-kimi_agent bulk /root/infrascan-ai/bot.log        # анализ логов
+kimi_agent analyze /root/infrascan/backend/bot/src/   # весь bot/src/ за раз (262K ctx)
+kimi_agent bulk /root/infrascan/backend/bot.log        # анализ логов
 kimi_agent draft "идея для новой фичи"            # черновик / брейншторм
 kimi_agent migrate /root/astrotara_bot/bot_app/src/database/models.py
 kimi_agent compare "Redis pub/sub vs Kafka"
 kimi_agent council "стоит ли переходить на webhook mode"
 kimi_agent research "aiogram 3.x webhook best practices 2025"
-kimi_agent review /root/infrascan-ai             # code review git diff
+kimi_agent review /root/infrascan/backend             # code review git diff
 ```
 
 ### Слои безопасности (Hook Pipeline)
@@ -321,7 +321,7 @@ tail -f /tmp/loop_*.log
 Весь стек изолирован в Podman-контейнерах.
 Для полной изоляции агента (VERY UNSAFE tasks):
 ```bash
-podman run --rm -it -v /root/infrascan-ai:/workspace \
+podman run --rm -it -v /root/infrascan/backend:/workspace \
   localhost/infrascan-ai-bot:latest \
   claude --dangerously-skip-permissions -p "задача"
 ```

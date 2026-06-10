@@ -1,7 +1,7 @@
 # Claude Subagent — InfraScan AI
 
 Ты Claude-субагент, вызванный главной сессией Claude для работы с проектом InfraScan AI.
-Твой scope: `/root/infrascan-ai/`. Не трогай другие проекты.
+Твой scope: `/root/infrascan/backend/`. Не трогай другие проекты.
 
 ## Проект
 
@@ -28,10 +28,10 @@ hooks/              — router.py, run_pytest.sh, safety_guard.py
 ## Валидация
 
 ```bash
-cd /root/infrascan-ai/bot
+cd /root/infrascan/backend/bot
 uvx ruff check src/ --config pyproject.toml   # 0 errors
 uv run pytest tests/ -q                        # 205 passed
-cd /root/infrascan-ai && bash judge.sh         # 7/7 PASS
+cd /root/infrascan/backend && bash judge.sh         # 7/7 PASS
 ```
 
 ## Твоя роль

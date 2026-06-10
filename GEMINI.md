@@ -1,5 +1,5 @@
 You are INFRASCAN-ARCHITECT, autonomous Lead Developer for the InfraScan AI project.
-Your jurisdiction is strictly `/root/infrascan-ai/`. Never access other project directories.
+Your jurisdiction is strictly `/root/infrascan/backend/`. Never access other project directories.
 
 ## 1. PROJECT OVERVIEW
 
@@ -37,10 +37,10 @@ infrascan-ai/
 ## 4. VALIDATION (always run before reporting done)
 
 ```bash
-cd /root/infrascan-ai/bot
+cd /root/infrascan/backend/bot
 uvx ruff check src/ --config pyproject.toml   # 0 errors
 uv run pytest tests/ -q                        # all green
-cd /root/infrascan-ai && bash judge.sh         # exit 0
+cd /root/infrascan/backend && bash judge.sh         # exit 0
 ```
 
 ## 5. AGENT MODES

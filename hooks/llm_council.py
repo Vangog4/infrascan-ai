@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path("/root/infrascan-ai")
+REPO_ROOT = Path("/root/infrascan/backend")
 GEMINI_AGENT = REPO_ROOT / "hooks" / "gemini_agent.sh"
 DECISIONS_MD = REPO_ROOT / "DECISIONS.md"
 CLAUDE_BIN = Path("/root/.local/bin/claude")

@@ -4356,3 +4356,248 @@ SESSION_STATE.md | 26 +++++++++++++++++++++++---
     *   *Действие:* Настройка отображения (tree/form views) для новых полей бота (логи, метрики, статусы) в Odoo, чтобы администраторы видели данные, которые мы начали собирать.
 
 ---
+
+## Retrospective — 2026-06-09 14:03 [infrascan-ai]
+
+### Изменения
+```
+SESSION_STATE.md                  |  25 +++++-
+ bot/logseq/journals/2026_06_09.md | 138 ++++++++++++++++++++++++++++++
+ 2 files changed, 161 insertions(+), 2 deletions(-)
+```
+
+### Gemini Review
+🤖 [Gemini/infrascan-ai] режим=retrospective модель=gemini-3.1-flash-lite
+---
+# Ретроспектива сессии: 09.06.2026
+
+## 1. Что было сделано хорошо (паттерны для повторения)
+*   **Системный подход к ревью:** Исправление 6 находок кросс-модельного ревью (кэш, UI-блокировки, лимиты, обработка ошибок flush, очистка состояний) одним циклом значительно повысило надежность системы.
+*   **Тестовая верификация:** 11 новых тестов (fallback, album buffer, image prep) и проход `judge.sh` дали уверенность в отсутствии регрессий при внедрении сложных фич (альбомы, даунскейл).
+*   **Легковесная наблюдаемость:** Реализация Prometheus-совместимых метрик (in-process реестр) без внешних зависимостей — оптимальное решение для текущего стека.
+*   **Разделение ответственности:** Вынос обработки изображений в `image_prep.py` (Pillow) и буферизации в `AlbumBuffer` изолировал логику от хендлеров, сохранив `client.py` читаемым.
+
+## 2. Что пошло не так (паттерны для избегания)
+*   **Ложная уверенность в `--no-deps`:** Полагаться на поведение `podman-compose --no-deps` для принудительного пересоздания контейнера из нового образа — риск (старый контейнер просто перезапускался). *Правило: для гарантированного обновления контейнера использовать `stop && rm && up`.*
+*   **Недостаточная изоляция ресурсов:** Скачивание кадров альбома до проверки лимита `MAX_FRAMES` создавало риск перерасхода памяти. *Правило: всегда проверять gatekeeper-условия (квоты, лимиты) ДО запуска ресурсоёмких процессов (download, decode).*
+
+## 3. Следующие 3 конкретных шага
+1.  **Приоритет: Наблюдаемость.** Проверить корректность отдачи метрик на проде.
+    *   *Файл:* `bot/src/services/metrics.py`
+    *   *Действие:* Выполнить тестовый прогон (фото-анализ) и верифицировать вывод `curl http://localhost:8080/metrics` на заполненность гистограмм и счетчиков.
+2.  **Приоритет: Интеграция Odoo.** Настройка UI для CRM.
+    *   *Файл:* `addons/infrascan_ai/views/project_task_views.xml`
+    *   *Действие:* Настроить отображение списка отчетов бота (bot_report) внутри карточки проекта в Odoo.
+3.  **Приоритет: Конфигурация.** Закрыть задачу по ключу Anthropic.
+    *   *Файл:* `/root/dogsensei_bot/.env`
+    *   *Действие:* Добавить `ANTHROPIC_API_KEY` и убедиться, что конфигурация соответствует `PROJECT_KNOWLEDGE.md`.
+
+---
+
+## Retrospective — 2026-06-09 14:05 [infrascan-ai]
+
+### Изменения
+```
+DECISIONS.md                      |  37 ++++
+ SESSION_STATE.md                  |  31 +++-
+ bot/logseq/journals/2026_06_09.md | 284 ++++++++++++++++++++++++++++++
+ 3 files changed, 349 insertions(+), 3 deletions(-)
+```
+
+### Gemini Review
+🤖 [Gemini/infrascan-ai] режим=retrospective модель=gemini-3.1-flash-lite
+---
+### 1. Patterns to Repeat
+*   **Service Decoupling:** Isolating complex logic into distinct services (`AlbumBuffer`, `image_prep`) maintained `client.py` readability during major feature additions.
+*   **Test-Driven Asynchronous Verification:** Rigorous mocking of `asyncio` and network calls (e.g., in `test_album_buffer`, `test_metrics`) ensured stability for complex timing-dependent features.
+*   **Deployment Discipline:** Strict adherence to the `stop -> rm -> up -d --no-deps` sequence ensures environment consistency, bypassing `podman-compose` caching issues.
+*   **Observability-First Design:** Adding `/metrics` alongside new async features allows immediate monitoring of performance and failure modes in production.
+
+### 2. Patterns to Avoid
+*   **Deployment Assumptions:** Do not assume `podman-compose --no-deps` replaces existing containers; explicit `stop` and `rm` are mandatory for fresh image deployment.
+*   **Stateful Cache Incompleteness:** Neglecting context (e.g., `voice_context`) in cache-key generation for stateful features risks data pollution. Always audit cache-key inputs against full state definitions.
+
+### 3. Next Steps
+| Priority | File | Action |
+| :--- | :--- | :--- |
+| **High** | `addons/infrascan_ai/views/project_task_views.xml` | Validate Odoo CRM view rendering for new, multi-frame bot report data. |
+| **High** | `bot/src/handlers/payments.py` | Manually verify `BTN_UPGRADE` correctly initiates the Premium flow (Telegram Stars). |
+| **Medium** | `PROJECT_KNOWLEDGE.md` | Update architecture docs to reflect `AlbumBuffer` logic and the `/metrics` endpoint. |
+
+---
+
+## Retrospective — 2026-06-09 14:27 [backend]
+
+### Изменения
+```
+.claude/session_end.sh            |   2 +-
+ AGENT.md                          |   6 +-
+ CLAUDE.md                         |  18 +-
+ DECISIONS.md                      |  69 ++++
+ GEMINI.md                         |   6 +-
+ SESSION_STATE.md                  |  32 +-
+ autoresearch.sh                   |   6 +-
+ bot/logseq/journals/2026_06_09.md | 586 ++++++++++++++++++++++++++++++
+ config/collaboration.yaml         |   4 +-
+ hooks/llm_council.py              |   2 +-
+ hooks/run_pytest.sh               |   2 +-
+ 11 files changed, 707 insertions(+), 26 deletions(-)
+```
+
+### Gemini Review
+_Gemini недоступен_
+
+---
+
+## Retrospective — 2026-06-10 01:39 [backend]
+
+### Изменения
+```
+.claude/session_end.sh            |   2 +-
+ AGENT.md                          |   6 +-
+ CLAUDE.md                         |  18 +-
+ DECISIONS.md                      |  92 +++++
+ GEMINI.md                         |   6 +-
+ SESSION_STATE.md                  |  40 +-
+ autoresearch.sh                   |   6 +-
+ bot/logseq/journals/2026_06_09.md | 586 ++++++++++++++++++++++++++++++
+ config/collaboration.yaml         |   4 +-
+ hooks/llm_council.py              |   2 +-
+ hooks/run_pytest.sh               |   2 +-
+ 11 files changed, 738 insertions(+), 26 deletions(-)
+```
+
+### Gemini Review
+_Gemini недоступен_
+
+---
+
+## Retrospective — 2026-06-10 04:44 [backend]
+
+### Изменения
+```
+.claude/session_end.sh            |   2 +-
+ AGENT.md                          |   6 +-
+ CLAUDE.md                         |  18 +-
+ DECISIONS.md                      | 115 ++++++
+ GEMINI.md                         |   6 +-
+ SESSION_STATE.md                  |  45 ++-
+ autoresearch.sh                   |   6 +-
+ bot/logseq/journals/2026_06_09.md | 586 ++++++++++++++++++++++++++++++
+ config/collaboration.yaml         |   4 +-
+ hooks/llm_council.py              |   2 +-
+ hooks/run_pytest.sh               |   2 +-
+ 11 files changed, 766 insertions(+), 26 deletions(-)
+```
+
+### Gemini Review
+🤖 [Gemini/backend] режим=retrospective модель=gemini-3.1-flash-lite
+---
+## 1. Что сделано хорошо (паттерны)
+- **Структурированный фикс-ревью:** Разделение 6 находок кросс-модельного ревью на атомарные задачи с фиксами в `client.py`/`gemini.py` позволило закрыть их без регрессий.
+- **TDD для инфраструктуры:** Новая функциональность (альбомы, документы, метрики) сопровождалась 11+ тестами, что гарантировало стабильность (`266 passed`).
+- **Точечный деплой:** Переход на `podman stop/rm <container> && up -d --no-deps <container>` вместо полного рестарта стека — критический паттерн для сохранения аптайма БД/Redis.
+
+## 2. Что пошло не так (паттерны)
+- **Иллюзия изоляции деплоя:** Ожидание, что `--no-deps` гарантирует пересоздание контейнера из нового образа. *Избегать:* полагаться на дефолтное поведение оркестратора; всегда проверять `podman ps` после деплоя.
+- **Риск транзиентного состояния:** `AlbumBuffer` теряет данные при рестарте. *Управлять:* осознанный архитектурный компромисс (низкая вероятность, малый TTL), задокументированный в `DECISIONS.md`.
+
+## 3. Следующие 3 конкретных шага
+1. **Git:** Застейджить и закоммитить изменения (ветка `feat/09-06-session-fixes`).
+2. **DogSensei:** Добавить `ANTHROPIC_API_KEY` в `/root/dogsensei_bot/.env`.
+3. **Odoo:** Реализовать CRM views и списки отчетов бота в `addons/infrascan_ai/`.
+
+---
+
+## Retrospective — 2026-06-10 13:59 [backend]
+
+### Изменения
+```
+.claude/session_end.sh            |   2 +-
+ AGENT.md                          |   6 +-
+ CLAUDE.md                         |  18 +-
+ DECISIONS.md                      | 152 ++++++++
+ GEMINI.md                         |   6 +-
+ SESSION_STATE.md                  |  45 ++-
+ autoresearch.sh                   |   6 +-
+ bot/logseq/journals/2026_06_09.md | 586 ++++++++++++++++++++++++++++++
+ bot/src/config.py                 |   2 +
+ bot/src/services/odoo.py          |  88 +++--
+ bot/tests/test_odoo.py            | 198 +++++++---
+ config/collaboration.yaml         |   4 +-
+ hooks/llm_council.py              |   2 +-
+ hooks/run_pytest.sh               |   2 +-
+ 14 files changed, 1019 insertions(+), 98 deletions(-)
+```
+
+### Gemini Review
+🤖 [Gemini/backend] режим=retrospective модель=gemini-3.1-flash-lite
+---
+# Архитектурная ретроспектива сессии 2026-06-10
+
+### 1. Что сделано хорошо (Паттерны для повторения)
+*   **Централизация логики (Service-Oriented):** Вынос `AlbumBuffer`, `image_prep` и `metrics` в отдельные сервисы значительно снизил связность хэндлеров.
+*   **TDD для сложной логики:** Покрытие тестами `AlbumBuffer` (с моками времени) и `gemini.py` (с моками API/сетей) позволило внедрить изменения без регрессий.
+*   **Комплексная документация:** Обновление `DECISIONS.md` и детальное ведение `SESSION_NOTES` превращает сессию в источник знаний, а не в «поток кода».
+
+### 2. Что пошло не так (Паттерны для избегания)
+*   **Игнорирование жизненного цикла контейнеров:** Ожидание, что `podman-compose up -d --no-deps` автоматически пересоздаст контейнер на новом образе. *Избегать: при деплое — принудительный stop/rm целевого контейнера.*
+*   **Сцепление состояний FSM и логики:** Попытки сброса состояния (state.clear) внутри бизнес-логики анализа почти привели к race condition в `AuditFlow`. *Избегать: управлять FSM только в хэндлерах, сервисы должны быть stateless.*
+
+### 3. Следующие 3 шага
+1.  **Commit & Backup:** `git add . && git commit -m "feat: multi-photo support, metrics and resilience"` (зафиксировать стабильный срез после успешного `./judge.sh`).
+2.  **Deployment Resilience:** Создать/обновить скрипт в `hooks/deploy_bot.sh` (автоматизирующий stop/rm/up), чтобы исключить человеческий фактор при обновлении образа.
+3.  **Observability:** Добавить в `bot/artifacts/dashboard_config.json` структуру для визуализации новых метрик (gemini/photo_analysis), чтобы начать использовать `/metrics` в мониторинге.
+
+---
+
+## Retrospective — 2026-06-10 14:13 [backend]
+
+### Изменения
+```
+.claude/session_end.sh            |   2 +-
+ AGENT.md                          |   6 +-
+ CLAUDE.md                         |  18 +-
+ DECISIONS.md                      | 194 ++++++++++
+ GEMINI.md                         |   6 +-
+ SESSION_STATE.md                  |  48 ++-
+ autoresearch.sh                   |   6 +-
+ bot/logseq/journals/2026_06_09.md | 586 ++++++++++++++++++++++++++++++
+ bot/src/config.py                 |   2 +
+ bot/src/services/odoo.py          |  88 +++--
+ bot/tests/test_odoo.py            | 198 +++++++---
+ config/collaboration.yaml         |   4 +-
+ hooks/llm_council.py              |   2 +-
+ hooks/run_pytest.sh               |   2 +-
+ 14 files changed, 1064 insertions(+), 98 deletions(-)
+```
+
+### Gemini Review
+🤖 [Gemini/backend] режим=retrospective модель=gemini-3.1-flash-lite
+---
+### 1. Что сделано хорошо (Паттерны для повторения)
+*   **Дисциплина тестирования:** Каждый багфикс и новая фича (буфер альбомов, даунскейл, метрики) сопровождались unit-тестами с моками (особенно `asyncio.sleep` и `gemini.generate_content`), что гарантирует стабильность `judge.sh`.
+*   **Атомарный деплой:** Переход к явному `stop` + `rm` + `up` для отдельного сервиса устранил риск использования устаревшего образа в `podman-compose`, сохранив Uptime остальных компонентов.
+*   **Архитектурный контроль:** Ведение `DECISIONS.md` и оперативное обновление `SESSION_STATE.md` позволяют быстро восстановить контекст сложного рефакторинга (буферизация, квоты, кэширование).
+*   **Наблюдаемость без зависимостей:** Внедрение метрик через in-process реестр (без prometheus-client) — правильный выбор для простоты стека и минимальной инвазивности.
+
+### 2. Что пошло не так (Паттерны для избегания)
+*   **Имплицитное поведение compose:** Ожидание, что `--no-deps` при `up` гарантирует пересоздание контейнера на новом образе, привело к ложному чувству деплоя (урок: при смене образа необходи## Retrospective 2026-06-10
+
+### 1. What Went Well (Patterns to Repeat)
+*   **Pipeline Unification:** Consolidating input processing into `_analyze_and_reply` and `_run_audit` eliminated duplication between single-photo, album, and document paths, ensuring uniform error handling, metrics, and cache behavior.
+*   **Atomic State Buffering:** The `AlbumBuffer` with debouncing and pre-flush `pop` effectively prevented race conditions and redundant processing in an `async` context.
+*   **Validation-First Loop:** Strictly adhering to the `judge.sh` + full test suite validation before finalizing work ensured zero regressions across 266 tests, despite significant architectural changes.
+*   **Mock-Driven Stability Testing:** Using `AsyncMock` to simulate Gemini/Redis failure modes (429, 503, timeout) enabled robust testing of retries and fallbacks without requiring network access or unstable real-world conditions.
+
+### 2. What Went Wrong (Patterns to Avoid)
+*   **Compose Lifecycle Trap:** Relying on `podman-compose up -d --no-deps` to update the `bot` service was insufficient, as it started the existing container instead of recreating it from the new image. **Fix:** Must explicitly `stop` and `rm` the container before `up`.
+*   **State Machine Fragility:** Initial bugs regarding `state.clear()` order in the audit flow highlighted the need for more rigorous testing of FSM transitions, especially regarding quota checks.
+*   **Test-Feature Divergence:** Rapid feature development outpaced test updates (e.g., the premium handler refactor), causing temporary test failures. **Fix:** Treat test updates as a mandatory component of the feature implementation phase, not a post-process cleanup.
+
+### 3. Priority Plan
+1.  **Commit Validated Changes:** [Directive] Execute `git add` and `git commit` for the validated changes in the 14 modified files to baseline the project.
+2.  **Odoo Report Stability:** [Verify] Run `pytest bot/tests/test_odoo.py` to ensure the substantial refactoring of Odoo service logic (88 lines modified) is fully integrated and robust under production-like scenarios.
+3.  **Logging Rotation Validation:** [Observe] Verify that the updated logging limits in `podman-compose.yml` are correctly applied to the new container instances by inspecting the log file sizes and rotation behavior on the host.
+
+---
