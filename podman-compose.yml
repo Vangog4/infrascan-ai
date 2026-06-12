@@ -110,8 +110,10 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     networks:
-      - bot-net
-      - npm_network   # lets Nginx Proxy Manager route /bot/webhook → bot:8080
+      bot-net:
+      npm_network:    # NPM routes /bot/webhook → infrascan-ai_bot (resolver+$var в 2.conf). Уникальный alias, НЕ общий "bot" (был конфликт с pepito)
+        aliases:
+          - infrascan-bot
     logging:
       driver: json-file
       options:

@@ -1,8 +1,8 @@
 # Agent Collaboration Registry — infrascan-ai
-# Три движка: Claude (оркестратор) + Gemini (специалист) + Kimi (аналитик)
-# Router: hooks/router.py  |  Scripts: hooks/gemini_agent.sh, /root/kimi_agent.sh
+# Четыре движка: Claude (оркестратор) + Gemini (специалист) + Kimi (аналитик) + Grok (realtime/независимое мнение)
+# Router: hooks/router.py  |  Scripts: hooks/gemini_agent.sh, /root/kimi_agent.sh, hooks/grok_agent.sh
 
-version: "2.0"
+version: "2.1"
 
 # ── Агенты ────────────────────────────────────────────────────────────────────
 
@@ -114,10 +114,51 @@ agents:
         - сравнение архитектурных вариантов
         - второе мнение перед крупными решениями
 
+  grok:
+    role: contrarian
+    description: >
+      Четвёртый движок (xAI Grok). CLI нет — ходим в OpenAI-совместимый
+      API api.x.ai через grok_client.py. Ниша: актуальные realtime-данные
+      (X/web) + независимое второе мнение с другой модельной школы,
+      чем Gemini/Kimi (полезно против группового мышления).
+    binary: grok  # официальный Grok Build CLI v0.2.45 (/root/.local/bin/grok)
+    model: grok-build  # дефолт подписки; переопределить env GROK_MODEL (см. `grok models`)
+    script: /root/agents/grok_agent.sh
+    auth: OAuth через подписку SuperGrok / X Premium+ (БЕЗ API-ключа)
+    login: "grok login --device-auth"  # device-code для headless-сервера (код+URL на телефон)
+    run_mode: "grok --permission-mode plan --prompt-file ... (read-only, агент не правит файлы)"
+    api_fallback: /root/agents/grok_client.py → api.x.ai (если есть XAI_API_KEY; не основной путь)
+    strengths:
+      - realtime-доступ к X / свежим веб-данным
+      - независимое рассуждение (другая модель → ломает confirmation bias)
+      - адвокат дьявола / контраргументы по архитектуре
+      - code review и redteam «вторым взглядом»
+    cost_tier: medium
+    modes:
+      review:   "git diff → code review"
+      analyze:  "файл/директория → анализ"
+      research: "актуальный поиск (realtime X/web)"
+      redteam:  "adversarial security audit diff"
+      council:  "независимое второе мнение / рассуждение"
+      draft:    "быстрый черновик/брейншторм"
+      swarm:    "МУЛЬТИ-АГЕНТ: оркестратор спавнит 8 параллельных read-only субагентов (по измерению аудита) → единый отчёт. Тюнинг GROK_SUBAGENTS / GROK_MAX_TURNS"
+      models:   "список доступных моделей xAI (проверка ключа)"
+    multiagent:
+      native_subagents: "включены по умолчанию (spawn_subagent); --no-subagents выключает"
+      best_of_n: "--best-of-n N — N параллельных прогонов задачи → выбор лучшего (headless)"
+      custom_agents: "--agents <JSON> / --agent <path.md> (frontmatter: name/description/permission_mode)"
+      bundled: "~/.grok/bundled/agents (explore) + skills (review/implement/design/execute-plan)"
+    projects:
+      all:
+        - второе мнение «с другой школы» перед крупными решениями
+        - актуальные данные из X/web в реальном времени
+        - контраргументы к плану (адвокат дьявола)
+    status: "CLI установлен (v0.2.45), интеграция готова; ждёт `grok login --device-auth` (подписка SuperGrok)"
+
 # ── Маршрутизация ─────────────────────────────────────────────────────────────
 
 routing:
-  priority_order: [claude_override, size_threshold, gemini_keywords, kimi_keywords, claude_default]
+  priority_order: [claude_override, size_threshold, gemini_keywords, kimi_keywords, grok_keywords, claude_default]
 
   claude_override:
     description: "Всегда Claude — мгновенные простые правки"
@@ -147,6 +188,12 @@ routing:
       - {priority: 5, keywords: [сравни, compare, trade-off, что лучше],             mode: compare}
       - {priority: 5, keywords: [второе мнение, council, посоветуй],                 mode: council}
       - {priority: 4, keywords: [черновик, draft, набросок, а что если],             mode: draft}
+
+  grok_keywords:
+    priority: 9-5
+    routes:
+      - {priority: 9, keywords: [grok, грок, x.com, twitter, твиттер, что в тренде, реалтайм, real-time], mode: research}
+      - {priority: 5, keywords: [независимое мнение, контраргумент, оспорь, адвоката дьявола, сыграй скептика], mode: council}
 
 # ── Хуки безопасности ────────────────────────────────────────────────────────
 
@@ -184,6 +231,14 @@ quick_reference:
     kimi_agent compare "Redis pub/sub vs Kafka"
     kimi_agent council "стоит ли переходить на webhook mode"
     kimi_agent research "aiogram 3.x FSM best practices 2025"
+  grok: |
+    grok login --device-auth                                # вход по подписке SuperGrok (headless)
+    bash hooks/grok_agent.sh models                         # проверка логина + список моделей
+    bash hooks/grok_agent.sh research "что в тренде в X про aiogram"
+    bash hooks/grok_agent.sh council "оспорь переход на webhook mode"
+    bash hooks/grok_agent.sh review                         # code review diff вторым взглядом
+    bash hooks/grok_agent.sh redteam
+    GROK_SUBAGENTS=8 bash hooks/grok_agent.sh swarm bot/src  # 8 параллельных субагентов → аудит
   router: |
     python3 hooks/router.py "описание задачи"
     echo '{"task":"...","files":["path"]}' | python3 hooks/router.py

@@ -123,3 +123,19 @@
 3. Тест premium flow (Telegram Stars)
 4. Odoo UI настройка (CRM views, bot report list)
 5. DogSensei: добавить ANTHROPIC_API_KEY в /root/dogsensei_bot/.env
+
+## Сессия: 2026-06-12 — 8-dimension read-only multi-agent code audit (bot/src) — ORCHESTRATOR START
+### Pre-flight (CLAUDE.md checklist)
+- SESSION_STATE + SESSION_NOTES прочитаны.
+- process_watch: все контейнеры RUNNING (db/web/bot), порты открыты, disk 84% (4.8G free) — OK.
+- git: ветка autoresearch/stack-health-2026-05-15, modified: DECISIONS/SESSION/podman-compose/config/collaboration + untracked journals + new hooks (grok/kimi_agent). Нет опасного мусора.
+- Структура bot/src: 12 handlers (client/employee/partner/common/serial_audit...), 14 services (gemini/odoo/album_buffer/image_prep/metrics/redis/premium/roles/...), 5 middlewares (role/ratelimit/geo/dedupe/logging), states/flows, keyboards/menus. bot/tests ~25 модулей (266 тестов по последним сессиям).
+- Recent context: album debounce+multi Gemini, image downscale, retry+fallback+metrics Gemini, FSM+Redis, Odoo XML-RPC only.
+
+### Запуск аудита
+- Ровно 8 read-only explore-субагентов запущены ПАРАЛЛЕЛЬНО одним вызовом (capability_mode=read-only, background=true).
+- IDs: 019eba5d-4ab9-76f0-93de-3a8720c9f8c0 (sec), ...4a9f9905bc5d (corr), ...75197d0b0aeb (perf), ...752b3e5cf0c9 (arch), ...7537a71be2d6 (conc), ...754e15f3e814 (resil), ...7558701960c1 (tests), ...4e3626286a31 (deps).
+- Измерения: 1.Security ... 8.Deps (как выше).
+- Каждый: только чтение, точный формат file:line → ... → SEVERITY → fix.
+- НИЧЕГО не модифицируется.
+- Сейчас: polling get_command_or_subagent_output (block) по всем 8. Синтез + дедуп + ТОП-5 после.
