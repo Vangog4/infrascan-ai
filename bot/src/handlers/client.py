@@ -191,7 +191,7 @@ async def _flush_album(
     _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
     try:
         prepared: list[tuple[bytes, str]] = [
-            image_prep.prepare_image(f["raw"], f["mime"]) for f in frames
+            await image_prep.prepare_image_async(f["raw"], f["mime"]) for f in frames
         ]
         await _analyze_and_reply(
             message,
@@ -536,7 +536,7 @@ async def audit_document(
         raw_bytes = file_io.read()
         # Downscale large/heavy images; hash is computed after preprocessing
         # inside the shared helper so cache keys match the analysed payload.
-        prepared_bytes, prepared_mime = image_prep.prepare_image(raw_bytes, mime)
+        prepared_bytes, prepared_mime = await image_prep.prepare_image_async(raw_bytes, mime)
     except Exception:
         _typing.cancel()
         await wait.delete()

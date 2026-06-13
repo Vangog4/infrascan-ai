@@ -9,6 +9,7 @@ temperature-scale text.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
 
@@ -62,3 +63,15 @@ def prepare_image(data: bytes, mime: str = "image/jpeg") -> tuple[bytes, str]:
     except Exception:  # noqa: BLE001 — broad: any corrupt/unsupported input
         logger.warning("image_prep: failed to decode/resize, passing original through")
         return data, mime
+
+
+async def prepare_image_async(data: bytes, mime: str = "image/jpeg") -> tuple[bytes, str]:
+    """Async wrapper around :func:`prepare_image`.
+
+    PIL decode/resize/encode is CPU-bound and synchronous; calling it directly
+    from an async handler blocks the event loop (and thus every other concurrent
+    user). Offload it to the default thread-pool executor so the loop stays
+    responsive. The result is identical to the sync call.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, prepare_image, data, mime)

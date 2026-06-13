@@ -130,8 +130,12 @@ def _state(data=None):
 async def _drain():
     import asyncio
 
+    # The album flush offloads PIL preprocessing to a thread-pool executor
+    # (prepare_image_async). A bare sleep(0) only yields once on the loop and may
+    # not let the executor future resolve, so include short real sleeps too.
     for _ in range(5):
         await asyncio.sleep(0)
+        await asyncio.sleep(0.01)
 
 
 @pytest.mark.asyncio

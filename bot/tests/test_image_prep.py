@@ -1,7 +1,10 @@
 """Tests for image_prep.prepare_image downscaling logic."""
 
+import asyncio
 import io
+import time
 
+import pytest
 from PIL import Image
 from src.services import image_prep
 
@@ -61,3 +64,45 @@ def test_corrupt_input_returns_original():
     out, mime = image_prep.prepare_image(data, "image/png")
     assert out is data
     assert mime == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_prepare_image_async_matches_sync():
+    """The async wrapper must return a byte-for-byte identical result."""
+    data = _png_bytes(4000, 3000)
+    sync_out = image_prep.prepare_image(data, "image/png")
+    async_out = await image_prep.prepare_image_async(data, "image/png")
+    assert async_out == sync_out
+
+
+@pytest.mark.asyncio
+async def test_prepare_image_async_does_not_block_event_loop():
+    """A heavy preprocess offloaded to the executor must not stall the loop.
+
+    A concurrent ticker keeps incrementing on a 1ms cadence; if the resize ran
+    inline on the loop thread it would freeze the ticker for the whole encode.
+    We require the ticker to keep advancing while preprocessing runs.
+    """
+    data = _png_bytes(4000, 3000)
+    ticks = 0
+    stop = False
+
+    async def _ticker():
+        nonlocal ticks
+        while not stop:
+            ticks += 1
+            await asyncio.sleep(0.001)
+
+    ticker_task = asyncio.create_task(_ticker())
+    await asyncio.sleep(0.005)  # let the ticker spin up
+    before = ticks
+    t0 = time.monotonic()
+    await image_prep.prepare_image_async(data, "image/png")
+    elapsed = time.monotonic() - t0
+    stop = True
+    await ticker_task
+
+    # If the encode blocked the loop, the ticker could not have advanced during
+    # a non-trivial preprocess. Require forward progress when it took real time.
+    if elapsed > 0.005:
+        assert ticks > before
