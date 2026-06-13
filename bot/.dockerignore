@@ -1,0 +1,45 @@
+# Secrets — must NEVER enter the build context
+.env
+*.env
+secrets/
+*.key
+*.pem
+admin_passwd
+
+# Python caches / build artefacts
+__pycache__/
+*.py[oc]
+*.pyo
+build/
+dist/
+wheels/
+*.egg-info/
+.python-version
+
+# Virtual environments
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Tests (not needed in the runtime image)
+tests/
+
+# Logs, backups, run artefacts
+*.log
+logs/
+backups/
+artifacts/
+
+# Logseq journals / editor locks / docs
+logseq/
+*.lock
+*.md
+
+# Local tooling / VCS / OS noise
+.git/
+.gitignore
+.DS_Store
+node_modules/
+package-lock.json

@@ -20,4 +20,21 @@ RUN uv sync --frozen
 
 ENV PYTHONUNBUFFERED=1
 
+# TODO(non-root): run as an unprivileged user to reduce blast radius. The build
+# context is already sanitized via .dockerignore (no .env/secrets/journals). A
+# non-root switch is NOT applied here because it cannot be verified in this
+# session (image build/start is the orchestrator's responsibility, and touching
+# containers is out of scope). When applied, it must be validated to BUILD and
+# START cleanly. Prepared snippet to add right before CMD:
+#
+#   ENV UV_CACHE_DIR=/app/.uv-cache HOME=/app
+#   RUN useradd --create-home --uid 10001 appuser \
+#       && mkdir -p /app/.uv-cache \
+#       && chown -R appuser:appuser /app
+#   USER appuser
+#
+# Risk to verify: `uv run` revalidates the venv at startup and may need a
+# writable cache/HOME (hence UV_CACHE_DIR + HOME) — confirm /health passes
+# under the new UID before shipping.
+
 CMD ["uv", "run", "python", "-m", "src.bot"]
