@@ -25,8 +25,11 @@ _BACKOFF_BASE = 0.5  # seconds: 0.5s, 1s ... (× jitter)
 # auth errors and must NOT be retried.
 _TRANSIENT_HTTP = {429, 502, 503, 504}
 # httpx network/timeout errors are transient (connection reset, DNS hiccup,
-# read timeout). httpx.HTTPStatusError is handled via status code, not here.
-_TRANSIENT_EXC = (httpx.TimeoutException, httpx.TransportError)
+# read timeout, pool issues). httpx.RequestError is the base for all
+# request-side failures (TimeoutException/ConnectError/ReadError/… subclass it)
+# and excludes HTTPStatusError — we never raise that since status is checked
+# manually below.
+_TRANSIENT_EXC = (httpx.RequestError,)
 
 
 class _TransientError(Exception):

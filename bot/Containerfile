@@ -27,14 +27,13 @@ ENV PYTHONUNBUFFERED=1
 # containers is out of scope). When applied, it must be validated to BUILD and
 # START cleanly. Prepared snippet to add right before CMD:
 #
-#   ENV UV_CACHE_DIR=/app/.uv-cache HOME=/app
-#   RUN useradd --create-home --uid 10001 appuser \
-#       && mkdir -p /app/.uv-cache \
-#       && chown -R appuser:appuser /app
+#   RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
 #   USER appuser
+#   CMD ["uv", "run", "--no-sync", "python", "-m", "src.bot"]
 #
-# Risk to verify: `uv run` revalidates the venv at startup and may need a
-# writable cache/HOME (hence UV_CACHE_DIR + HOME) — confirm /health passes
-# under the new UID before shipping.
+# `--no-sync` makes `uv run` skip startup revalidation (no network, no cache
+# write), so the runtime user needs no writable UV_CACHE_DIR/HOME — avoids
+# granting write to system caches. The venv is already built by `uv sync
+# --frozen` above. Verify /health passes under the new UID before shipping.
 
 CMD ["uv", "run", "python", "-m", "src.bot"]

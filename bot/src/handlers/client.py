@@ -55,6 +55,12 @@ router = Router(name="client")
 
 _SEP = "━━━━━━━━━━━━━━━━━━━━━"
 
+# Strong references to in-flight fire-and-forget tasks. asyncio keeps only a
+# weak reference to a task, so without this the GC may collect a detached task
+# mid-flight ("Task was destroyed but it is pending!") and silently lose the
+# work. Tasks remove themselves on completion (see _supervise_task).
+_background_tasks: set[asyncio.Task] = set()
+
 
 def _supervise_task(task: asyncio.Task, *, name: str) -> None:
     """Attach a done-callback so a fire-and-forget task never fails silently.
@@ -64,9 +70,14 @@ def _supervise_task(task: asyncio.Task, *, name: str) -> None:
     exception inside such a task is swallowed by the event loop and the data is
     lost while the user's quota was already charged. The callback logs the
     traceback and bumps a metric so the loss is observable (alertable), not mute.
+
+    A strong reference is held in ``_background_tasks`` until completion so the
+    GC cannot collect the task before it finishes.
     """
+    _background_tasks.add(task)
 
     def _on_done(t: asyncio.Task) -> None:
+        _background_tasks.discard(t)
         if t.cancelled():
             return
         exc = t.exception()
@@ -220,9 +231,13 @@ async def _flush_album(
     wait = await message.answer(t("analyzing", locale))
     _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
     try:
-        prepared: list[tuple[bytes, str]] = [
-            await image_prep.prepare_image_async(f["raw"], f["mime"]) for f in frames
-        ]
+        # gather (not a sequential await-comprehension) so album frames are
+        # preprocessed concurrently across the thread-pool; order is preserved.
+        prepared: list[tuple[bytes, str]] = list(
+            await asyncio.gather(
+                *(image_prep.prepare_image_async(f["raw"], f["mime"]) for f in frames)
+            )
+        )
         await _analyze_and_reply(
             message,
             bot,

@@ -92,10 +92,19 @@ async def consume_scan(user_id: int) -> bool:
     consume the slot). The current hot-path intentionally charges only after a
     successful analysis, so wiring this in requires deciding on a refund path —
     see the TODO in ``handlers/client._check_quota``.
+
+    TODO(lua): INCR + EXPIRE are two round-trips; the ideal is a single Lua
+    script (INCR, set EXPIRE if first, check limit, DECR on overflow) so the
+    whole operation is atomic even across a crash. As a defensive stopgap we
+    (re)apply the TTL whenever the key is found without one — so a crash between
+    INCR and EXPIRE cannot permanently strand the counter (which would lock the
+    user out of free scans forever).
     """
     key = _SCANS_KEY.format(user_id)
     count = await _r().incr(key)
-    if count == 1:
+    # Ensure a TTL exists: on the first scan, or if a prior crash left the key
+    # without an expiry. ttl() < 0 means "no expiry set" (-1) / "no key" (-2).
+    if count == 1 or await _r().ttl(key) < 0:
         await _r().expire(key, _seconds_until_midnight_utc())
     if count > settings.free_daily_scans:
         # Over the limit — give the slot back and refuse.

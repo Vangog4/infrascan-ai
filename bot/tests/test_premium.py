@@ -144,6 +144,20 @@ async def test_consume_scan_sets_ttl_on_first(mock_redis):
 
 
 @pytest.mark.asyncio
+async def test_consume_scan_reapplies_missing_ttl(mock_redis):
+    """A prior crash left the counter without a TTL → next consume re-sets it.
+
+    Without this the key would never expire and lock the user out of free scans
+    forever. We simulate it by seeding a counter with no TTL entry.
+    """
+    mock_redis._store["scans:504"] = "1"  # exists, but no entry in _ttls
+    assert "scans:504" not in mock_redis._ttls
+    granted = await svc.consume_scan(504)
+    assert granted is True
+    assert "scans:504" in mock_redis._ttls  # TTL recovered
+
+
+@pytest.mark.asyncio
 async def test_consume_scan_concurrent_never_overruns(mock_redis):
     """N concurrent consumers, free_daily_scans slots → exactly that many True.
 
