@@ -110,6 +110,57 @@ async def test_increment_scan_accumulates(mock_redis):
     assert count == 3
 
 
+# ── consume_scan (atomic, TOCTOU-safe) ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_consume_scan_grants_until_limit(mock_redis):
+    from src.config import settings
+
+    limit = settings.free_daily_scans
+    # Exactly `limit` consumptions succeed.
+    for _ in range(limit):
+        assert await svc.consume_scan(500) is True
+    assert mock_redis._store.get("scans:500") == str(limit)
+
+
+@pytest.mark.asyncio
+async def test_consume_scan_refuses_over_limit_and_rolls_back(mock_redis):
+    from src.config import settings
+
+    limit = settings.free_daily_scans
+    for _ in range(limit):
+        assert await svc.consume_scan(501) is True
+    # One past the limit must be refused AND not leave the counter inflated.
+    assert await svc.consume_scan(501) is False
+    assert mock_redis._store.get("scans:501") == str(limit)
+
+
+@pytest.mark.asyncio
+async def test_consume_scan_sets_ttl_on_first(mock_redis):
+    assert await svc.consume_scan(502) is True
+    assert "scans:502" in mock_redis._ttls
+    assert 1 <= mock_redis._ttls["scans:502"] <= 86400
+
+
+@pytest.mark.asyncio
+async def test_consume_scan_concurrent_never_overruns(mock_redis):
+    """N concurrent consumers, free_daily_scans slots → exactly that many True.
+
+    Redis INCR is atomic (single value per caller), so even with all coroutines
+    racing, the number of granted scans equals the limit — never more.
+    """
+    import asyncio
+
+    from src.config import settings
+
+    limit = settings.free_daily_scans
+    n = limit + 8
+    results = await asyncio.gather(*(svc.consume_scan(503) for _ in range(n)))
+    assert sum(results) == limit
+    assert int(mock_redis._store["scans:503"]) == limit
+
+
 @pytest.mark.asyncio
 async def test_scans_remaining_full_for_new_user(mock_redis):
     from src.config import settings

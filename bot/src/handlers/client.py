@@ -107,6 +107,15 @@ async def _check_quota(
 
     Returns ``(allowed, is_prem, used_bonus)``. When ``allowed`` is False the
     upgrade/limit message has already been sent to the user.
+
+    TODO(quota-toctou): this still uses the non-atomic check (``scans_remaining``
+    here) + later charge (``increment_scan`` in ``_analyze_and_reply``). Two
+    concurrent photos can both pass the check before either increments, briefly
+    overrunning ``free_daily_scans``. An atomic, race-free primitive now exists —
+    ``premium.consume_scan`` (INCR-reserve + rollback) — but wiring it in changes
+    the "charge only after a *successful* analysis" semantics (a failed Gemini
+    call would consume the slot) and would need a refund-on-failure path plus a
+    rewrite of the quota tests. Deferred to keep prod green; see premium.py.
     """
     is_prem = await premium_svc.is_premium(user_id)
     used_bonus = False

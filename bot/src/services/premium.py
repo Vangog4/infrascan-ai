@@ -74,6 +74,36 @@ async def increment_scan(user_id: int) -> int:
     return count
 
 
+async def consume_scan(user_id: int) -> bool:
+    """Atomically claim one free daily scan. Returns True if granted.
+
+    This is the race-free counterpart to the ``scans_remaining`` (check) +
+    ``increment_scan`` (later charge) split, which has a TOCTOU window: two
+    concurrent photos can both read ``remaining > 0`` before either increments,
+    overrunning ``free_daily_scans``.
+
+    Pattern: a single ``INCR`` reserves the slot atomically (Redis is
+    single-threaded, so the returned value is unique per caller). If the
+    post-increment count exceeds the limit, the reservation is rolled back with
+    ``DECR`` and the scan is refused. The TTL is set on the first increment of
+    the day so the counter resets at midnight UTC.
+
+    NOTE: this charges the scan *before* analysis (a failed analysis would still
+    consume the slot). The current hot-path intentionally charges only after a
+    successful analysis, so wiring this in requires deciding on a refund path —
+    see the TODO in ``handlers/client._check_quota``.
+    """
+    key = _SCANS_KEY.format(user_id)
+    count = await _r().incr(key)
+    if count == 1:
+        await _r().expire(key, _seconds_until_midnight_utc())
+    if count > settings.free_daily_scans:
+        # Over the limit — give the slot back and refuse.
+        await _r().decr(key)
+        return False
+    return True
+
+
 async def scans_remaining(user_id: int) -> int:
     used = await get_scans_today(user_id)
     return max(0, settings.free_daily_scans - used)

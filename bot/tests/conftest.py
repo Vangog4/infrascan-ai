@@ -26,6 +26,11 @@ class FakeRedis:
         self._store[key] = str(val)
         return val
 
+    async def decr(self, key: str) -> int:
+        val = int(self._store.get(key, "0")) - 1
+        self._store[key] = str(val)
+        return val
+
     async def expire(self, key: str, seconds: int) -> None:
         self._ttls[key] = seconds
 
