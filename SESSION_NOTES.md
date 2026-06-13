@@ -1,5 +1,25 @@
 # SESSION_NOTES — InfraScan AI
 
+## Сессия: 13.06.2026 — docs/PROJECT_OVERVIEW.md + README.md (детальное описание проекта на GitHub)
+
+### Задача
+Собрать полное описание InfraScan AI из кода (не выдумывая), залить на GitHub (Vangog4/infrascan-ai). Пользователь явно разрешил git push.
+
+### Что делаю
+- Изучил по факту: bot/src/ (bot.py, config.py, handlers/, services/, middlewares/), addons/infrascan_ai/, podman-compose.yml, pyproject.toml, config/collaboration.yaml, память Android-проекта.
+- Мультиагент: запустил `bash hooks/kimi_agent.sh analyze bot/src` в фоне — движок вернул ПУСТОЙ вывод (нет ответа/таймаут). Не блокируюсь, описываю по своему чтению кода (как и предусмотрено заданием).
+- Пишу docs/PROJECT_OVERVIEW.md (RU, 12 разделов с оглавлением) + создаю корневой README.md (его нет, хотя pyproject ссылается).
+- Секреты НЕ раскрываю (токены/пароли/ключи/реальные tg-id).
+
+### Ключевые факты (для документа)
+- Odoo-интеграция бота = JSON-2 REST (Bearer), НЕ XML-RPC (CLAUDE.md устарел). Ретраи transient (429/502/503/504 + сеть), fallback на project.task при отсутствии crm.lead.
+- Gemini: ретраи на primary + fallback-модель (GEMINI_FALLBACK_MODEL=gemini-2.5-flash-lite), метрики Prometheus /metrics, sanitize голосового контекста против prompt-injection.
+- premium.consume_scan (атомарный INCR+rollback) есть, но в hot-path ещё НЕ вплетён (TODO в client._check_quota — TOCTOU).
+- Контейнеры: db (pgvector pg17), web (odoo:19), redis (7-alpine), bot. Сети odoo-internal(internal)/bot-net/npm_network. WebApp + /health + /metrics + webhook на 8080.
+
+### Следующий шаг
+Закоммитить doc-only (PROJECT_OVERVIEW + README + журнал) на текущей ветке autoresearch/stack-health-2026-05-15, git push.
+
 ## Сессия: 09.06.2026 — фиксы кросс-модельного ревью (Gemini, коммит df1fb08)
 
 ### Что сделано (6 находок ревью, все валидны)
@@ -124,6 +144,27 @@
 4. Odoo UI настройка (CRM views, bot report list)
 5. DogSensei: добавить ANTHROPIC_API_KEY в /root/dogsensei_bot/.env
 
+## Сессия: 2026-06-13 — черновик фичи «Одно предложение + мульти-агентный аудит» (для клиентского отчёта)
+
+### Что сделано
+- Прочитаны SESSION_STATE + SESSION_NOTES, структура hooks (router.py, grok_agent.sh swarm/draft, llm_council.py), collaboration.yaml (4 движка), bot/src/services/gemini.py (схема free_verdict / premium_analysis, _run_audit, analyze_*), client.py (пайплайн _analyze_and_reply), i18n.
+- Выявлено: текущий free_verdict — уже 2-3 предложения; есть QC с "одним предложением" в reason. Мульти-агент сильно развит в dev (swarm 8-мерный read-only audit Grok + council Claude/Gemini), но не используется в product analysis.
+- Задача бэклога релевантна: ANTHROPIC_API_KEY (DogSensei Claude) + EMPLOYEE_GPS/routing позже.
+- Подготовлен быстрый черновик дизайна (см. ниже в чате). Черновик следует шаблону из grok_agent.sh:draft mode.
+
+### Ключевые решения
+- Фича для **продукта** (анализ фото → Odoo/PDF/Telegram), а не только dev: "Одно предложение" как crisp executive summary + слой cross-audit для повышения доверия (критично для тепловизионных отчётов).
+- Рекомендация: sequential text-only auditor (Anthropic Claude) только на premium, primary — Gemini Vision остаётся. Одно предложение — всегда (даже free).
+- Trade-off принят: +надёжность и премиум-ценность vs +~20-30% cost/latency на премиум-сканах (только text secondary).
+
+### Открыто / Следующие шаги
+- Утвердить черновик у пользователя.
+- Если ок: добавить ANTHROPIC в config, новый auditor service (или переиспользовать council), расширить JSON-схему, обновить рендереры + pdf, тесты, метрики.
+- После реализации: judge + redeploy bot (stop/rm + up --no-deps).
+- Зафиксировать в DECISIONS.md и Logseq (2026_06_13.md).
+
+---
+
 ## Сессия: 2026-06-12 — 8-dimension read-only multi-agent code audit (bot/src) — ORCHESTRATOR START
 ### Pre-flight (CLAUDE.md checklist)
 - SESSION_STATE + SESSION_NOTES прочитаны.
@@ -139,3 +180,20 @@
 - Каждый: только чтение, точный формат file:line → ... → SEVERITY → fix.
 - НИЧЕГО не модифицируется.
 - Сейчас: polling get_command_or_subagent_output (block) по всем 8. Синтез + дедуп + ТОП-5 после.
+### Результаты 8 субагентов (прочитано)
+Все 8 вернулись (ids в предыдущей записи). Каждый в точном формате file:line → проблема → SEVERITY → фикс. ~40-50 сырых находок; после дедупа ~22 уникальных (overlap по Odoo shape/[0], raw Redis в common+bot, serial/employee file handling, Pillow blocking, post-Gemini orphan save, dockerfile: key, quota race, bg loops, prompt inj voice, no config validation, no non-root, tests gaps serial+reports+employee-receive).
+Ключевые кластеры по severity (полный отчёт в ответе orchestrator'а):
+- HIGH (5-6): prompt injection (gemini voice prefix), Pillow sync block event loop (image_prep), per-emp Odoo poll N+1, client fire-and-forget save_report post-Gemini (orphan), serial_audit zero coverage + no guards/FSM leak.
+- MED (12+): Odoo brittle [0]/project_id bare, raw Redis+private _call в common.py, orphaned partner.router, webapp key entropy, no Odoo retry (cf Gemini), bare TG except loops, quota check-consume race, seen non-atomic, no outer Gemini timeout, employee/serial direct download bypass services, employee photo receive partial tests, reports.py zero tests, Redis hard-dep no containment, config no startup key validation, Containerfile root, dockerfile: naming.
+- LOW: i18n fallback UX, some >= pins, odoo.conf creds hygiene, error string leaks.
+Позитивы (повторяющиеся): Gemini retry/fallback/metrics отличные, album pop-first+pre-dl gate+idempotent, Odoo _call safe None, Router+RedisStorage+services only Odoo, кэш до вызова, setnx, healthchecks, uv frozen/lock, external volumes, .env ignored, judge gate, middleware injection.
+### ТОП-5 приоритетных действий (синтез)
+1. (HIGH, resil+perf+corr+conc) Добавить retry wrapper в odoo._call (только transient, как в Gemini); сделать client save_report/attach после Gemini awaited (или Redis queue + worker) вместо create_task fire-forget. Добавить метрику failure + subtle notice при фейле.
+2. (HIGH, perf+conc) Вынести prepare_image (PIL LANCZOS + reencode) из async в run_in_executor (как tts.py). Применить в album flush + document path.
+3. (HIGH, tests) Добавить test_serial_audit.py (collect/QC/analyze/cancel/edge), test_reports.py, расширить test_employee на photo_receive + _attach (с injection Odoo/Gemini fail), + тесты Redis-down для role/premium/ratelimit + FSM transition matrix.
+4. (MED/HIGH, arch+sec+deps) Зафиксировать partner.router include в bot.py (или удалить); вынести сырой Redis + odoo._call из common.py в сервисы; централизовать bot.download + bytes handling в image_prep/album_buffer (чтобы employee/serial не обходили); задокументировать/исправить "dockerfile:" ключ в compose.
+5. (MED, deps+arch+resil) Добавить non-root USER в Containerfile (post-uv); добавить model_validator / startup assert в config.py для GEMINI_API_KEY (!stub), odoo creds, webhook_secret (когда url set); добавить asyncio.timeout вокруг Gemini generate + supervision/jitter для bg loops в bot.py.
+Далее: обновить DECISIONS.md кратко; после любых правок — judge.sh + process_watch + redeploy bot (stop/rm + up --no-deps). Ничего не правлено в этой сессии (read-only).
+
+## Важный шаг сессии (2026-06-12): Второе мнение по swarm 8 vs 4
+Получено независимое мнение (Grok, другая модельная школа) по swarm-режиму субагентов. Вопрос: 8 параллельных read-only explore в swarm или лучше 4 по умолчанию? Полный структурированный ответ ниже в чате. Краткий резюме для памяти: для bot/src (~42 файла, ~5k LOC) 8 избыточны — сильный overlap (до ~50%), синтез/дедуп становится отдельной тяжёлой работой, узкие измерения теряют системный контекст. Полезные HIGH находки были, но ROI низкий. Рекомендация: условно НЕТ — дефолт GROK_SUBAGENTS=4 (широкие измерения), 8 только явно для initial broad-аудита большого неизвестного репо. Риски: context fragmentation, correlated blind spots, orchestration overhead, synthesis errors. Альтернативы: Kimi full-repo + 1-2 targeted Grok council, best_of_n, 4 широких агента. Следующий шаг: после этого совета рассмотреть правку дефолта в hooks/grok_agent.sh + collaboration.yaml + CLAUDE.md. Ничего не правлено кодом (только анализ + notes).
