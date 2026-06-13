@@ -34,8 +34,9 @@ artifacts/
 
 # Logseq journals / editor locks / docs
 logseq/
-*.lock
 *.md
+# NB: НЕ исключать *.lock — это выкинет bot/uv.lock из build-context и сломает
+# `COPY ... uv.lock*` + `uv sync --frozen`. Logseq-локи покрыты строкой logseq/ выше.
 
 # Local tooling / VCS / OS noise
 .git/
