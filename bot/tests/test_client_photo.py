@@ -354,3 +354,53 @@ async def test_lead_contact_odoo_fails_notifies_admin():
         mock_settings.premium_price_stars = 150
         await lead_contact(msg, state=state, bot=bot)
     bot.send_message.assert_called_once()
+
+
+# ── _supervise_task: fire-and-forget tasks must not fail silently ───────────
+
+
+@pytest.mark.asyncio
+async def test_supervise_task_logs_and_counts_on_exception():
+    """A supervised background task that raises → logged + metric incremented."""
+    import asyncio
+
+    from src.handlers import client
+    from src.services import metrics
+
+    metrics.reset()
+
+    async def _boom():
+        raise RuntimeError("odoo down")
+
+    with patch.object(client.logger, "error") as log_err:
+        task = asyncio.create_task(_boom())
+        client._supervise_task(task, name="save_report")
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+    log_err.assert_called_once()
+    out = metrics.render()
+    assert 'background_task_failures_total{task="save_report"}' in out
+
+
+@pytest.mark.asyncio
+async def test_supervise_task_silent_on_success():
+    """A supervised task that succeeds → no error log, no failure metric."""
+    import asyncio
+
+    from src.handlers import client
+    from src.services import metrics
+
+    metrics.reset()
+
+    async def _ok():
+        return 1
+
+    with patch.object(client.logger, "error") as log_err:
+        task = asyncio.create_task(_ok())
+        client._supervise_task(task, name="save_report")
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+    log_err.assert_not_called()
+    assert "background_task_failures_total" not in metrics.render()

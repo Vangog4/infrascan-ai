@@ -32,6 +32,10 @@ _DEFS: dict[str, tuple[str, str]] = {
         "Photo analyze/quality results by kind and outcome",
     ),
     "photo_cache_total": ("counter", "Photo analysis cache lookups by result (hit/miss)"),
+    "background_task_failures_total": (
+        "counter",
+        "Fire-and-forget background task failures by task name (e.g. save_report)",
+    ),
 }
 
 # counters: name → {labelkey → value}

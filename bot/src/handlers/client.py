@@ -56,6 +56,27 @@ router = Router(name="client")
 _SEP = "━━━━━━━━━━━━━━━━━━━━━"
 
 
+def _supervise_task(task: asyncio.Task, *, name: str) -> None:
+    """Attach a done-callback so a fire-and-forget task never fails silently.
+
+    Background persistence (Odoo report save, reminder scheduling) runs detached
+    so the user's reply is not delayed by Odoo latency. Without supervision an
+    exception inside such a task is swallowed by the event loop and the data is
+    lost while the user's quota was already charged. The callback logs the
+    traceback and bumps a metric so the loss is observable (alertable), not mute.
+    """
+
+    def _on_done(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            metrics.inc("background_task_failures_total", {"task": name})
+            logger.error("background task %r failed: %s", name, exc, exc_info=exc)
+
+    task.add_done_callback(_on_done)
+
+
 # ── Photo Audit ───────────────────────────────────────────────────────────────
 
 
@@ -404,9 +425,17 @@ async def _analyze_and_reply(
         await message.answer(cmp_text, parse_mode="HTML")
     await save_last_analysis(user_id, result)
 
-    # Save to report history and schedule follow-up reminder (fire-and-forget)
-    asyncio.create_task(odoo.save_report(str(message.from_user.id), result))
-    asyncio.create_task(schedule_reminder(user_id, delay_days=30))
+    # Save to report history and schedule follow-up reminder (fire-and-forget).
+    # Supervised: a failure here (e.g. Odoo down) would otherwise lose the report
+    # silently while the user's quota was already charged — log + metric instead.
+    _supervise_task(
+        asyncio.create_task(odoo.save_report(str(message.from_user.id), result)),
+        name="save_report",
+    )
+    _supervise_task(
+        asyncio.create_task(schedule_reminder(user_id, delay_days=30)),
+        name="schedule_reminder",
+    )
 
     # Referral first-scan reward (idempotent, fires once per new user)
     await ref_svc.reward_first_scan(user_id, bot)
