@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from src.services import odoo
 
@@ -218,6 +219,81 @@ async def test_call_valid_json_passthrough():
     with _patch_client(resp):
         result = await odoo._call("res.partner", "search_read", domain=[])
     assert result == [{"id": 1}]
+
+
+# ─── _call retry on transient failures ──────────────────────────────────────
+
+
+def _patch_client_seq(side_effect):
+    """Patch _get_client so post() yields a sequence (responses or exceptions)."""
+    fake_client = AsyncMock()
+    fake_client.post = AsyncMock(side_effect=side_effect)
+    return fake_client, patch("src.services.odoo._get_client", return_value=fake_client)
+
+
+@pytest.mark.asyncio
+async def test_call_retries_transient_http_then_succeeds(monkeypatch):
+    """HTTP 503 (transient) is retried; a following 200 succeeds."""
+    monkeypatch.setattr("src.services.odoo.asyncio.sleep", AsyncMock())
+    ok = _FakeResp(status_code=200, content_type="application/json", json_data=[{"id": 9}])
+    bad = _FakeResp(status_code=503, text="overloaded")
+    fake_client, ctx = _patch_client_seq([bad, ok])
+    with ctx:
+        result = await odoo._call("res.partner", "search_read", domain=[])
+    assert result == [{"id": 9}]
+    assert fake_client.post.await_count == 2  # one retry
+
+
+@pytest.mark.asyncio
+async def test_call_retries_transient_network_then_succeeds(monkeypatch):
+    """A network/timeout error is transient → retried, then succeeds."""
+    monkeypatch.setattr("src.services.odoo.asyncio.sleep", AsyncMock())
+    ok = _FakeResp(status_code=200, content_type="application/json", json_data={"ok": 1})
+    fake_client, ctx = _patch_client_seq([httpx.ConnectError("reset"), ok])
+    with ctx:
+        result = await odoo._call("res.partner", "read", ids=[1])
+    assert result == {"ok": 1}
+    assert fake_client.post.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_call_transient_exhausts_attempts_returns_none(monkeypatch):
+    """All attempts transiently fail → None after _MAX_ATTEMPTS tries."""
+    monkeypatch.setattr("src.services.odoo.asyncio.sleep", AsyncMock())
+    bad = _FakeResp(status_code=502, text="bad gateway")
+    fake_client, ctx = _patch_client_seq([bad, bad, bad, bad])
+    with ctx:
+        result = await odoo._call("res.partner", "search_read", domain=[])
+    assert result is None
+    assert fake_client.post.await_count == odoo._MAX_ATTEMPTS
+
+
+@pytest.mark.asyncio
+async def test_call_4xx_not_retried(monkeypatch):
+    """A 4xx is a non-transient client/auth error → None, no retry."""
+    sleep = AsyncMock()
+    monkeypatch.setattr("src.services.odoo.asyncio.sleep", sleep)
+    bad = _FakeResp(status_code=403, text="forbidden")
+    fake_client, ctx = _patch_client_seq([bad, bad])
+    with ctx:
+        result = await odoo._call("res.partner", "search_read", domain=[])
+    assert result is None
+    assert fake_client.post.await_count == 1  # no retry
+    sleep.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_call_non_json_200_not_retried(monkeypatch):
+    """Expired-session non-JSON 200 is non-transient → None, no retry."""
+    sleep = AsyncMock()
+    monkeypatch.setattr("src.services.odoo.asyncio.sleep", sleep)
+    html = _FakeResp(status_code=200, content_type="text/html", text="<html>Login</html>")
+    fake_client, ctx = _patch_client_seq([html, html])
+    with ctx:
+        result = await odoo._call("res.partner", "search_read", domain=[])
+    assert result is None
+    assert fake_client.post.await_count == 1
+    sleep.assert_not_awaited()
 
 
 # ─── P3b: leads_project_id config ───────────────────────────────────────────

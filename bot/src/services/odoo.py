@@ -4,7 +4,9 @@ POST /json/2/{model}/{method}  •  Authorization: Bearer <api_key>
 Lead fallback: project.task in project_id=1 when crm.lead unavailable.
 """
 
+import asyncio
 import logging
+import random
 from typing import Any
 
 import httpx
@@ -14,6 +16,21 @@ from src.config import settings
 logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
+
+# Retry policy for transient failures only. Non-transient failures (4xx, an
+# expired-session non-JSON 200) are NOT retried — they return None as before.
+_MAX_ATTEMPTS = 3  # total attempts (1 initial + 2 retries)
+_BACKOFF_BASE = 0.5  # seconds: 0.5s, 1s ... (× jitter)
+# HTTP statuses worth retrying: gateway/overload/rate-limit. 4xx are caller/
+# auth errors and must NOT be retried.
+_TRANSIENT_HTTP = {429, 502, 503, 504}
+# httpx network/timeout errors are transient (connection reset, DNS hiccup,
+# read timeout). httpx.HTTPStatusError is handled via status code, not here.
+_TRANSIENT_EXC = (httpx.TimeoutException, httpx.TransportError)
+
+
+class _TransientError(Exception):
+    """Internal marker: the attempt failed transiently and may be retried."""
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -44,46 +61,91 @@ def _first_id(result: object) -> int | None:
     return None
 
 
+async def _attempt(client: httpx.AsyncClient, model: str, method: str, kwargs: dict) -> Any:
+    """Single request attempt.
+
+    Returns the parsed result on success, ``None`` on a *non-transient* failure
+    (4xx, non-JSON 200 = expired session), and raises :class:`_TransientError` on a
+    *transient* failure (network/timeout, HTTP 429/502/503/504) so the caller
+    can retry. The public semantics (success value / None) are unchanged.
+    """
+    try:
+        resp = await client.post(f"/json/2/{model}/{method}", json=kwargs)
+    except _TRANSIENT_EXC as e:
+        raise _TransientError(f"{type(e).__name__}: {e}") from e
+
+    if resp.status_code != 200:
+        if resp.status_code in _TRANSIENT_HTTP:
+            raise _TransientError(f"HTTP {resp.status_code}")
+        logger.warning("Odoo %s.%s → HTTP %d: %s", model, method, resp.status_code, resp.text[:300])
+        return None
+    # A 200 does not guarantee JSON: an expired session can yield the Odoo
+    # login HTML page (text/html). Parsing that as JSON would raise and
+    # bubble up. Treat any non-JSON / unexpected body as an API failure
+    # (same safe None as the error paths) and log a slice of the body.
+    # This is NOT transient — retrying with a dead session would not help.
+    content_type = resp.headers.get("content-type", "")
+    if "json" not in content_type.lower():
+        logger.error(
+            "Odoo %s.%s → unexpected content-type %r: %s",
+            model,
+            method,
+            content_type,
+            resp.text[:300],
+        )
+        return None
+    try:
+        return resp.json()
+    except ValueError as e:
+        logger.error(
+            "Odoo %s.%s → non-JSON 200 body (%s): %s",
+            model,
+            method,
+            e,
+            resp.text[:300],
+        )
+        return None
+
+
 async def _call(model: str, method: str, **kwargs: Any) -> Any:
-    """POST /json/2/{model}/{method} with JSON body."""
+    """POST /json/2/{model}/{method} with JSON body.
+
+    Retries transient failures (network/timeout, HTTP 429/502/503/504) up to
+    ``_MAX_ATTEMPTS`` with exponential backoff + jitter. Non-transient failures
+    (4xx, expired-session non-JSON 200) return ``None`` immediately — never
+    retried. Any unexpected exception is swallowed → ``None`` (unchanged).
+    """
     if not _configured():
         return None
     client = _get_client()
-    try:
-        resp = await client.post(f"/json/2/{model}/{method}", json=kwargs)
-        if resp.status_code != 200:
-            logger.warning(
-                "Odoo %s.%s → HTTP %d: %s", model, method, resp.status_code, resp.text[:300]
-            )
-            return None
-        # A 200 does not guarantee JSON: an expired session can yield the Odoo
-        # login HTML page (text/html). Parsing that as JSON would raise and
-        # bubble up. Treat any non-JSON / unexpected body as an API failure
-        # (same safe None as the error paths) and log a slice of the body.
-        content_type = resp.headers.get("content-type", "")
-        if "json" not in content_type.lower():
-            logger.error(
-                "Odoo %s.%s → unexpected content-type %r: %s",
-                model,
-                method,
-                content_type,
-                resp.text[:300],
-            )
-            return None
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
         try:
-            return resp.json()
-        except ValueError as e:
-            logger.error(
-                "Odoo %s.%s → non-JSON 200 body (%s): %s",
+            return await _attempt(client, model, method, kwargs)
+        except _TransientError as e:
+            if attempt >= _MAX_ATTEMPTS:
+                logger.warning(
+                    "Odoo %s.%s: transient failure, attempts exhausted (%d): %s",
+                    model,
+                    method,
+                    attempt,
+                    e,
+                )
+                return None
+            delay = _BACKOFF_BASE * (2 ** (attempt - 1)) * (0.5 + random.random())
+            logger.info(
+                "Odoo %s.%s: transient error (attempt %d/%d): %s — retrying in %.2fs",
                 model,
                 method,
+                attempt,
+                _MAX_ATTEMPTS,
                 e,
-                resp.text[:300],
+                delay,
             )
+            await asyncio.sleep(delay)
+        except Exception as e:
+            logger.warning("Odoo %s.%s: %s", model, method, e)
             return None
-    except Exception as e:
-        logger.warning("Odoo %s.%s: %s", model, method, e)
-        return None
+    return None
 
 
 # ─── Public API (same signatures as before) ──────────────────────────────────
