@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +45,18 @@ class Settings(BaseSettings):
     webapp_url: str = "https://infrascan-ai.ru/infrascan_ai/static/src/webapp/index.html"
 
     sentry_dsn: str = ""
+
+    @model_validator(mode="after")
+    def _check_invariants(self) -> "Settings":
+        """Fail-fast валидация конфига при импорте/создании.
+
+        Ловим кривой конфиг на старте, а не в рантайме в проде.
+        """
+        if not self.gemini_stub and not self.gemini_api_key.strip():
+            raise ValueError("GEMINI_API_KEY обязателен, если GEMINI_STUB не включён.")
+        if self.webhook_url and not self.webhook_secret.strip():
+            raise ValueError("WEBHOOK_SECRET обязателен, когда задан WEBHOOK_URL.")
+        return self
 
 
 settings = Settings()
