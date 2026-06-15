@@ -1,32 +1,30 @@
-# SESSION_STATE — backend — 2026-06-13 16:53
+# SESSION_STATE — backend — 2026-06-14 04:52
 
 ## Ветка
 `autoresearch/stack-health-2026-05-15`
 
 ## Последние коммиты
 ```
+463737b docs: авто-фиксация состояния сессии (DECISIONS/SESSION/журнал)
+1e15465 docs: полное описание проекта InfraScan AI (PROJECT_OVERVIEW + README)
 4a7420f fix(build): не исключать *.lock из .dockerignore — ломало COPY uv.lock и сборку образа
 d84d317 fix: правки по кросс-модельному ревью (Gemini) хардненинг-диффа
 793dae2 test: покрытие serial_audit и reports (включая error-пути)
 ca62cc7 chore(build): bot/.dockerignore — не пускать .env/секреты/мусор в build-context
 4b3be2c fix(premium): атомарный consume_scan (TOCTOU-safe) + TODO по вайрингу
-f0df9a4 fix(client): supervise fire-and-forget tasks — потеря отчёта не молчит
-d3da7fb fix(odoo): ретраи _call на транзиентные ошибки с бэкоффом+джиттером
 ```
 
 ## Незакоммиченные изменения
 ```
-DECISIONS.md                      |  922 ++++++++++++++++
- SESSION_NOTES.md                  |   58 +
- SESSION_STATE.md                  |   74 +-
- bot/logseq/journals/2026_06_12.md |  699 ++++++++++++
- bot/logseq/journals/2026_06_13.md | 1637 +++++++++++++++++++++++++++++
- 5 files changed, 3368 insertions(+), 22 deletions(-)
+DECISIONS.md                      |  67 +++++
+ SESSION_STATE.md                  |  18 +-
+ bot/logseq/journals/2026_06_13.md | 432 ++++++++++++++++++++++++++++++
+ 3 files changed, 507 insertions(+), 10 deletions(-)
 ```
 
 ## Неотслеживаемые файлы
 ```
-docs/PROJECT_OVERVIEW.md
+bot/logseq/journals/2026_06_14.md
 ```
 
 ## Заметки сессии
