@@ -46,7 +46,8 @@ async def _show_premium_offer(message: Message, locale: str, is_local: bool) -> 
             f"• 📍 Точная локализация всех дефектов\n"
             f"• 💡 Пошаговый план устранения с материалами\n"
             f"• 📊 Уровень риска в процентах\n\n"
-            f"<i>Оплата через Apple Pay / Google Pay внутри Telegram — один клик.</i>"
+            f"<i>Оплата Telegram Stars внутри приложения в один клик.</i>\n"
+            f"💡 <i>Stars можно пополнить с любой карты РФ в @PremiumBot или в Настройки → Мои звёзды.</i>"
         )
     else:
         text = (
@@ -58,7 +59,8 @@ async def _show_premium_offer(message: Message, locale: str, is_local: bool) -> 
             f"• 📍 Precise defect localization\n"
             f"• 💡 Step-by-step remediation plan with materials\n"
             f"• 📊 Risk score in percentage\n\n"
-            f"<i>Pay via Apple Pay / Google Pay inside Telegram — one tap.</i>"
+            f"<i>Pay via Telegram Stars in one click inside Telegram.</i>\n"
+            f"💡 <i>Top up Stars via App Store, Google Play, or Fragment.</i>"
         )
     await message.answer(text, reply_markup=premium_kb(locale, stars))
 

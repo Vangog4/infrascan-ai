@@ -22,6 +22,8 @@ from src.keyboards.menus import (
     ORDER_BTNS,
     PHOTO_BTNS,
     UPGRADE_BTNS,
+    calc_area_kb,
+    calc_payment_kb,
     client_menu,
     contact_kb,
     heating_kb,
@@ -715,17 +717,36 @@ async def calc_start(
             "📊 <b>Калькулятор теплопотерь</b>\n"
             "──────────────────────\n"
             "Шаг <b>1 из 3</b> — Площадь объекта\n\n"
-            "Укажите общую площадь дома или квартиры в м².\n"
-            "<i>Пример: 120</i>"
+            "Выберите или укажите площадь здания (м²):",
+            reply_markup=calc_area_kb(locale),
         )
     else:
         await message.answer(
             "📊 <b>Heat Loss Calculator</b>\n"
             "──────────────────────\n"
             "Step <b>1 of 3</b> — Object area\n\n"
-            "Enter the total area of your home or apartment (m²).\n"
-            "<i>Example: 120</i>"
+            "Select or enter the building area (m²):",
+            reply_markup=calc_area_kb(locale),
         )
+
+
+@router.callback_query(CalcFlow.area, F.data.startswith("calc_area:"))
+async def cb_calc_area(call: CallbackQuery, state: FSMContext) -> None:
+    val = float(call.data.split(":")[1])
+    data = await state.get_data()
+    locale = data.get("locale", "ru")
+    await state.update_data(area=val)
+    await state.set_state(CalcFlow.heating)
+    unit = "м²" if locale == "ru" else "m²"
+    step2_title = (
+        f"✅ Шаг 1 из 3 — площадь: <b>{int(val)} {unit}</b>\n\n"
+        f"Шаг <b>2 из 3</b> — выберите тип отопления:"
+        if locale == "ru"
+        else f"✅ Step 1 of 3 — area: <b>{int(val)} {unit}</b>\n\n"
+        f"Step <b>2 of 3</b> — select heating type:"
+    )
+    await call.message.edit_text(step2_title, reply_markup=heating_kb())
+    await call.answer()
 
 
 @router.message(CalcFlow.area, F.text)
@@ -757,8 +778,8 @@ async def calc_heating(call: CallbackQuery, state: FSMContext, locale: str = "ru
             "──────────────────────\n"
             f"✅ Шаг 2 из 3 — тип отопления: <b>{label}</b>\n\n"
             "Шаг <b>3 из 3</b> — Платёж за отопление\n\n"
-            "Укажите сумму за самый холодный месяц (руб.).\n"
-            "<i>Пример: 4 500</i>"
+            "Выберите или укажите сумму за самый холодный месяц (руб.):",
+            reply_markup=calc_payment_kb(locale),
         )
     else:
         await call.message.edit_text(
@@ -766,9 +787,31 @@ async def calc_heating(call: CallbackQuery, state: FSMContext, locale: str = "ru
             "──────────────────────\n"
             f"✅ Step 2 of 3 — heating type: <b>{label}</b>\n\n"
             "Step <b>3 of 3</b> — Monthly heating bill\n\n"
-            "Enter your bill for the coldest month (local currency).\n"
-            "<i>Example: 4500</i>"
+            "Select or enter your bill for the coldest month:",
+            reply_markup=calc_payment_kb(locale),
         )
+
+
+@router.callback_query(CalcFlow.payment, F.data.startswith("calc_pay:"))
+async def cb_calc_payment(call: CallbackQuery, state: FSMContext) -> None:
+    payment = float(call.data.split(":")[1])
+    data = await state.get_data()
+    locale: str = data.get("locale", "ru")
+    await state.clear()
+    await call.answer()
+    wait = await call.message.edit_text(
+        "⚙️ Считаю теплопотери..." if locale == "ru" else "⚙️ Calculating heat losses..."
+    )
+
+    from src.services.weather import get_weather_context
+
+    weather_ctx = await get_weather_context()
+    result = await gemini.calculate_losses(data["area"], data["heating"], payment, weather_ctx)
+    await wait.delete()
+    await call.message.answer(
+        f"🧮 <b>Расчёт теплопотерь</b>\n{_SEP}\n\n{result}\n\n{_SEP}",
+        reply_markup=order_kb(locale),
+    )
 
 
 @router.message(CalcFlow.payment, F.text)
@@ -833,6 +876,8 @@ async def lead_contact(
     locale: str = "ru",
     is_local: bool = True,
 ) -> None:
+    data = await state.get_data()
+    maps_link = data.get("maps_link")
     await state.clear()
     contact: Contact = message.contact
     phone = contact.phone_number
@@ -846,10 +891,14 @@ async def lead_contact(
     # Cache phone for geo detection refinement
     await roles.set_phone(message.from_user.id, phone)
 
+    desc = f"Заявка через Telegram-бот. TG: {tg_ref}"
+    if maps_link:
+        desc += f"\nЛокация: {maps_link}"
+
     result = await odoo.create_lead(
         name=name,
         phone=phone,
-        description=f"Заявка через Telegram-бот. TG: {tg_ref}",
+        description=desc,
     )
     odoo_status = (
         f"✅ Лид #{result} создан в Odoo" if result else "⚠️ Odoo недоступен — зафиксируй вручную"
@@ -858,19 +907,20 @@ async def lead_contact(
     safe_phone = html.escape(phone)
     safe_tg_ref = html.escape(tg_ref)
     safe_odoo_status = html.escape(odoo_status)
+    admin_msg = (
+        f"📥 <b>Новая заявка на выезд!</b>\n"
+        f"──────────────────────\n"
+        f"👤 <b>Имя:</b> {safe_name}\n"
+        f"📞 <b>Телефон:</b> <code>{safe_phone}</code>\n"
+        f"🔗 <b>Telegram:</b> {safe_tg_ref}\n"
+    )
+    if maps_link:
+        admin_msg += f"📍 <b>Локация:</b> <a href='{maps_link}'>Яндекс.Карты</a>\n"
+    admin_msg += f"──────────────────────\n🗄 {safe_odoo_status}"
     for admin_id in settings.admin_ids:
         if admin_id:
             try:
-                await bot.send_message(
-                    admin_id,
-                    f"📥 <b>Новая заявка на выезд!</b>\n"
-                    f"──────────────────────\n"
-                    f"👤 <b>Имя:</b> {safe_name}\n"
-                    f"📞 <b>Телефон:</b> <code>{safe_phone}</code>\n"
-                    f"🔗 <b>Telegram:</b> {safe_tg_ref}\n"
-                    f"──────────────────────\n"
-                    f"🗄 {safe_odoo_status}",
-                )
+                await bot.send_message(admin_id, admin_msg)
             except Exception:
                 pass
 
@@ -883,6 +933,72 @@ async def lead_contact(
         "<i>Среднее время ответа — 15 минут в рабочие часы.</i>",
         reply_markup=kb,
     )
+
+
+@router.message(LeadFlow.contact, F.location)
+async def lead_location(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    locale: str = "ru",
+    is_local: bool = True,
+) -> None:
+    loc = message.location
+    lat, lon = loc.latitude, loc.longitude
+    maps_link = f"https://maps.yandex.ru/?text={lat},{lon}"
+    await state.update_data(location_coords=(lat, lon), maps_link=maps_link)
+
+    phone = await roles.get_phone(message.from_user.id)
+    if phone:
+        name = message.from_user.full_name or "Клиент"
+        tg_ref = (
+            f"@{message.from_user.username}"
+            if message.from_user.username
+            else f"tg://user?id={message.from_user.id}"
+        )
+        desc = f"Заявка через Telegram-бот. TG: {tg_ref}\nЛокация: {maps_link}"
+        result = await odoo.create_lead(name=name, phone=phone, description=desc)
+        odoo_status = f"✅ Лид #{result} создан в Odoo" if result else "⚠️ Odoo недоступен"
+        admin_msg = (
+            f"📥 <b>Новая заявка на выезд (с локацией)!</b>\n"
+            f"──────────────────────\n"
+            f"👤 <b>Имя:</b> {html.escape(name)}\n"
+            f"📞 <b>Телефон:</b> <code>{html.escape(phone)}</code>\n"
+            f"🔗 <b>Telegram:</b> {html.escape(tg_ref)}\n"
+            f"📍 <b>Локация:</b> <a href='{maps_link}'>{lat:.5f}, {lon:.5f}</a>\n"
+            f"──────────────────────\n"
+            f"🗄 {html.escape(odoo_status)}"
+        )
+        for admin_id in settings.admin_ids:
+            if admin_id:
+                try:
+                    await bot.send_message(admin_id, admin_msg)
+                except Exception:
+                    pass
+        await state.clear()
+        is_prem = await premium_svc.is_premium(message.from_user.id)
+        kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
+        await message.answer(
+            "✅ <b>Локация и заявка приняты!</b>\n"
+            "──────────────────────\n"
+            "🚗 Инженер свяжется с вами для согласования времени выезда.",
+            reply_markup=kb,
+        )
+    else:
+        if locale == "ru":
+            await message.answer(
+                f"📍 <b>Координаты объекта приняты:</b>\n"
+                f"<a href='{maps_link}'>Открыть на Яндекс.Картах</a>\n\n"
+                f"📱 Теперь поделитесь номером телефона для подтверждения заявки:",
+                reply_markup=contact_kb(include_location=False, locale=locale),
+            )
+        else:
+            await message.answer(
+                f"📍 <b>Object coordinates received:</b>\n"
+                f"<a href='{maps_link}'>Open in Yandex.Maps</a>\n\n"
+                f"📱 Now please share your phone number to confirm:",
+                reply_markup=contact_kb(include_location=False, locale=locale),
+            )
 
 
 # ── PDF Report download ───────────────────────────────────────────────────────

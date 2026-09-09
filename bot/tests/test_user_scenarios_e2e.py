@@ -28,6 +28,7 @@ from aiogram.types import (
     CallbackQuery,
     Contact,
     Document,
+    Location,
     Message,
     PhotoSize,
     PreCheckoutQuery,
@@ -77,6 +78,7 @@ def _make_msg(
     photo: list | None = None,
     document: Document | None = None,
     contact: Contact | None = None,
+    location: Location | None = None,
     successful_payment: SuccessfulPayment | None = None,
 ) -> MagicMock:
     msg = MagicMock(spec=Message)
@@ -87,6 +89,7 @@ def _make_msg(
     msg.photo = photo
     msg.document = document
     msg.contact = contact
+    msg.location = location
     msg.successful_payment = successful_payment
 
     sent_msg = MagicMock()
@@ -373,7 +376,41 @@ async def test_scenario_heating_loss_calculator_flow():
         assert await fsm.get_state() is None
 
 
-# ── Scenario 6: Lead Capture (Order Inspection) ──────────────────────────────
+@pytest.mark.asyncio
+async def test_scenario_heating_loss_calculator_presets_flow():
+    user_id = 10025
+    fsm = _make_fsm_context(user_id)
+
+    # User clicks preset button 100 m²
+    await fsm.set_state(CalcFlow.area)
+    await fsm.update_data(locale="ru")
+    call_area = _make_call(user_id, "calc_area:100")
+    await client.cb_calc_area(call_area, fsm)
+    assert await fsm.get_state() == CalcFlow.heating
+    data = await fsm.get_data()
+    assert data["area"] == 100.0
+
+    # User chooses heating: gas
+    call_heat = _make_call(user_id, "heat:gas")
+    await client.calc_heating(call_heat, fsm, locale="ru")
+    assert await fsm.get_state() == CalcFlow.payment
+
+    # User clicks preset payment 5 000 ₽
+    call_pay = _make_call(user_id, "calc_pay:5000")
+    calc_output = "<b>📉 Расчётные теплопотери</b>\n• Потери: 20%\n• Экономия: ~10 000 руб./год"
+    with (
+        patch("src.services.weather.get_weather_context", AsyncMock(return_value="T улиц: -5°C")),
+        patch("src.services.gemini.calculate_losses", AsyncMock(return_value=calc_output)),
+    ):
+        await client.cb_calc_payment(call_pay, fsm)
+        assert await fsm.get_state() is None
+        call_pay.message.answer.assert_awaited_once()
+        res_text = call_pay.message.answer.call_args[0][0]
+        assert "Расчёт теплопотерь" in res_text
+        assert "Экономия: ~10 000 руб./год" in res_text
+
+
+# ── Scenario 6: Lead Capture (Order Inspection & Location) ────────────────────
 
 
 @pytest.mark.asyncio
@@ -413,6 +450,43 @@ async def test_scenario_lead_capture_order_flow(fake_redis):
         assert "&lt;Инженер&gt;" in admin_text
         assert "<Инженер>" not in admin_text
         assert "+79991234567" in admin_text
+
+
+@pytest.mark.asyncio
+async def test_scenario_lead_capture_location_flow(fake_redis):
+    user_id = 10026
+    fsm = _make_fsm_context(user_id)
+    bot = _make_bot()
+
+    await fsm.set_state(LeadFlow.contact)
+
+    # 1. User sends location first
+    loc = Location(latitude=55.7558, longitude=37.6173)
+    msg_loc = _make_msg(user_id, location=loc)
+    with (
+        patch("src.services.redis.get_redis", return_value=fake_redis),
+        patch("src.services.roles.get_phone", AsyncMock(return_value=None)),
+    ):
+        await client.lead_location(msg_loc, fsm, bot, locale="ru")
+        assert await fsm.get_state() == LeadFlow.contact
+        assert "Координаты объекта приняты" in msg_loc.answer.call_args[0][0]
+        data = await fsm.get_data()
+        assert "maps.yandex.ru" in data["maps_link"]
+
+    # 2. User then shares phone contact
+    contact = Contact(phone_number="+79997654321", first_name="Ольга")
+    msg_contact = _make_msg(user_id, contact=contact)
+    with (
+        patch("src.services.redis.get_redis", return_value=fake_redis),
+        patch("src.services.odoo.create_lead", AsyncMock(return_value=888)) as mock_lead,
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.config.settings.admin_ids", [9999]),
+    ):
+        await client.lead_contact(msg_contact, fsm, bot, locale="ru")
+        mock_lead.assert_awaited_once()
+        desc = mock_lead.call_args.kwargs["description"]
+        assert "maps.yandex.ru" in desc
+        assert "Заявка на выезд принята" in msg_contact.answer.call_args[0][0]
 
 
 # ── Scenario 7: Referral Program & Account ───────────────────────────────────

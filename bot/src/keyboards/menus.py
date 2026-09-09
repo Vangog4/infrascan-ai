@@ -158,12 +158,53 @@ def employee_menu() -> ReplyKeyboardMarkup:
     return _markup(kb)
 
 
-def contact_kb(label: str = "📱 Поделиться номером") -> ReplyKeyboardMarkup:
+def contact_kb(
+    label: str = "📱 Поделиться номером",
+    locale: str = "ru",
+    include_location: bool = True,
+) -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
     kb.row(KeyboardButton(text=label, request_contact=True))
-    kb.row(KeyboardButton(text="❌ Отмена"))
-    # one_time: after share, restore main menu via handler reply_markup
+    if include_location:
+        loc_label = (
+            "📍 Отправить геопозицию объекта" if locale == "ru" else "📍 Send object location"
+        )
+        kb.row(KeyboardButton(text=loc_label, request_location=True))
+    cancel_label = "❌ Отмена" if locale == "ru" else "❌ Cancel"
+    kb.row(KeyboardButton(text=cancel_label))
     return kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
+
+
+def calc_area_kb(locale: str = "ru") -> InlineKeyboardMarkup:
+    """Quick preset buttons for common building areas."""
+    b = InlineKeyboardBuilder()
+    unit = "м²" if locale == "ru" else "m²"
+    b.row(
+        InlineKeyboardButton(text=f"45 {unit}", callback_data="calc_area:45"),
+        InlineKeyboardButton(text=f"75 {unit}", callback_data="calc_area:75"),
+        InlineKeyboardButton(text=f"100 {unit}", callback_data="calc_area:100"),
+    )
+    b.row(
+        InlineKeyboardButton(text=f"150 {unit}", callback_data="calc_area:150"),
+        InlineKeyboardButton(text=f"250+ {unit}", callback_data="calc_area:250"),
+    )
+    return b.as_markup()
+
+
+def calc_payment_kb(locale: str = "ru") -> InlineKeyboardMarkup:
+    """Quick preset buttons for monthly heating bills."""
+    b = InlineKeyboardBuilder()
+    cur = "₽" if locale == "ru" else "$"
+    b.row(
+        InlineKeyboardButton(text=f"3 000 {cur}", callback_data="calc_pay:3000"),
+        InlineKeyboardButton(text=f"5 000 {cur}", callback_data="calc_pay:5000"),
+        InlineKeyboardButton(text=f"8 000 {cur}", callback_data="calc_pay:8000"),
+    )
+    b.row(
+        InlineKeyboardButton(text=f"12 000 {cur}", callback_data="calc_pay:12000"),
+        InlineKeyboardButton(text=f"20 000+ {cur}", callback_data="calc_pay:20000"),
+    )
+    return b.as_markup()
 
 
 def heating_kb() -> InlineKeyboardMarkup:
