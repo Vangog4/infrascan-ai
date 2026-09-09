@@ -69,6 +69,16 @@ async def test_grant_premium_odoo_error_does_not_raise(mock_redis):
     assert mock_redis._store.get("premium:3") == "1"
 
 
+@pytest.mark.asyncio
+async def test_grant_premium_extends_existing_ttl(mock_redis):
+    """Referral +7d must not shorten an active 30d Premium."""
+    mock_redis._store["premium:42"] = "1"
+    mock_redis._ttls["premium:42"] = 30 * 86400
+    with patch("src.services.odoo.set_premium", AsyncMock()):
+        await svc.grant_premium(42, days=7)
+    assert mock_redis._ttls["premium:42"] == 37 * 86400
+
+
 # ── revoke_premium ────────────────────────────────────────────────────────────
 
 

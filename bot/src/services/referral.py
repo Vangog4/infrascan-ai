@@ -1,8 +1,8 @@
 """Referral program: earn bonus scans and Premium days by inviting friends.
 
 Rewards:
-  Referee (new user via link) — +5 bonus scans on arrival
-  Referrer — +5 bonus scans when referee completes first photo scan
+  Referee (new user via link) — +1 bonus scan on arrival
+  Referrer — +1 bonus scan when referee completes first photo scan
              +7 Premium days when referee buys Premium (one-time per user)
 
 Redis schema:
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-SCANS_PER_ACTIVATION = 5
+SCANS_PER_ACTIVATION = 1  # +1 бонусный анализ другу и тебе (не 5)
 PREMIUM_DAYS_PER_PURCHASE = 7
 MONTHLY_REFERRAL_LIMIT = 50
 
@@ -115,7 +115,7 @@ async def reward_first_scan(new_user_id: int, bot: "Bot") -> None:
         await bot.send_message(
             referrer_id,
             f"🎉 <b>Ваш друг сделал первый анализ!</b>\n\n"
-            f"Вам начислено <b>+{SCANS_PER_ACTIVATION} бонусных сканов</b>.\n"
+            f"Вам начислено <b>+{SCANS_PER_ACTIVATION} бонусный анализ</b>.\n"
             f"/ref — посмотреть статистику",
         )
     except Exception as e:

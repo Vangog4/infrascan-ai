@@ -1,3 +1,4 @@
+import html
 import logging
 
 from aiogram import Bot, F, Router
@@ -8,10 +9,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
 from src.keyboards.menus import (
-    BTN_HELP,
-    BTN_HELP_EN,
     client_menu,
     employee_menu,
+    partner_menu,
     premium_client_menu,
 )
 from src.services import premium as premium_svc
@@ -30,8 +30,8 @@ _WELCOME_RU = (
     "<code>◉ СТАТУС        ОНЛАЙН\n"
     "◉ МОДЕЛЬ        Gemini Vision\n"
     "◉ ТАРИФ         {tier}\n"
-    "◉ АНАЛИЗОВ      {scans_left}</code>\n\n" + _SEP + "\n\n"
-    "👇 Нажмите <b>«Найти утечки тепла»</b> и отправьте фото."
+    "◉ ОСТАЛОСЬ      {scans_left}</code>\n\n" + _SEP + "\n\n"
+    "👇 <b>«🔥 Найти утечки тепла»</b> → отправьте фото окна, стены или щитка."
 )
 
 _WELCOME_EN = (
@@ -39,8 +39,8 @@ _WELCOME_EN = (
     "<code>◉ STATUS        ONLINE\n"
     "◉ MODEL         Gemini Vision\n"
     "◉ PLAN          {tier}\n"
-    "◉ SCANS LEFT    {scans_left}</code>\n\n" + _SEP + "\n\n"
-    "👇 Tap <b>«Find Heat Leaks Now»</b> and send a photo."
+    "◉ LEFT          {scans_left}</code>\n\n" + _SEP + "\n\n"
+    "👇 Tap <b>«🔥 Find Heat Leaks Now»</b> and send a photo."
 )
 
 _EMPLOYEE_WELCOME = (
@@ -66,7 +66,7 @@ _ONBOARDING_RU = (
     "✅ Внешние стены и углы комнат\n"
     "✅ Электрощитки\n"
     "✅ Крыша, чердак, фасад\n\n"
-    "<i>🎁 Вам начислено <b>{scans} бесплатных анализа</b> — начнём?</i>{bonus}"
+    "<i>🎁 Вам доступно <b>{scans} бесплатных анализа в день</b> — начнём?</i>{bonus}"
 )
 
 _ONBOARDING_EN = (
@@ -97,13 +97,23 @@ async def cmd_start(
     is_local: bool = True,
 ) -> None:
     await state.clear()
-    name = message.from_user.first_name or ("пользователь" if locale == "ru" else "friend")
+    raw_name = message.from_user.first_name or ("пользователь" if locale == "ru" else "friend")
+    name = html.escape(raw_name)
     user_id = message.from_user.id
 
     if role == Role.EMPLOYEE:
         await message.answer(
             _EMPLOYEE_WELCOME.format(name=name),
             reply_markup=employee_menu(),
+        )
+        return
+
+    if role == Role.PARTNER:
+        await message.answer(
+            f"🤝 <b>Кабинет партнёра</b>\n{_SEP}\n\n"
+            f"Добро пожаловать, <b>{name}</b>!\n"
+            "Передавайте лиды и следите за балансом 👇",
+            reply_markup=partner_menu(),
         )
         return
 
@@ -122,23 +132,26 @@ async def cmd_start(
     is_new = await is_first_visit(user_id)
 
     if is_new:
-        # Rich onboarding for first-time users
+        # One message: onboarding text + inline CTA + main reply keyboard (no double menu).
         tpl = _ONBOARDING_RU if locale == "ru" else _ONBOARDING_EN
         text = tpl.format(
             name=name,
             scans=settings.free_daily_scans,
             bonus=bonus_notice,
         )
-        # Inline "start now" button → triggers photo analysis flow
         b = InlineKeyboardBuilder()
         btn_label = (
             "📸 Загрузить первое фото →" if locale == "ru" else "📸 Upload your first photo →"
         )
         b.row(InlineKeyboardButton(text=btn_label, callback_data="onboarding:photo"))
-        await message.answer(text, reply_markup=b.as_markup())
         await message.answer(
-            "Или выберите действие в меню 👇" if locale == "ru" else "Or choose an action below 👇",
+            text,
             reply_markup=client_menu(locale, is_local),
+        )
+        # Inline CTA as a second message WITHOUT reply keyboard (keeps one main menu).
+        await message.answer(
+            "👆 Или сразу:" if locale == "ru" else "👆 Or jump in:",
+            reply_markup=b.as_markup(),
         )
     else:
         # Compact returning-user welcome
@@ -199,6 +212,8 @@ async def cmd_cancel(
     await state.clear()
     if role == Role.EMPLOYEE:
         kb = employee_menu()
+    elif role == Role.PARTNER:
+        kb = partner_menu()
     else:
         is_prem = await premium_svc.is_premium(message.from_user.id)
         kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
@@ -245,6 +260,14 @@ async def cmd_broadcast(message: Message, bot: Bot) -> None:
             await bot.send_message(int(uid_str), text)
             sent += 1
         except Exception as e:
+            # If HTML parsing failed, fallback to plain text
+            if "parse entities" in str(e).lower() or "can't parse" in str(e).lower():
+                try:
+                    await bot.send_message(int(uid_str), text, parse_mode=None)
+                    sent += 1
+                    continue
+                except Exception as e2:
+                    e = e2
             err = str(e).lower()
             if "blocked" in err or "deactivated" in err or "not found" in err:
                 blocked += 1
@@ -336,7 +359,7 @@ async def cmd_stats(message: Message) -> None:
         )
         leads_count = lc or 0
     except Exception as e:
-        odoo_status = f"❌ {e}"
+        odoo_status = f"❌ {html.escape(str(e))}"
 
     _sep2 = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
     text = (
@@ -399,50 +422,6 @@ async def confirm_callback(call: CallbackQuery) -> None:
 # ── FSM nudge handlers ────────────────────────────────────────────────────────
 
 
-@router.message(F.text.in_({BTN_HELP, BTN_HELP_EN}))
-async def cmd_help(message: Message, locale: str = "ru") -> None:
-    if locale == "ru":
-        await message.answer(
-            "❓ <b>Помощь — InfraScan AI</b>\n"
-            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
-            "🔬 Анализирую тепловизионные снимки за <b>~30 секунд</b>.\n\n"
-            "<b>📷 Что отправить:</b>\n"
-            "  ✅ Окна изнутри (в холодное время)\n"
-            "  ✅ Внешние стены и углы комнат\n"
-            "  ✅ Электрощитки\n"
-            "  ✅ Крыша, чердак, фасад\n\n"
-            "<b>⌨️ Команды:</b>\n"
-            "  /start — главное меню\n"
-            "  /account — мой кабинет\n"
-            "  /premium — Premium-подписка\n"
-            "  /ref — пригласить друга\n"
-            "  /myreports — история анализов\n"
-            "  /cancel — отменить действие\n\n"
-            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n"
-            "<i>Для подробного FAQ нажмите «Помощь» в меню.</i>"
-        )
-    else:
-        await message.answer(
-            "❓ <b>Help — InfraScan AI</b>\n"
-            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
-            "🔬 I analyze thermal images in <b>~30 seconds</b>.\n\n"
-            "<b>📷 What to send:</b>\n"
-            "  ✅ Windows from inside (in cold weather)\n"
-            "  ✅ Exterior walls and room corners\n"
-            "  ✅ Electrical panels\n"
-            "  ✅ Roof, attic, facade\n\n"
-            "<b>⌨️ Commands:</b>\n"
-            "  /start — main menu\n"
-            "  /account — my account\n"
-            "  /premium — Premium subscription\n"
-            "  /ref — invite a friend\n"
-            "  /myreports — analysis history\n"
-            "  /cancel — cancel action\n\n"
-            "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n"
-            "<i>For detailed FAQ tap «Help» in the menu.</i>"
-        )
-
-
 @router.message(AuditFlow.photo)
 async def audit_wrong_input(message: Message, locale: str = "ru") -> None:
     if locale == "ru":
@@ -502,12 +481,15 @@ async def fallback(
     if role == Role.EMPLOYEE:
         kb = employee_menu()
         hint = "Используйте кнопки меню ниже."
+    elif role == Role.PARTNER:
+        kb = partner_menu()
+        hint = "Используйте кнопки партнёрского меню ниже."
     else:
         is_prem = await premium_svc.is_premium(message.from_user.id)
         kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
         hint = (
-            "Нажмите /start чтобы открыть главное меню."
+            "Выберите действие в меню ниже или нажмите /start."
             if locale == "ru"
-            else "Press /start to open the main menu."
+            else "Choose an action below or press /start."
         )
     await message.answer(f"🤖 {hint}", reply_markup=kb)

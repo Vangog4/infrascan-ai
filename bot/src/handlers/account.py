@@ -8,7 +8,12 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from src.config import settings
-from src.keyboards.menus import BTN_ACCOUNT, BTN_ACCOUNT_EN, account_upgrade_kb, client_menu
+from src.keyboards.menus import (
+    BTN_ACCOUNT,
+    BTN_ACCOUNT_EN,
+    account_upgrade_kb,
+    premium_client_menu,
+)
 from src.services import premium as premium_svc
 from src.services import referral as ref_svc
 
@@ -83,7 +88,7 @@ async def cmd_account(
             text += "\n\n<i>💡 Bonus analyses are used automatically when your daily limit runs out.</i>"
 
     if is_prem:
-        await message.answer(text, reply_markup=client_menu(locale, is_local))
+        await message.answer(text, reply_markup=premium_client_menu(locale, is_local))
     else:
         await message.answer(
             text, reply_markup=account_upgrade_kb(locale, settings.premium_price_stars)

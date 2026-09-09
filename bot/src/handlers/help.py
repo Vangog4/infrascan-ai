@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from src.keyboards.menus import BTN_HELP, BTN_HELP_EN
+from src.keyboards.menus import HELP_BTNS
 
 router = Router(name="help")
 
@@ -13,7 +13,7 @@ _SEP = "<code>━━━━━━━━━━━━━━━━━━━━━━
 _FAQ_RU = (
     f"❓ <b>Помощь — InfraScan AI</b>\n{_SEP}\n\n"
     "🔬 <b>Как работает анализ?</b>\n"
-    "Нажмите «Анализ фото ИИ» → отправьте снимок с тепловизора.\n"
+    "Нажмите «🔥 Найти утечки тепла» → отправьте снимок (фото или термограмму).\n"
     "ИИ (Gemini Vision) выявит дефекты за <b>~30 секунд</b>:\n"
     "теплопотери, мостики холода, протечки, перегревы.\n\n"
     f"{_SEP}\n\n"
@@ -22,9 +22,9 @@ _FAQ_RU = (
     "  • Бонусные анализы не сгорают\n"
     "  • Бонусные расходуются автоматически после исчерпания лимита\n\n"
     "🎁 <b>Как получить бонусные анализы?</b>\n"
-    "Нажмите «Позвать друга» — по вашей ссылке:\n"
-    "  → Друг получает <b>+5 анализов</b>\n"
-    "  → Вы тоже получаете <b>+5 анализов</b>\n"
+    "Нажмите «🎁 Пригласить друга» — по вашей ссылке:\n"
+    "  → Друг получает <b>+1 бесплатный анализ</b>\n"
+    "  → Вы тоже получаете <b>+1 бесплатный анализ</b>\n"
     "  → Если друг купит Premium — вам <b>+7 дней Premium</b>\n\n"
     f"{_SEP}\n\n"
     "⭐️ <b>Что даёт Premium?</b>\n"
@@ -49,7 +49,7 @@ _FAQ_RU = (
 _FAQ_EN = (
     f"❓ <b>Help — InfraScan AI</b>\n{_SEP}\n\n"
     "🔬 <b>How does analysis work?</b>\n"
-    "Tap «AI Photo Analysis» → send a thermal camera photo.\n"
+    "Tap «🔥 Find Heat Leaks Now» → send a photo or thermogram.\n"
     "AI (Gemini Vision) detects defects in <b>~30 seconds</b>:\n"
     "heat losses, cold bridges, leaks, overheating.\n\n"
     f"{_SEP}\n\n"
@@ -59,8 +59,8 @@ _FAQ_EN = (
     "  • Bonus scans are used automatically after the daily limit\n\n"
     "🎁 <b>How to get bonus analyses?</b>\n"
     "Tap «Invite Friend» — via your link:\n"
-    "  → Friend gets <b>+5 analyses</b>\n"
-    "  → You also get <b>+5 analyses</b>\n"
+    "  → Friend gets <b>+1 analysis</b>\n"
+    "  → You also get <b>+1 analysis</b>\n"
     "  → If friend buys Premium — you get <b>+7 Premium days</b>\n\n"
     f"{_SEP}\n\n"
     "⭐️ <b>What does Premium include?</b>\n"
@@ -83,7 +83,7 @@ _FAQ_EN = (
 )
 
 
-@router.message(F.text.in_({BTN_HELP, BTN_HELP_EN}))
+@router.message(F.text.in_(HELP_BTNS))
 @router.message(Command("help"))
 async def cmd_help(message: Message, locale: str = "ru") -> None:
     await message.answer(_FAQ_RU if locale == "ru" else _FAQ_EN)

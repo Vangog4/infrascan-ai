@@ -12,9 +12,10 @@ from src.middlewares.ratelimit import (
 
 
 def _msg(user_id: int = 1) -> MagicMock:
-    msg = MagicMock()
-    msg.__class__ = Message
+    msg = MagicMock(spec=Message)
     msg.from_user = MagicMock(id=user_id)
+    msg.successful_payment = None
+    msg.answer = AsyncMock()
     return msg
 
 

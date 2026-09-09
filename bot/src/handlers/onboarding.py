@@ -1,8 +1,6 @@
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
-from src.keyboards.menus import client_menu
-
 router = Router()
 
 
@@ -58,7 +56,4 @@ async def onb_done(callback: CallbackQuery, locale: str = "ru", is_local: bool =
         parse_mode="HTML",
     )
     await callback.answer()
-    await callback.message.answer(
-        "Выберите действие 👇" if locale == "ru" else "Choose an action below 👇",
-        reply_markup=client_menu(locale, is_local),
-    )
+    # Main keyboard was already set on /start — don't send a second reply keyboard.

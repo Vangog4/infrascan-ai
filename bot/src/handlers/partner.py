@@ -1,3 +1,4 @@
+import html
 import logging
 
 from aiogram import F, Router
@@ -41,9 +42,10 @@ async def lead_phone(message: Message, state: FSMContext) -> None:
         phone=phone,
         description=f"Лид передан партнёром TG: @{tg.username or tg.id} (id={tg.id})",
     )
+    safe_phone = html.escape(phone)
     await message.answer(
         f"✅ Лид принят!\n\n"
-        f"Телефон клиента <b>{phone}</b> зафиксирован в системе.\n"
+        f"Телефон клиента <b>{safe_phone}</b> зафиксирован в системе.\n"
         "После выполнения заказа <b>10%</b> будут автоматически начислены на ваш баланс.",
         reply_markup=partner_menu(),
     )

@@ -6,6 +6,7 @@ Use format_analysis_free() / format_analysis_premium() to render for Telegram.
 """
 
 import asyncio
+import html
 import json
 import logging
 import random
@@ -252,6 +253,12 @@ _OBJECT_LABEL = {
         "facade": "Фасад / наружная стена",
         "floor": "Пол / стяжка",
         "other": "Строительный объект",
+        "окно": "Окно / проём",
+        "стена": "Стена / перекрытие",
+        "кровля": "Кровля",
+        "электрощит": "Электрощит / проводка",
+        "фасад": "Фасад / наружная стена",
+        "пол": "Пол / стяжка",
     },
     "en": {
         "window": "Window / frame",
@@ -604,17 +611,25 @@ async def check_quality(data: bytes, mime: str = "image/jpeg") -> dict:
 
 def format_analysis_free(result: dict, locale: str = "ru", stars: int = 150) -> str:
     if "error" in result:
-        return result.get("free_verdict", "⚠️ Не удалось выполнить анализ.")
+        return html.escape(str(result.get("free_verdict", "⚠️ Не удалось выполнить анализ.")))
 
     risk = result.get("risk_level", "MEDIUM")
     emoji = _RISK_EMOJI.get(risk, "🟡")
-    risk_lbl = _RISK_LABEL.get(locale, _RISK_LABEL["en"]).get(risk, risk)
-    obj_lbl = _OBJECT_LABEL.get(locale, _OBJECT_LABEL["en"]).get(
-        result.get("object_type", "other"), "Object"
+    raw_risk_lbl = _RISK_LABEL.get(locale, _RISK_LABEL["en"]).get(risk, risk)
+    risk_lbl = html.escape(str(raw_risk_lbl))
+    obj_raw = result.get("object_type", "other")
+    obj_dict = _OBJECT_LABEL.get(locale, _OBJECT_LABEL["en"])
+    default_obj = obj_dict.get(
+        "other", "Строительный объект" if locale == "ru" else "Building element"
     )
-    verdict = result.get("free_verdict", "")
-    rec = result.get("recommendations_brief", "")
-    teaser = result.get("premium_teaser", "")
+    raw_obj_lbl = obj_dict.get(
+        obj_raw.lower() if isinstance(obj_raw, str) else "",
+        obj_raw.capitalize() if isinstance(obj_raw, str) and obj_raw != "other" else default_obj,
+    )
+    obj_lbl = html.escape(str(raw_obj_lbl))
+    verdict = html.escape(str(result.get("free_verdict", "")))
+    rec = html.escape(str(result.get("recommendations_brief", "")))
+    teaser = html.escape(str(result.get("premium_teaser", "")))
 
     if locale == "ru":
         return (
@@ -642,32 +657,40 @@ def format_analysis_free(result: dict, locale: str = "ru", stars: int = 150) -> 
 
 def format_analysis_premium(result: dict, locale: str = "ru") -> str:
     if "error" in result:
-        return result.get("free_verdict", "⚠️ Analysis failed.")
+        return html.escape(str(result.get("free_verdict", "⚠️ Analysis failed.")))
 
     risk = result.get("risk_level", "MEDIUM")
     emoji = _RISK_EMOJI.get(risk, "🟡")
     score = int(result.get("risk_score", 0.5) * 100)
-    risk_lbl = _RISK_LABEL.get(locale, _RISK_LABEL["en"]).get(risk, risk)
-    obj_lbl = _OBJECT_LABEL.get(locale, _OBJECT_LABEL["en"]).get(
-        result.get("object_type", "other"), "Object"
+    raw_risk_lbl = _RISK_LABEL.get(locale, _RISK_LABEL["en"]).get(risk, risk)
+    risk_lbl = html.escape(str(raw_risk_lbl))
+    obj_raw = result.get("object_type", "other")
+    obj_dict = _OBJECT_LABEL.get(locale, _OBJECT_LABEL["en"])
+    default_obj = obj_dict.get(
+        "other", "Строительный объект" if locale == "ru" else "Building element"
     )
+    raw_obj_lbl = obj_dict.get(
+        obj_raw.lower() if isinstance(obj_raw, str) else "",
+        obj_raw.capitalize() if isinstance(obj_raw, str) and obj_raw != "other" else default_obj,
+    )
+    obj_lbl = html.escape(str(raw_obj_lbl))
 
     problems = result.get("problems", [])
     temp_obs = result.get("temperature_observations", [])
     recs = result.get("recommendations_detailed", [])
-    analysis = result.get("premium_analysis", result.get("free_verdict", ""))
+    analysis = html.escape(str(result.get("premium_analysis", result.get("free_verdict", ""))))
+
+    p_lines = ""
+    for i, p in enumerate(problems[:5], 1):
+        sev = _SEV_EMOJI.get(p.get("severity", "medium"), "🟠")
+        desc = html.escape(str(p.get("description", "")))
+        loc = html.escape(str(p.get("location", "")))
+        p_lines += f"\n{i}. {sev} <b>{desc}</b>\n   📍 {loc}\n"
+
+    t_lines = "\n".join(f"• {html.escape(str(t))}" for t in temp_obs[:3])
+    r_lines = "\n".join(f"• {html.escape(str(r))}" for r in recs[:5])
 
     if locale == "ru":
-        p_lines = ""
-        for i, p in enumerate(problems[:5], 1):
-            sev = _SEV_EMOJI.get(p.get("severity", "medium"), "🟠")
-            p_lines += (
-                f"\n{i}. {sev} <b>{p.get('description', '')}</b>\n   📍 {p.get('location', '')}\n"
-            )
-
-        t_lines = "\n".join(f"• {t}" for t in temp_obs[:3])
-        r_lines = "\n".join(f"• {r}" for r in recs[:5])
-
         return (
             f"🔬 <b>Тепловизионный анализ</b> ⭐️\n{_SEP}\n\n"
             f"🏠 <b>Объект:</b> {obj_lbl}\n"
@@ -678,16 +701,6 @@ def format_analysis_premium(result: dict, locale: str = "ru") -> str:
             + (f"\n💡 <b>План устранения:</b>\n{r_lines}" if r_lines else "")
         )
     else:
-        p_lines = ""
-        for i, p in enumerate(problems[:5], 1):
-            sev = _SEV_EMOJI.get(p.get("severity", "medium"), "🟠")
-            p_lines += (
-                f"\n{i}. {sev} <b>{p.get('description', '')}</b>\n   📍 {p.get('location', '')}\n"
-            )
-
-        t_lines = "\n".join(f"• {t}" for t in temp_obs[:3])
-        r_lines = "\n".join(f"• {r}" for r in recs[:5])
-
         return (
             f"🔬 <b>Thermal Analysis</b> ⭐️\n{_SEP}\n\n"
             f"🏠 <b>Object:</b> {obj_lbl}\n"

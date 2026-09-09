@@ -115,3 +115,23 @@ async def test_myreports_missing_fields_do_not_crash():
     text = sent.edit_text.call_args[0][0]
     assert "Объект" in text  # default object label
     assert "⚪" in text  # unknown-risk icon
+
+
+@pytest.mark.asyncio
+async def test_myreports_escapes_html():
+    msg, sent = _msg()
+    rows = [
+        {
+            "object_type": "<Котельная & Щит>",
+            "risk_level": "CRITICAL",
+            "verdict": "T > 100°C & <script>danger</script>",
+            "create_date": "2026-06-02 10:00:00",
+        }
+    ]
+    with patch("src.services.odoo.get_reports", AsyncMock(return_value=rows)):
+        await reports.cmd_myreports(msg)
+    text = sent.edit_text.call_args[0][0]
+    assert "<script>" not in text
+    assert "&lt;script&gt;" in text
+    assert "&lt;Котельная &amp; Щит&gt;" in text
+    assert "T &gt; 100°C &amp;" in text

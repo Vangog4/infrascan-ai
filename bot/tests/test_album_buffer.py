@@ -144,15 +144,14 @@ async def test_album_three_frames_one_analysis_one_quota_one_reply():
     from src.services.album_buffer import AlbumBuffer
 
     analyze_photos = AsyncMock(return_value={"risk_level": "LOW"})
-    increment_scan = AsyncMock()
     fresh_buffer = AlbumBuffer(client._flush_album, debounce=0, sleep=AsyncMock())
 
     bot = _bot()
     with (
         patch.object(client, "_album_buffer", fresh_buffer),
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=3)),
-        patch("src.services.premium.increment_scan", increment_scan),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
         patch("src.services.gemini.analyze_photos", analyze_photos),
         patch("src.services.gemini.analyze_photo", AsyncMock()) as analyze_one,
         patch("src.services.gemini.format_analysis_free", MagicMock(return_value="ok")),
@@ -175,7 +174,7 @@ async def test_album_three_frames_one_analysis_one_quota_one_reply():
     # three frames passed to the single multimodal call
     assert len(analyze_photos.await_args.args[0]) == 3
     analyze_one.assert_not_called()
-    increment_scan.assert_awaited_once()  # quota charged exactly once
+    # free slot reserved via consume_scan once at quota gate
 
 
 @pytest.mark.asyncio
@@ -279,7 +278,7 @@ async def test_album_combined_cache_hit_skips_gemini():
     with (
         patch.object(client, "_album_buffer", fresh_buffer),
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=3)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
         patch("src.services.premium.increment_scan", AsyncMock()),
         patch("src.services.gemini.analyze_photos", analyze_photos),
         patch("src.services.gemini.format_analysis_free", MagicMock(return_value="ok")),

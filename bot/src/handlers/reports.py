@@ -1,7 +1,10 @@
-from aiogram import Router
+import html
+
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from src.keyboards.menus import REPORTS_BTNS
 from src.services import odoo
 
 router = Router()
@@ -23,6 +26,7 @@ def _fmt_date(raw: str) -> str:
 
 
 @router.message(Command("myreports"))
+@router.message(F.text.in_(REPORTS_BTNS))
 async def cmd_myreports(message: Message):
     msg = await message.answer("⏳ Загружаю историю анализов...")
     reports = await odoo.get_reports(str(message.from_user.id))
@@ -31,7 +35,8 @@ async def cmd_myreports(message: Message):
         await msg.edit_text(
             "🔬 <b>История анализов</b>\n\n"
             "📭 У вас пока нет сохранённых анализов.\n\n"
-            "<i>Отправьте фото тепловизора — результат сохранится автоматически.</i>",
+            "<i>Нажмите «🔥 Найти утечки тепла» и отправьте фото — "
+            "результат сохранится автоматически.</i>",
             parse_mode="HTML",
         )
         return
@@ -40,11 +45,12 @@ async def cmd_myreports(message: Message):
     for i, r in enumerate(reports, 1):
         risk = r.get("risk_level", "")
         icon = _RISK_ICON.get(risk, "⚪")
-        risk_label = _RISK_LABEL.get(risk, risk or "—")
-        date = _fmt_date(r.get("create_date") or "")
-        obj = r.get("object_type") or "Объект"
-        verdict_raw = r.get("verdict") or ""
-        verdict = verdict_raw[:80]
+        raw_risk_label = _RISK_LABEL.get(risk, risk or "—")
+        risk_label = html.escape(str(raw_risk_label))
+        date = html.escape(str(_fmt_date(r.get("create_date") or "")))
+        obj = html.escape(str(r.get("object_type") or "Объект"))
+        verdict_raw = str(r.get("verdict") or "")
+        verdict = html.escape(verdict_raw[:80])
         suffix = "…" if len(verdict_raw) > 80 else ""
         lines.append(
             f"{_SEP}\n"

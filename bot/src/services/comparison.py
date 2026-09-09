@@ -1,5 +1,7 @@
 """Before/After comparison for thermal analysis results."""
 
+import html
+
 _RISK_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
 _RISK_LABEL = {"LOW": "🟢 LOW", "MEDIUM": "🟡 MEDIUM", "HIGH": "🟠 HIGH", "CRITICAL": "🔴 CRITICAL"}
 
@@ -21,11 +23,12 @@ def format_comparison(old: dict, new: dict, locale: str = "ru") -> str:
         trend = "➡️ Без изменений" if locale == "ru" else "➡️ No change"
 
     score_delta = new_score - old_score
-    delta_str = f"{score_delta:+.2f}"
+    delta_str = html.escape(f"{score_delta:+.2f}")
     delta_icon = "📉" if score_delta < -0.05 else ("📈" if score_delta > 0.05 else "📊")
 
-    old_label = _RISK_LABEL.get(old_risk, old_risk)
-    new_label = _RISK_LABEL.get(new_risk, new_risk)
+    old_label = html.escape(str(_RISK_LABEL.get(old_risk, old_risk)))
+    new_label = html.escape(str(_RISK_LABEL.get(new_risk, new_risk)))
+    trend = html.escape(trend)
 
     if locale == "ru":
         return (

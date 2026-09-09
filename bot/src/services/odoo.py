@@ -272,8 +272,34 @@ async def get_today_tasks(telegram_id: int) -> list[dict]:
             "x_telegram_id",
         ],
         limit=50,
+        order="date_deadline asc, id desc",
     )
-    return result or []
+    tasks = result or []
+    # Drop closed/cancelled stages so engineer sees only actionable work.
+    _done = (
+        "готово",
+        "done",
+        "выполнен",
+        "закрыт",
+        "отмен",
+        "cancel",
+        "архив",
+        "complete",
+    )
+    active: list[dict] = []
+    for t in tasks:
+        stage = t.get("stage_id")
+        # Odoo JSON-2: many2one as [id, name] or False
+        stage_name = ""
+        if isinstance(stage, (list, tuple)) and len(stage) > 1:
+            stage_name = str(stage[1] or "")
+        elif isinstance(stage, dict):
+            stage_name = str(stage.get("display_name") or stage.get("name") or "")
+        low = stage_name.lower()
+        if any(kw in low for kw in _done):
+            continue
+        active.append(t)
+    return active
 
 
 async def save_analysis_report(task_id: int, report: str) -> bool:
@@ -326,17 +352,34 @@ async def get_premium_status(telegram_id: int) -> bool:
 
 
 async def set_premium(telegram_id: int, days: int) -> bool:
-    from datetime import date, timedelta
+    """Grant/extend Premium in Odoo by ``days`` from today or from existing end."""
+    from datetime import date, datetime, timedelta
 
-    ends = (date.today() + timedelta(days=days)).isoformat()
-
+    today = date.today()
     existing = await _call(
         "res.partner",
         "search_read",
         domain=[["x_telegram_id", "=", str(telegram_id)]],
-        fields=["id"],
+        fields=["id", "x_premium_ends"],
         limit=1,
     )
+    base = today
+    if existing:
+        raw_ends = existing[0].get("x_premium_ends")
+        if raw_ends:
+            try:
+                if isinstance(raw_ends, str):
+                    cur = datetime.strptime(raw_ends[:10], "%Y-%m-%d").date()
+                else:
+                    cur = raw_ends  # date/datetime from some adapters
+                    if hasattr(cur, "date"):
+                        cur = cur.date()
+                if cur > base:
+                    base = cur
+            except (ValueError, TypeError):
+                pass
+    ends = (base + timedelta(days=days)).isoformat()
+
     if existing:
         result = await _call(
             "res.partner",
@@ -379,21 +422,37 @@ async def partner_balance(phone: str) -> float | None:
     return float(raw) if raw not in (None, False) else 0.0
 
 
-async def save_report(client_tg_id: str, analysis: dict) -> bool:
+async def save_report(
+    client_tg_id: str,
+    analysis: dict,
+    *,
+    is_premium: bool = False,
+) -> bool:
     """Save analysis result to Odoo infrascan.bot.report."""
     if analysis.get("_stub"):
         return True
+    # Prefer free_verdict; fall back to premium summary fields if present.
+    verdict = analysis.get("free_verdict") or analysis.get("premium_analysis") or ""
+    if isinstance(verdict, dict):
+        verdict = str(verdict.get("summary") or verdict)[:2000]
+    risk = analysis.get("risk_level") or "MEDIUM"
+    if risk not in ("LOW", "MEDIUM", "HIGH", "CRITICAL"):
+        risk = "MEDIUM"
+    try:
+        score = float(analysis.get("risk_score") or 0.0)
+    except (TypeError, ValueError):
+        score = 0.0
     result = await _call(
         "infrascan.bot.report",
         "create",
         vals_list=[
             {
                 "client_tg_id": str(client_tg_id),
-                "object_type": analysis.get("object_type", ""),
-                "risk_level": analysis.get("risk_level", "MEDIUM"),
-                "risk_score": float(analysis.get("risk_score", 0.0)),
-                "verdict": analysis.get("free_verdict", ""),
-                "is_premium": False,
+                "object_type": (analysis.get("object_type") or "")[:128],
+                "risk_level": risk,
+                "risk_score": score,
+                "verdict": str(verdict)[:4000],
+                "is_premium": bool(is_premium or analysis.get("is_premium")),
             }
         ],
     )

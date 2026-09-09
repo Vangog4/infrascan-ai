@@ -1,5 +1,6 @@
 """Branded PDF report generator for InfraScan AI Premium analyses."""
 
+import html
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -35,7 +36,9 @@ def _detect_risk(text: str) -> tuple[str, tuple]:
 
 
 def _strip_markdown(text: str) -> str:
-    """Remove markdown and emoji that DejaVu can't render."""
+    """Remove markdown, HTML tags, unescape entities, and emoji that DejaVu can't render."""
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"\*(.*?)\*", r"\1", text)
     text = re.sub(r"#{1,6}\s*", "", text)
@@ -51,8 +54,8 @@ class _Report(FPDF):
     def __init__(self, locale: str = "ru"):
         super().__init__()
         self._locale = locale
-        self.add_font("dj", "", _FONT_REG, uni=True)
-        self.add_font("dj", "B", _FONT_BOLD, uni=True)
+        self.add_font("dj", "", _FONT_REG)
+        self.add_font("dj", "B", _FONT_BOLD)
 
     # ── Header ────────────────────────────────────────────────────────────────
     def header(self) -> None:

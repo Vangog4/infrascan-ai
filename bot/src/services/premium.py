@@ -45,9 +45,21 @@ async def is_premium(user_id: int) -> bool:
 
 
 async def grant_premium(user_id: int, days: int | None = None) -> None:
+    """Grant or *extend* Premium by ``days`` (default from settings).
+
+    If the user already has an active Premium key, the new TTL is
+    ``remaining + days`` so a referral +7d never shortens a paid 30d plan.
+    """
     days = days or settings.premium_duration_days
-    ttl = days * 86400
-    await _r().set(_PREMIUM_KEY.format(user_id), "1", ex=ttl)
+    extra = days * 86400
+    key = _PREMIUM_KEY.format(user_id)
+    remaining = await _r().ttl(key)
+    # ttl > 0 → active key with expiry; extend. Otherwise set a fresh window.
+    if remaining and remaining > 0:
+        ttl = remaining + extra
+    else:
+        ttl = extra
+    await _r().set(key, "1", ex=ttl)
     # Best-effort write to Odoo for billing records
     try:
         from src.services import odoo
@@ -111,6 +123,14 @@ async def consume_scan(user_id: int) -> bool:
         await _r().decr(key)
         return False
     return True
+
+
+async def refund_scan(user_id: int) -> None:
+    """Undo one ``consume_scan`` reservation (failed analysis / download)."""
+    key = _SCANS_KEY.format(user_id)
+    used = await get_scans_today(user_id)
+    if used > 0:
+        await _r().decr(key)
 
 
 async def scans_remaining(user_id: int) -> int:

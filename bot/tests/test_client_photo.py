@@ -50,8 +50,8 @@ async def test_audit_photo_limit_exceeded_ru():
     state = _state()
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=0)),
-        patch("src.services.referral.consume_bonus_scan", AsyncMock(return_value=False)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=False)),
+        patch("src.services.referral.get_bonus_scans", AsyncMock(return_value=0)),
     ):
         await audit_photo(msg, state=state, bot=_bot())
     assert "лимит" in msg.answer.call_args[0][0].lower()
@@ -64,8 +64,8 @@ async def test_audit_photo_limit_exceeded_en():
     state = _state(data={"locale": "en", "is_local": True})
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=0)),
-        patch("src.services.referral.consume_bonus_scan", AsyncMock(return_value=False)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=False)),
+        patch("src.services.referral.get_bonus_scans", AsyncMock(return_value=0)),
     ):
         await audit_photo(msg, state=state, bot=_bot())
     assert "limit" in msg.answer.call_args[0][0].lower()
@@ -79,8 +79,8 @@ async def test_audit_photo_limit_no_further_processing():
     bot = _bot()
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=0)),
-        patch("src.services.referral.consume_bonus_scan", AsyncMock(return_value=False)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=False)),
+        patch("src.services.referral.get_bonus_scans", AsyncMock(return_value=0)),
     ):
         await audit_photo(msg, state=state, bot=bot)
     bot.send_chat_action.assert_not_called()
@@ -96,7 +96,7 @@ async def test_audit_photo_too_large():
     state = _state()
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=3)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
     ):
         await audit_photo(msg, state=state, bot=_bot())
     assert "большое" in msg.answer.call_args[0][0].lower()
@@ -109,7 +109,7 @@ async def test_audit_photo_too_large_en():
     state = _state(data={"locale": "en", "is_local": True})
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=3)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
     ):
         await audit_photo(msg, state=state, bot=_bot())
     assert "large" in msg.answer.call_args[0][0].lower()
@@ -127,8 +127,7 @@ async def test_audit_photo_free_user_calls_gemini():
     fake_result = {"risk": "low", "description": "ok"}
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
-        patch("src.services.premium.increment_scan", AsyncMock()),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
         patch("src.services.premium.scans_remaining", AsyncMock(return_value=1)),
         patch("src.services.gemini.analyze_photo", AsyncMock(return_value=fake_result)),
         patch("src.services.gemini.format_analysis_free", MagicMock(return_value="Анализ: ok")),
@@ -186,8 +185,8 @@ async def test_audit_photo_quota_exhausted_keeps_state():
     state = _state()
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=0)),
-        patch("src.services.referral.consume_bonus_scan", AsyncMock(return_value=False)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=False)),
+        patch("src.services.referral.get_bonus_scans", AsyncMock(return_value=0)),
     ):
         await audit_photo(msg, state=state, bot=_bot())
     state.clear.assert_not_called()
@@ -202,8 +201,8 @@ async def test_audit_photo_quota_ok_clears_state():
     fake_result = {"risk": "low"}
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
-        patch("src.services.premium.increment_scan", AsyncMock()),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=1)),
         patch("src.services.gemini.analyze_photo", AsyncMock(return_value=fake_result)),
         patch("src.services.gemini.format_analysis_free", MagicMock(return_value="ok")),
         patch("src.services.referral.reward_first_scan", AsyncMock()),
@@ -233,7 +232,8 @@ async def test_audit_photo_wait_deleted_on_analysis_exception():
     msg.answer = AsyncMock(return_value=wait_msg)
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=1)),
         patch("src.handlers.client.get_cached_analysis", AsyncMock(return_value=None)),
         patch(
             "src.services.gemini.analyze_photo",
@@ -321,6 +321,7 @@ async def test_lead_contact_creates_lead():
     with (
         patch("src.services.odoo.create_lead", AsyncMock(return_value=1)),
         patch("src.services.roles.set_phone", AsyncMock()),
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
     ):
         await lead_contact(msg, state=state, bot=bot)
     msg.answer.assert_called_once()
@@ -334,6 +335,7 @@ async def test_lead_contact_clears_state():
     with (
         patch("src.services.odoo.create_lead", AsyncMock(return_value=1)),
         patch("src.services.roles.set_phone", AsyncMock()),
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
     ):
         await lead_contact(msg, state=state, bot=_bot())
     state.clear.assert_called_once()
@@ -347,6 +349,7 @@ async def test_lead_contact_odoo_fails_notifies_admin():
     with (
         patch("src.services.odoo.create_lead", AsyncMock(return_value=None)),
         patch("src.services.roles.set_phone", AsyncMock()),
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
         patch("src.handlers.client.settings") as mock_settings,
     ):
         mock_settings.admin_ids = [1001]

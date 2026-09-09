@@ -13,6 +13,18 @@ from aiogram.types import CallbackQuery, Message
 from src.handlers import serial_audit as sa
 from src.states.flows import SerialAuditFlow
 
+# Serial audit is Premium-only — mock entitlement for handler unit tests.
+_PREMIUM = patch(
+    "src.handlers.serial_audit.premium_svc.is_premium",
+    AsyncMock(return_value=True),
+)
+
+
+@pytest.fixture(autouse=True)
+def _premium_ok():
+    with _PREMIUM:
+        yield
+
 
 def _state(data=None) -> MagicMock:
     st = MagicMock()
@@ -176,3 +188,22 @@ async def test_serial_cancel_clears_state():
     state.clear.assert_awaited_once()
     call.message.edit_text.assert_awaited_once()
     call.answer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_serial_done_escapes_html_and_respects_length():
+    bot = _bot()
+    state = _state({"photos": ["f1"]})
+    call = _callback(bot=bot)
+    analysis = {
+        "risk_level": "HIGH",
+        "object_type": "<труба & фитинг>",
+        "free_verdict": "Течь при T > 80°C & p < 2 bar <script>",
+    }
+    with patch("src.services.gemini.analyze_photo", AsyncMock(return_value=analysis)):
+        await sa.serial_done(call, state=state)
+    final = call.message.edit_text.call_args[0][0]
+    assert "<script>" not in final
+    assert "&lt;script&gt;" in final
+    assert "&lt;труба &amp; фитинг&gt;" in final
+    assert "T &gt; 80°C &amp; p &lt; 2 bar" in final

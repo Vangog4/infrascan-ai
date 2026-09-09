@@ -4,8 +4,6 @@ import asyncio
 import re
 from io import BytesIO
 
-from gtts import gTTS
-
 
 def _strip_html(text: str) -> str:
     text = re.sub(r"<[^>]+>", "", text)
@@ -15,6 +13,8 @@ def _strip_html(text: str) -> str:
 
 
 def _generate_sync(text: str, lang: str) -> bytes:
+    from gtts import gTTS
+
     clean = _strip_html(text)
     buf = BytesIO()
     gTTS(text=clean[:4000], lang=lang, slow=False).write_to_fp(buf)

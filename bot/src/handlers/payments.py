@@ -134,8 +134,34 @@ async def cb_pack_buy(call: CallbackQuery, bot: Bot, locale: str = "ru") -> None
 # ── Checkout ─────────────────────────────────────────────────────────────────
 
 
+def _valid_payload_and_amount(payload: str, amount: int) -> bool:
+    """Whitelist known Stars products and expected prices."""
+    if payload == _PAYLOAD:
+        return amount == settings.premium_price_stars
+    if payload.startswith("pack_") and payload.endswith("_scans"):
+        try:
+            count = int(payload.split("_")[1])
+        except (IndexError, ValueError):
+            return False
+        return count in _PACK_PRICES and amount == _PACK_PRICES[count]
+    return False
+
+
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery, bot: Bot) -> None:
+    ok = _valid_payload_and_amount(query.invoice_payload or "", int(query.total_amount or 0))
+    if not ok:
+        logger.warning(
+            "pre_checkout rejected: payload=%s amount=%s",
+            query.invoice_payload,
+            query.total_amount,
+        )
+        await bot.answer_pre_checkout_query(
+            query.id,
+            ok=False,
+            error_message="Invalid payment. Please try again from the Premium menu.",
+        )
+        return
     await bot.answer_pre_checkout_query(query.id, ok=True)
 
 
@@ -150,12 +176,39 @@ async def payment_success(
     payment = message.successful_payment
     payload = payment.invoice_payload
 
+    charge_id = getattr(payment, "telegram_payment_charge_id", None)
+    if isinstance(charge_id, str) and charge_id:
+        from src.services.redis import get_redis
+
+        r = get_redis()
+        if not await r.set(f"payment_charge:{charge_id}", "1", nx=True, ex=30 * 86400):
+            logger.warning(
+                "Duplicate payment_success ignored for charge %s (user=%d)", charge_id, user_id
+            )
+            return
+
     logger.info(
         "Stars payment confirmed: user=%d stars=%d payload=%s",
         user_id,
         payment.total_amount,
         payload,
     )
+
+    if not _valid_payload_and_amount(payload, int(payment.total_amount or 0)):
+        logger.error(
+            "payment_success unknown payload after pre_checkout: user=%d payload=%s amount=%s",
+            user_id,
+            payload,
+            payment.total_amount,
+        )
+        # Still try not to strand a paid user: only grant if payload is our premium key.
+        if payload != _PAYLOAD and not (payload.startswith("pack_") and payload.endswith("_scans")):
+            await message.answer(
+                "⚠️ Оплата получена, но товар не распознан. Напишите в поддержку."
+                if locale == "ru"
+                else "⚠️ Payment received but product was not recognized. Contact support."
+            )
+            return
 
     if payload.startswith("pack_") and payload.endswith("_scans"):
         count = int(payload.split("_")[1])
@@ -225,4 +278,4 @@ async def payment_success(
             f"Access granted for <b>{days} days</b>.\n\n"
             f"Send photos — unlimited analysis!"
         )
-    await message.answer(text, reply_markup=client_menu(locale, is_local))
+    await message.answer(text, reply_markup=premium_client_menu(locale, is_local))

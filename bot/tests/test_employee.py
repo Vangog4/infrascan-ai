@@ -82,7 +82,7 @@ async def test_today_tasks_employee_empty():
     msg = _msg()
     with patch("src.services.odoo.get_today_tasks", AsyncMock(return_value=[])):
         await today_tasks(msg, role=Role.EMPLOYEE)
-    assert "не запланировано" in msg.answer.call_args[0][0]
+    assert "выездов" in msg.answer.call_args[0][0].lower()
 
 
 @pytest.mark.asyncio

@@ -1,12 +1,20 @@
+import html
+
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from src.services import gemini
+from src.services import gemini, image_prep
+from src.services import premium as premium_svc
 from src.states.flows import SerialAuditFlow
 
 router = Router()
 MAX_PHOTOS = 5
+
+
+async def _serial_allowed(user_id: int) -> bool:
+    """Serial multi-photo analysis is Premium-only (avoids free multi-Gemini abuse)."""
+    return await premium_svc.is_premium(user_id)
 
 
 def _serial_kb(count: int) -> InlineKeyboardMarkup:
@@ -32,6 +40,12 @@ def _serial_kb(count: int) -> InlineKeyboardMarkup:
 
 @router.callback_query(F.data == "start_serial")
 async def start_serial(callback: CallbackQuery, state: FSMContext):
+    if not await _serial_allowed(callback.from_user.id):
+        await callback.answer(
+            "Серийный анализ доступен только с Premium.",
+            show_alert=True,
+        )
+        return
     await state.set_state(SerialAuditFlow.collecting)
     await state.update_data(photos=[])
     await callback.message.answer(
@@ -45,6 +59,11 @@ async def start_serial(callback: CallbackQuery, state: FSMContext):
 
 @router.message(SerialAuditFlow.collecting, F.photo)
 async def collect_photo(message: Message, state: FSMContext, bot: Bot):
+    if not await _serial_allowed(message.from_user.id):
+        await state.clear()
+        await message.answer("⚠️ Серийный анализ доступен только с Premium.")
+        return
+
     data = await state.get_data()
     photos = data.get("photos", [])
 
@@ -57,13 +76,18 @@ async def collect_photo(message: Message, state: FSMContext, bot: Bot):
 
     wait = await message.answer("🔎 Проверяю качество снимка...")
     file_io = await bot.download(message.photo[-1])
-    qc = await gemini.check_quality(file_io.read())
+    raw_bytes = file_io.read()
+    data_bytes, _ = await image_prep.prepare_image_async(raw_bytes, "image/jpeg")
+    qc = await gemini.check_quality(data_bytes)
 
     if not qc["ok"]:
-        tip = f"\n💡 {qc['tip']}" if qc.get("tip") else ""
+        raw_tip = qc.get("tip")
+        tip = f"\n💡 {html.escape(str(raw_tip))}" if raw_tip else ""
+        reason = html.escape(str(qc.get("reason", "Качество недостаточно")))
+        score = html.escape(str(qc.get("score", 0)))
         await wait.edit_text(
-            f"❌ <b>Снимок не принят</b> <code>{qc['score']}/100</code>\n\n"
-            f"📋 {qc.get('reason', 'Качество недостаточно')}"
+            f"❌ <b>Снимок не принят</b> <code>{score}/100</code>\n\n"
+            f"📋 {reason}"
             f"{tip}\n\nПересними и отправь снова 👇"
         )
         return
@@ -72,8 +96,9 @@ async def collect_photo(message: Message, state: FSMContext, bot: Bot):
     photos.append(file_id)
     await state.update_data(photos=photos)
     score_emoji = "🟢" if qc["verdict"] == "ПРИНЯТО" else "🟡"
+    score = html.escape(str(qc.get("score", 0)))
     await wait.edit_text(
-        f"{score_emoji} Снимок {len(photos)}/{MAX_PHOTOS} принят <code>{qc['score']}/100</code>",
+        f"{score_emoji} Снимок {len(photos)}/{MAX_PHOTOS} принят <code>{score}/100</code>",
         reply_markup=_serial_kb(len(photos)),
     )
 
@@ -85,6 +110,11 @@ async def serial_add_hint(callback: CallbackQuery):
 
 @router.callback_query(F.data == "serial_done", SerialAuditFlow.collecting)
 async def serial_done(callback: CallbackQuery, state: FSMContext):
+    if not await _serial_allowed(callback.from_user.id):
+        await state.clear()
+        await callback.answer("Серийный анализ доступен только с Premium.", show_alert=True)
+        return
+
     data = await state.get_data()
     photos = data.get("photos", [])
 
@@ -101,28 +131,39 @@ async def serial_done(callback: CallbackQuery, state: FSMContext):
         try:
             file = await callback.bot.get_file(file_id)
             bio = await callback.bot.download_file(file.file_path)
-            data_bytes = bio.read() if hasattr(bio, "read") else bytes(bio)
+            raw_bytes = bio.read() if hasattr(bio, "read") else bytes(bio)
+            data_bytes, _ = await image_prep.prepare_image_async(raw_bytes, "image/jpeg")
 
             analysis = await gemini.analyze_photo(data_bytes, locale=locale)
-            risk = analysis.get("risk_level", "?")
-            obj = analysis.get("object_type", "объект")
-            verdict = (analysis.get("free_verdict") or "")[:200]
-            icon = risk_icon.get(risk, "⚪")
+            risk = html.escape(str(analysis.get("risk_level", "?")))
+            obj = html.escape(str(analysis.get("object_type", "объект")))
+            verdict = html.escape(str((analysis.get("free_verdict") or "")[:200]))
+            icon = risk_icon.get(analysis.get("risk_level"), "⚪")
             results.append(
                 f"📸 <b>Фото {i}</b> — {obj}\n{icon} Риск: <b>{risk}</b>\n<i>{verdict}</i>"
             )
         except Exception as e:
-            results.append(f"📸 Фото {i}: ошибка — {e}")
+            results.append(f"📸 Фото {i}: ошибка — {html.escape(str(e))}")
 
-    summary = "\n\n".join(results)
-    text = (
-        f"📊 <b>Серийный анализ — {len(photos)} фото</b>\n\n"
-        f"{summary}\n\n"
-        f"<i>Для детального отчёта по каждому снимку отправляйте фото по одному.</i>"
-    )
-    if len(text) > 4000:
-        text = text[:3950] + "\n\n...</i>"
+    header = f"📊 <b>Серийный анализ — {len(photos)} фото</b>\n\n"
+    footer = "\n\n<i>Для детального отчёта по каждому снимку отправляйте фото по одному.</i>"
+    base_len = len(header) + len(footer) + 50
 
+    summary_items: list[str] = []
+    total_len = 0
+    truncated = False
+    for res in results:
+        if total_len + len(res) + 2 + base_len > 4000:
+            truncated = True
+            break
+        summary_items.append(res)
+        total_len += len(res) + 2
+
+    summary = "\n\n".join(summary_items)
+    if truncated:
+        summary += "\n\n<i>... [часть результатов скрыта из-за лимита длины]</i>"
+
+    text = f"{header}{summary}{footer}"
     await callback.message.edit_text(text, parse_mode="HTML")
     await state.clear()
 

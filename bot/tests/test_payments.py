@@ -132,12 +132,30 @@ async def test_cb_premium_buy_en_label():
 
 @pytest.mark.asyncio
 async def test_pre_checkout_answers_ok():
+    from src.config import settings
+
     query = MagicMock()
     query.id = "qid_abc"
+    query.invoice_payload = "premium_30days"
+    query.total_amount = settings.premium_price_stars
     bot = MagicMock()
     bot.answer_pre_checkout_query = AsyncMock()
     await pre_checkout(query, bot)
     bot.answer_pre_checkout_query.assert_called_once_with("qid_abc", ok=True)
+
+
+@pytest.mark.asyncio
+async def test_pre_checkout_rejects_unknown_payload():
+    query = MagicMock()
+    query.id = "qid_bad"
+    query.invoice_payload = "hacker_payload"
+    query.total_amount = 1
+    bot = MagicMock()
+    bot.answer_pre_checkout_query = AsyncMock()
+    await pre_checkout(query, bot)
+    bot.answer_pre_checkout_query.assert_called_once()
+    call_kwargs = bot.answer_pre_checkout_query.call_args.kwargs
+    assert call_kwargs.get("ok") is False
 
 
 # ── payment_success ───────────────────────────────────────────────────────────
@@ -188,3 +206,30 @@ async def test_payment_success_sends_confirmation_en():
         await payment_success(msg, _fake_bot(), locale="en", is_local=True)
     text = msg.answer.call_args[0][0]
     assert "Premium activated" in text
+
+
+@pytest.mark.asyncio
+async def test_payment_success_idempotent_on_duplicate_charge():
+    msg = _msg()
+    msg.successful_payment = MagicMock(
+        total_amount=150,
+        invoice_payload="premium_30days",
+        telegram_payment_charge_id="tg_charge_999",
+    )
+    mock_redis = AsyncMock()
+    # First attempt: key set succeeds (returns True)
+    # Second attempt: key already exists (returns False)
+    mock_redis.set.side_effect = [True, False]
+
+    with (
+        patch("src.services.redis.get_redis", return_value=mock_redis),
+        patch("src.handlers.payments.premium_svc.grant_premium", AsyncMock()) as mock_grant,
+        patch("src.handlers.payments.ref_svc.reward_premium_purchase", AsyncMock()),
+    ):
+        # 1st call
+        await payment_success(msg, _fake_bot(), locale="ru", is_local=True)
+        assert mock_grant.call_count == 1
+
+        # 2nd call with same charge_id: should be ignored
+        await payment_success(msg, _fake_bot(), locale="ru", is_local=True)
+        assert mock_grant.call_count == 1

@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import html
 import logging
 from datetime import UTC, date
 
@@ -17,18 +18,15 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
 from src.keyboards.menus import (
-    BTN_CALC,
-    BTN_CALC_EN,
-    BTN_PHOTO,
-    BTN_PHOTO_EN,
-    BTN_PHOTO_PREM,
-    BTN_PHOTO_PREM_EN,
-    BTN_UPGRADE,
-    BTN_UPGRADE_EN,
+    CALC_BTNS,
+    ORDER_BTNS,
+    PHOTO_BTNS,
+    UPGRADE_BTNS,
     client_menu,
     contact_kb,
     heating_kb,
     order_kb,
+    premium_client_menu,
 )
 from src.services import gemini, image_prep, metrics, odoo, roles
 from src.services import premium as premium_svc
@@ -91,7 +89,7 @@ def _supervise_task(task: asyncio.Task, *, name: str) -> None:
 # ── Photo Audit ───────────────────────────────────────────────────────────────
 
 
-@router.message(F.text.in_({BTN_PHOTO, BTN_PHOTO_EN, BTN_PHOTO_PREM, BTN_PHOTO_PREM_EN}))
+@router.message(F.text.in_(PHOTO_BTNS))
 async def audit_start(
     message: Message,
     state: FSMContext,
@@ -116,26 +114,24 @@ async def _check_quota(
 ) -> tuple[bool, bool, bool]:
     """Resolve premium/quota state for an audit request.
 
-    Returns ``(allowed, is_prem, used_bonus)``. When ``allowed`` is False the
-    upgrade/limit message has already been sent to the user.
+    Returns ``(allowed, is_prem, used_bonus)``.
 
-    TODO(quota-toctou): this still uses the non-atomic check (``scans_remaining``
-    here) + later charge (``increment_scan`` in ``_analyze_and_reply``). Two
-    concurrent photos can both pass the check before either increments, briefly
-    overrunning ``free_daily_scans``. An atomic, race-free primitive now exists —
-    ``premium.consume_scan`` (INCR-reserve + rollback) — but wiring it in changes
-    the "charge only after a *successful* analysis" semantics (a failed Gemini
-    call would consume the slot) and would need a refund-on-failure path plus a
-    rewrite of the quota tests. Deferred to keep prod green; see premium.py.
+    Free path uses atomic ``consume_scan`` (TOCTOU-safe). On analysis failure
+    the caller must ``refund_scan``. Bonus is *not* spent here — only marked
+    via ``used_bonus``; ``consume_bonus_scan`` runs after a successful analysis.
     """
     is_prem = await premium_svc.is_premium(user_id)
     used_bonus = False
 
     if not is_prem:
-        remaining = await premium_svc.scans_remaining(user_id)
-        if remaining <= 0:
-            used_bonus = await ref_svc.consume_bonus_scan(user_id)
-            if not used_bonus:
+        # Atomic free-slot reservation (INCR + rollback if over limit).
+        reserved = await premium_svc.consume_scan(user_id)
+        if not reserved:
+            # No free slot — try bonus *without* consuming yet.
+            bonus_left = await ref_svc.get_bonus_scans(user_id)
+            if bonus_left > 0:
+                used_bonus = True
+            else:
                 upgrade_b = InlineKeyboardBuilder()
                 if locale == "ru":
                     upgrade_b.row(
@@ -146,7 +142,7 @@ async def _check_quota(
                     )
                     upgrade_b.row(
                         InlineKeyboardButton(
-                            text="🎁 Пригласить друга (+5 сканов)",
+                            text="🎁 Пригласить друга (+1 анализ)",
                             callback_data="action:invite",
                         )
                     )
@@ -157,7 +153,7 @@ async def _check_quota(
                         f"🕐 Лимит обновится в <b>00:00 UTC</b>\n\n"
                         "<b>Как продолжить прямо сейчас:</b>\n"
                         "  ⭐️ Premium — безлимитный анализ\n"
-                        "  🎁 Пригласите друга — получите +5 бонусных сканов",
+                        "  🎁 Пригласите друга — получите +1 бонусный анализ",
                         reply_markup=upgrade_b.as_markup(),
                     )
                 else:
@@ -169,7 +165,7 @@ async def _check_quota(
                     )
                     upgrade_b.row(
                         InlineKeyboardButton(
-                            text="🎁 Invite a Friend (+5 scans)",
+                            text="🎁 Invite a Friend (+1 analysis)",
                             callback_data="action:invite",
                         )
                     )
@@ -180,12 +176,25 @@ async def _check_quota(
                         f"🕐 Limit resets at <b>00:00 UTC</b>\n\n"
                         "<b>Continue right now:</b>\n"
                         "  ⭐️ Premium — unlimited analysis\n"
-                        "  🎁 Invite a friend — earn +5 bonus scans",
+                        "  🎁 Invite a friend — earn +1 bonus analysis",
                         reply_markup=upgrade_b.as_markup(),
                     )
-                return False, is_prem, used_bonus
+                return False, is_prem, False
 
     return True, is_prem, used_bonus
+
+
+async def _refund_quota(user_id: int, is_prem: bool, used_bonus: bool) -> None:
+    """Return a free-scan reservation when analysis never succeeded.
+
+    Bonus is only consumed after success, so no bonus refund is needed here.
+    """
+    if is_prem or used_bonus:
+        return
+    try:
+        await premium_svc.refund_scan(user_id)
+    except Exception:
+        logger.exception("refund_scan failed for user %s", user_id)
 
 
 async def _flush_album(
@@ -238,6 +247,26 @@ async def _flush_album(
                 *(image_prep.prepare_image_async(f["raw"], f["mime"]) for f in frames)
             )
         )
+    except Exception:
+        # Prep failed before analysis — refund free reservation here.
+        await _refund_quota(user_id, is_prem, used_bonus)
+        _typing.cancel()
+        try:
+            await wait.delete()
+        except Exception:
+            logger.debug("could not delete album 'analyzing' placeholder", exc_info=True)
+        err = (
+            "⚠️ Не удалось обработать альбом, попробуйте ещё раз."
+            if locale == "ru"
+            else "⚠️ Could not process the album, please try again."
+        )
+        try:
+            await message.answer(err)
+        except Exception:
+            logger.debug("could not send album error notice", exc_info=True)
+        raise
+
+    try:
         await _analyze_and_reply(
             message,
             bot,
@@ -251,21 +280,14 @@ async def _flush_album(
             voice_context=voice_context,
         )
     except Exception:
-        # Preprocessing or analysis blew up. Stop typing, drop the placeholder,
-        # and tell the user plainly — but DON'T swallow the log (re-raise so the
-        # AlbumBuffer logs the traceback for diagnostics).
-        _typing.cancel()
-        try:
-            await wait.delete()
-        except Exception:
-            logger.debug("could not delete album 'analyzing' placeholder", exc_info=True)
+        # _analyze_and_reply already refunds on failure; only UX notice here.
         err = (
             "⚠️ Не удалось обработать альбом, попробуйте ещё раз."
             if locale == "ru"
             else "⚠️ Could not process the album, please try again."
         )
         try:
-            await message.answer(err, reply_markup=client_menu(locale, is_local))
+            await message.answer(err)
         except Exception:
             logger.debug("could not send album error notice", exc_info=True)
         raise
@@ -328,6 +350,17 @@ async def audit_photo(
     locale: str = data.get("locale", "ru")
     is_local: bool = data.get("is_local", True)
 
+    photo = message.photo[-1]
+    # Size gate BEFORE quota — do not reserve a free scan for an unusable file.
+    if photo.file_size and photo.file_size > _MAX_PHOTO_BYTES:
+        err = (
+            "⚠️ Фото слишком большое (максимум 20 МБ). Отправьте снимок меньшего размера."
+            if locale == "ru"
+            else "⚠️ Photo is too large (max 20 MB). Please send a smaller image."
+        )
+        await message.answer(err)
+        return
+
     user_id = message.from_user.id
     allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
     if not allowed:
@@ -337,23 +370,16 @@ async def audit_photo(
     await state.clear()
 
     metrics.inc("photo_input_total", {"kind": "photo"})
-    photo = message.photo[-1]
-    if photo.file_size and photo.file_size > _MAX_PHOTO_BYTES:
-        err = (
-            "⚠️ Фото слишком большое (максимум 20 МБ). Отправьте снимок меньшего размера."
-            if locale == "ru"
-            else "⚠️ Photo is too large (max 20 MB). Please send a smaller image."
-        )
-        await message.answer(err, reply_markup=client_menu(locale, is_local))
-        return
 
     await bot.send_chat_action(message.chat.id, "upload_photo")
     wait = await message.answer(t("analyzing", locale))
     _typing = asyncio.create_task(typing_loop(bot, message.chat.id))
     try:
         file_io = await bot.download(photo)
-        photo_bytes = file_io.read()
+        raw_bytes = file_io.read()
+        photo_bytes, prepared_mime = await image_prep.prepare_image_async(raw_bytes, "image/jpeg")
     except Exception:
+        await _refund_quota(user_id, is_prem, used_bonus)
         _typing.cancel()
         await wait.delete()
         raise
@@ -363,7 +389,7 @@ async def audit_photo(
         bot,
         wait=wait,
         typing_task=_typing,
-        frames=[(photo_bytes, "image/jpeg")],
+        frames=[(photo_bytes, prepared_mime)],
         locale=locale,
         is_local=is_local,
         is_prem=is_prem,
@@ -375,11 +401,8 @@ async def audit_photo(
 async def _cached_analyze(frames: list[tuple[bytes, str]], locale: str, voice_context: str) -> dict:
     """Combined cache lookup + Gemini analysis for one or more frames.
 
-    Cache key is sha256 of the concatenated frame bytes in the given (stable)
-    order PLUS the voice context, so re-sending the same album hits the cache
-    only when the user comment is identical; a new voice note yields a fresh
-    analysis. A single frame uses ``analyze_photo``; several frames use
-    ``analyze_photos`` (one multimodal call). Result is cached unless it is an error.
+    Cache key is sha256 of frame bytes + voice context + locale (RU/EN never
+    cross-serve). Single frame → ``analyze_photo``; multi → ``analyze_photos``.
     """
     h = hashlib.sha256()
     for data, _mime in frames:
@@ -392,6 +415,11 @@ async def _cached_analyze(frames: list[tuple[bytes, str]], locale: str, voice_co
     h.update(str(len(ctx_bytes)).encode("ascii"))
     h.update(b"|")
     h.update(ctx_bytes)
+    loc = (locale or "ru").encode("utf-8")
+    h.update(b"|loc|")
+    h.update(str(len(loc)).encode("ascii"))
+    h.update(b"|")
+    h.update(loc)
     photo_hash = h.hexdigest()
 
     result = await get_cached_analysis(photo_hash)
@@ -431,16 +459,28 @@ async def _analyze_and_reply(
     ``typing_task`` the typing indicator — both owned (cancelled/deleted) here.
     """
     user_id = message.from_user.id
+    result: dict | None = None
     try:
         result = await _cached_analyze(frames, locale, voice_context)
+    except Exception:
+        await _refund_quota(user_id, is_prem, used_bonus)
+        raise
     finally:
         typing_task.cancel()
-        # Always remove the "analyzing…" placeholder, even if analysis raised,
-        # so it never lingers forever. Swallow delete errors (msg already gone).
+        # Always remove the "analyzing…" placeholder, even if analysis raised.
         try:
             await wait.delete()
         except Exception:
             logger.debug("could not delete 'analyzing' placeholder", exc_info=True)
+
+    # Transport / provider failure: refund free reservation, no reward/persist.
+    # Domain rejections (e.g. not_a_building) still count as a used scan.
+    if isinstance(result, dict) and result.get("error") == "api_error":
+        await _refund_quota(user_id, is_prem, used_bonus)
+        err_text = gemini.format_analysis_free(result, locale, settings.premium_price_stars)
+        # No reply keyboard — keep the existing main menu (avoid re-paint / "duplicate").
+        await message.answer(err_text)
+        return
 
     # Before/After comparison
     prev = await get_last_analysis(user_id)
@@ -453,7 +493,9 @@ async def _analyze_and_reply(
     # Supervised: a failure here (e.g. Odoo down) would otherwise lose the report
     # silently while the user's quota was already charged — log + metric instead.
     _supervise_task(
-        asyncio.create_task(odoo.save_report(str(message.from_user.id), result)),
+        asyncio.create_task(
+            odoo.save_report(str(message.from_user.id), result, is_premium=is_prem)
+        ),
         name="save_report",
     )
     _supervise_task(
@@ -461,11 +503,12 @@ async def _analyze_and_reply(
         name="schedule_reminder",
     )
 
-    # Referral first-scan reward (idempotent, fires once per new user)
+    # Referral first-scan reward only after a *successful* analysis
     await ref_svc.reward_first_scan(user_id, bot)
 
     if not is_prem:
         if used_bonus:
+            await ref_svc.consume_bonus_scan(user_id)
             bonus_left = await ref_svc.get_bonus_scans(user_id)
             text = gemini.format_analysis_free(result, locale, settings.premium_price_stars)
             if bonus_left > 0:
@@ -475,9 +518,10 @@ async def _analyze_and_reply(
                     else f"\n\n<i>Bonus scan used. Bonus analyses remaining: {bonus_left}</i>"
                 )
                 text += footer
-            await message.answer(text, reply_markup=client_menu(locale, is_local))
+            # Inline upgrade only when out of free+bonus — never re-send reply keyboard.
+            await message.answer(text)
         else:
-            await premium_svc.increment_scan(user_id)
+            # Free slot was already reserved atomically in _check_quota.
             remaining_after = await premium_svc.scans_remaining(user_id)
             text = gemini.format_analysis_free(result, locale, settings.premium_price_stars)
             if remaining_after > 0:
@@ -487,7 +531,7 @@ async def _analyze_and_reply(
                     else f"\n\n<i>Free analyses remaining today: {remaining_after}</i>"
                 )
                 text += footer
-            await message.answer(text, reply_markup=client_menu(locale, is_local))
+            await message.answer(text)
     else:
         text = gemini.format_analysis_premium(result, locale)
         await save_last_report(user_id, text)
@@ -564,6 +608,16 @@ async def audit_document(
         await message.answer(err)
         return
 
+    # Size gate BEFORE quota.
+    if doc.file_size and doc.file_size > _MAX_PHOTO_BYTES:
+        err = (
+            "⚠️ Файл слишком большой (максимум 20 МБ). Отправьте снимок меньшего размера."
+            if locale == "ru"
+            else "⚠️ File is too large (max 20 MB). Please send a smaller image."
+        )
+        await message.answer(err)
+        return
+
     user_id = message.from_user.id
     allowed, is_prem, used_bonus = await _check_quota(message, user_id, locale, is_local)
     if not allowed:
@@ -572,14 +626,6 @@ async def audit_document(
     await state.clear()
 
     metrics.inc("photo_input_total", {"kind": "document"})
-    if doc.file_size and doc.file_size > _MAX_PHOTO_BYTES:
-        err = (
-            "⚠️ Файл слишком большой (максимум 20 МБ). Отправьте снимок меньшего размера."
-            if locale == "ru"
-            else "⚠️ File is too large (max 20 MB). Please send a smaller image."
-        )
-        await message.answer(err, reply_markup=client_menu(locale, is_local))
-        return
 
     await bot.send_chat_action(message.chat.id, "upload_photo")
     wait = await message.answer(t("analyzing", locale))
@@ -591,6 +637,7 @@ async def audit_document(
         # inside the shared helper so cache keys match the analysed payload.
         prepared_bytes, prepared_mime = await image_prep.prepare_image_async(raw_bytes, mime)
     except Exception:
+        await _refund_quota(user_id, is_prem, used_bonus)
         _typing.cancel()
         await wait.delete()
         raise
@@ -647,7 +694,7 @@ async def audit_voice_hint(
 # ── Premium upgrade shortcut ──────────────────────────────────────────────────
 
 
-@router.message(F.text.in_({BTN_UPGRADE, BTN_UPGRADE_EN}))
+@router.message(F.text.in_(UPGRADE_BTNS))
 async def btn_upgrade(message: Message, locale: str = "ru", is_local: bool = True) -> None:
     from src.handlers.payments import cmd_premium
 
@@ -657,7 +704,7 @@ async def btn_upgrade(message: Message, locale: str = "ru", is_local: bool = Tru
 # ── Heat Loss Calculator ──────────────────────────────────────────────────────
 
 
-@router.message(F.text.in_({BTN_CALC, BTN_CALC_EN}))
+@router.message(F.text.in_(CALC_BTNS))
 async def calc_start(
     message: Message, state: FSMContext, locale: str = "ru", is_local: bool = True
 ) -> None:
@@ -754,7 +801,7 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
 # ── Lead Capture (local only) ─────────────────────────────────────────────────
 
 
-@router.message(F.text == "🚗 Вызвать инженера")
+@router.message(F.text.in_(ORDER_BTNS))
 async def lead_start(message: Message, state: FSMContext) -> None:
     await state.set_state(LeadFlow.contact)
     await message.answer(
@@ -807,6 +854,10 @@ async def lead_contact(
     odoo_status = (
         f"✅ Лид #{result} создан в Odoo" if result else "⚠️ Odoo недоступен — зафиксируй вручную"
     )
+    safe_name = html.escape(name)
+    safe_phone = html.escape(phone)
+    safe_tg_ref = html.escape(tg_ref)
+    safe_odoo_status = html.escape(odoo_status)
     for admin_id in settings.admin_ids:
         if admin_id:
             try:
@@ -814,21 +865,23 @@ async def lead_contact(
                     admin_id,
                     f"📥 <b>Новая заявка на выезд!</b>\n"
                     f"──────────────────────\n"
-                    f"👤 <b>Имя:</b> {name}\n"
-                    f"📞 <b>Телефон:</b> <code>{phone}</code>\n"
-                    f"🔗 <b>Telegram:</b> {tg_ref}\n"
+                    f"👤 <b>Имя:</b> {safe_name}\n"
+                    f"📞 <b>Телефон:</b> <code>{safe_phone}</code>\n"
+                    f"🔗 <b>Telegram:</b> {safe_tg_ref}\n"
                     f"──────────────────────\n"
-                    f"🗄 {odoo_status}",
+                    f"🗄 {safe_odoo_status}",
                 )
             except Exception:
                 pass
 
+    is_prem = await premium_svc.is_premium(message.from_user.id)
+    kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
     await message.answer(
         "✅ <b>Заявка на выезд принята!</b>\n"
         "──────────────────────\n"
         "🚗 Инженер свяжется с вами для согласования времени.\n\n"
         "<i>Среднее время ответа — 15 минут в рабочие часы.</i>",
-        reply_markup=client_menu(locale, is_local),
+        reply_markup=kb,
     )
 
 

@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import hashlib
+import html
 import logging
 from datetime import datetime
 
@@ -11,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 
 from src.config import settings
 from src.keyboards.menus import employee_menu, tasks_kb
-from src.services import gemini, odoo
+from src.services import gemini, image_prep, odoo
 from src.services.redis import cache_analysis, get_cached_analysis
 from src.services.roles import Role
 from src.states.flows import EmployeePhotoFlow
@@ -28,6 +29,15 @@ def _is_employee(role: Role) -> bool:
 # ─── Today's Tasks ───────────────────────────────────────────────────────────
 
 
+def _m2o_name(val) -> str:
+    """Extract display name from Odoo many2one field."""
+    if isinstance(val, (list, tuple)) and len(val) > 1:
+        return str(val[1] or "—")
+    if isinstance(val, dict):
+        return str(val.get("display_name") or val.get("name") or "—")
+    return "—"
+
+
 @router.message(F.text == "🚗 Мои выезды на сегодня")
 async def today_tasks(message: Message, role: Role) -> None:
     if not _is_employee(role):
@@ -35,19 +45,36 @@ async def today_tasks(message: Message, role: Role) -> None:
     tasks = await odoo.get_today_tasks(message.from_user.id)
     if not tasks:
         await message.answer(
-            "📋 На сегодня выездов не запланировано.\nЕсли это ошибка — свяжитесь с диспетчером.",
+            "📋 На сегодня активных выездов нет.\n\n"
+            "Диспетчер назначает задачи в Odoo:\n"
+            "• проект <b>Выезд</b>\n"
+            "• срок = сегодня (или пустой)\n"
+            "• поле <b>Telegram ID инженера</b> = ваш TG ID\n"
+            "  <i>(пустое = видно всем инженерам)</i>",
             reply_markup=employee_menu(),
         )
         return
     _sep = "──────────────────────"
-    lines = [f"🚗 <b>Выезды на сегодня</b>  <code>({len(tasks)} объектов)</code>\n"]
+    lines = [
+        f"🚗 <b>Выезды на сегодня</b>  <code>({len(tasks)})</code>\n"
+        f"<i>Ваш TG ID: <code>{message.from_user.id}</code></i>\n"
+    ]
     for i, t in enumerate(tasks, 1):
-        proj = t.get("project_id", [None, "—"])[1]
-        deadline = t.get("date_deadline") or "—"
+        proj = html.escape(str(_m2o_name(t.get("project_id"))))
+        stage = html.escape(str(_m2o_name(t.get("stage_id"))))
+        deadline = html.escape(str(t.get("date_deadline") or "без срока"))
+        assigned = html.escape(str(t.get("x_telegram_id") or "общий"))
+        name = html.escape(str(t.get("name", "—")))
         lines.append(
-            f"{_sep}\n<b>{i}. {t['name']}</b>\n📁 <b>Проект:</b> {proj}\n📅 <b>Срок:</b> {deadline}"
+            f"{_sep}\n"
+            f"<b>{i}. {name}</b>\n"
+            f"📁 {proj}\n"
+            f"📌 Статус: <b>{stage}</b>\n"
+            f"📅 Срок: {deadline}\n"
+            f"👷 Назначен: <code>{assigned}</code>"
         )
     lines.append(_sep)
+    lines.append("\n📤 Чтобы сдать фото — «Сдать фото по объекту»")
     await message.answer(
         "\n".join(lines),
         reply_markup=employee_menu(),
@@ -80,8 +107,9 @@ async def photo_task_selected(call: CallbackQuery, state: FSMContext) -> None:
     task_name = data.get("tasks", {}).get(str(task_id), f"Задача #{task_id}")
     await state.update_data(task_id=task_id, task_name=task_name, photo_count=0, analyses=[])
     await state.set_state(EmployeePhotoFlow.photos)
+    safe_task_name = html.escape(task_name)
     await call.message.edit_text(
-        f"📍 <b>Объект выбран:</b> {task_name}\n"
+        f"📍 <b>Объект выбран:</b> {safe_task_name}\n"
         "──────────────────────\n\n"
         "📤 Отправляйте фотографии прямо сюда.\n"
         "Каждый снимок проходит <b>контроль качества</b> и <b>тепловизионный анализ ИИ</b>.\n\n"
@@ -95,15 +123,17 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
     wait = await message.answer("🔎 Кибер-прораб проверяет качество снимка...")
     photo = message.photo[-1]
     file_io = await bot.download(photo)
-    photo_bytes = file_io.read()
+    raw_bytes = file_io.read()
+    photo_bytes, _ = await image_prep.prepare_image_async(raw_bytes, "image/jpeg")
 
     qc = await gemini.check_quality(photo_bytes)
 
     if not qc["ok"]:
-        score = qc["score"]
-        reason = qc["reason"] or "Качество снимка недостаточно для технического отчёта"
-        tip = qc.get("tip")
-        obj = qc.get("object", "")
+        score = html.escape(str(qc["score"]))
+        raw_reason = qc["reason"] or "Качество снимка недостаточно для технического отчёта"
+        reason = html.escape(str(raw_reason))
+        tip = html.escape(str(qc.get("tip"))) if qc.get("tip") else None
+        obj = html.escape(str(qc.get("object", "")))
 
         obj_line = f"🏗 <i>Объект: {obj}</i>\n" if obj else ""
         tip_block = f"\n💡 <b>Совет:</b> {tip}" if tip else ""
@@ -139,17 +169,17 @@ async def photo_receive(message: Message, state: FSMContext, bot: Bot) -> None:
 
     await wait.delete()
 
-    score = qc["score"]
-    verdict = qc["verdict"]
-    obj = qc.get("object", "")
+    score = html.escape(str(qc["score"]))
+    obj = html.escape(str(qc.get("object", "")))
 
-    score_emoji = "🟢" if verdict == "ПРИНЯТО" else "🟡"
+    score_emoji = "🟢" if qc["verdict"] == "ПРИНЯТО" else "🟡"
     status = "Прикреплено к задаче в системе." if att_id else "⚠️ Не удалось прикрепить к Odoo."
 
     obj_line = f"🏗 <i>{obj}</i>\n" if obj else ""
     warning_block = ""
-    if verdict == "ЗАМЕЧАНИЕ" and (qc.get("reason") or qc.get("tip")):
-        note = qc.get("tip") or qc.get("reason")
+    if qc["verdict"] == "ЗАМЕЧАНИЕ" and (qc.get("reason") or qc.get("tip")):
+        raw_note = qc.get("tip") or qc.get("reason")
+        note = html.escape(str(raw_note))
         warning_block = f"\n⚠️ <i>Замечание: {note}</i>"
 
     await message.answer(
@@ -203,11 +233,12 @@ async def photo_done(message: Message, state: FSMContext) -> None:
     report = _build_report(task_name, analyses)
     saved = await odoo.save_analysis_report(task_id, report)
 
+    safe_task_name = html.escape(task_name)
     if saved:
         await message.answer(
             f"✅ <b>Отчёт сохранён</b>\n"
             f"──────────────────────\n"
-            f"📍 <b>Объект:</b> {task_name}\n"
+            f"📍 <b>Объект:</b> {safe_task_name}\n"
             f"📷 <b>Фотографий:</b> {len(analyses)} шт.\n"
             f"🗄 <b>Система:</b> Сохранено в Odoo\n\n"
             "<i>Результаты доступны диспетчеру в системе.</i>",
@@ -217,7 +248,7 @@ async def photo_done(message: Message, state: FSMContext) -> None:
         await message.answer(
             f"✅ <b>Отчёт завершён</b>\n"
             f"──────────────────────\n"
-            f"📍 <b>Объект:</b> {task_name}\n"
+            f"📍 <b>Объект:</b> {safe_task_name}\n"
             f"📷 <b>Фотографий:</b> {len(analyses)} шт.\n"
             f"⚠️ <b>Внимание:</b> Не удалось сохранить в Odoo — передайте диспетчеру вручную.",
             reply_markup=employee_menu(),

@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 
@@ -14,6 +15,7 @@ from src.handlers import (
     common,
     employee,
     onboarding,
+    partner,
     payments,
     referral,
     reports,
@@ -70,6 +72,7 @@ def _build_dispatcher() -> tuple[Bot, Dispatcher]:
         payments.router
     )  # Stars payment — before common to catch F.successful_payment
     dp.include_router(employee.router)
+    dp.include_router(partner.router)
     dp.include_router(referral.router)
     dp.include_router(account.router)
     dp.include_router(help_handler.router)
@@ -161,11 +164,12 @@ async def _task_notify_loop(bot: Bot) -> None:
                     new_seen.add(tid)
                     if tid not in seen_ids and not first_run:
                         try:
-                            deadline = task.get("date_deadline") or "—"
+                            deadline = html.escape(str(task.get("date_deadline") or "—"))
+                            task_name = html.escape(str(task.get("name", "—")))
                             await bot.send_message(
                                 tg_id,
                                 f"🚗 <b>Новый выезд назначен!</b>\n\n"
-                                f"📍 {task['name']}\n"
+                                f"📍 {task_name}\n"
                                 f"📅 {deadline}\n\n"
                                 "Откройте <b>«Мои выезды»</b> для деталей.",
                             )
@@ -291,9 +295,11 @@ async def main() -> None:
 
     await _set_commands(bot)
 
+    # Background loops run in both webhook and polling modes.
+    asyncio.create_task(_reminder_loop(bot))
+    asyncio.create_task(_task_notify_loop(bot))
+
     if settings.webhook_url:
-        asyncio.create_task(_reminder_loop(bot))
-        asyncio.create_task(_task_notify_loop(bot))
         await _run_webhook(bot, dp)
     else:
         await _run_polling(bot, dp)

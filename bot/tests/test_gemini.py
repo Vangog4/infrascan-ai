@@ -470,3 +470,37 @@ def test_audit_prompt_neutralises_malicious_context():
 def test_audit_prompt_empty_context_unchanged():
     """Without context the prompt has no delimiter wrapper."""
     assert "<<<USER_VOICE>>>" not in gemini._audit_prompt("ru", "")
+
+
+def test_format_analysis_escapes_html_entities():
+    malicious = {
+        "risk_level": "HIGH",
+        "risk_score": 0.85,
+        "object_type": "wall",
+        "free_verdict": "Температура T > 75°C & ΔT < 5°C <script>alert(1)</script>",
+        "recommendations_brief": "Проверить изоляцию & замерить ток < 16A",
+        "premium_teaser": "Обнаружен перегрев > 80°C & критический мостик",
+        "problems": [
+            {
+                "severity": "critical",
+                "description": "Фаза A > 90°C & B < 20°C",
+                "location": "Щит <ГРЩ>",
+            }
+        ],
+        "temperature_observations": ["T1 > 70°C & T2 < 15°C"],
+        "recommendations_detailed": ["Заменить автомат < 25A & кабель"],
+        "premium_analysis": "Детальный разбор: T > 100°C <b>bold</b> & dangerous",
+    }
+
+    free_text = gemini.format_analysis_free(malicious, locale="ru")
+    assert "<script>" not in free_text
+    assert "&lt;script&gt;" in free_text
+    assert "T &gt; 75°C &amp; ΔT &lt; 5°C" in free_text
+    assert "&amp; замерить ток &lt; 16A" in free_text
+
+    prem_text = gemini.format_analysis_premium(malicious, locale="ru")
+    assert "Щит &lt;ГРЩ&gt;" in prem_text
+    assert "Фаза A &gt; 90°C &amp; B &lt; 20°C" in prem_text
+    assert "T1 &gt; 70°C &amp; T2 &lt; 15°C" in prem_text
+    assert "Заменить автомат &lt; 25A &amp; кабель" in prem_text
+    assert "T &gt; 100°C &lt;b&gt;bold&lt;/b&gt; &amp; dangerous" in prem_text

@@ -1,7 +1,7 @@
 {  # noqa: B018 — Odoo manifest is a bare dict expression by framework convention
     'name': 'InfraScan AI Core',
     'summary': 'AI Thermal Diagnostics — auto-notifications, cron digests, Gemini analysis',
-    'version': '1.3',
+    'version': '1.4',
     'author': 'InfraScan',
     'depends': ['project', 'website'],
     'data': [
@@ -11,6 +11,7 @@
         'data/ir_cron.xml',
         'views/project_task_views.xml',
         'views/res_partner_views.xml',
+        'views/bot_report_views.xml',
     ],
     'assets': {
         'web.assets_frontend': [

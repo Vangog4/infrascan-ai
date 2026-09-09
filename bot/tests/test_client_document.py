@@ -53,8 +53,8 @@ async def test_audit_document_image_calls_gemini():
     analyze = AsyncMock(return_value=fake_result)
     with (
         patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
-        patch("src.services.premium.scans_remaining", AsyncMock(return_value=2)),
-        patch("src.services.premium.increment_scan", AsyncMock()),
+        patch("src.services.premium.consume_scan", AsyncMock(return_value=True)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=1)),
         patch("src.services.gemini.analyze_photo", analyze),
         patch("src.services.gemini.format_analysis_free", MagicMock(return_value="Анализ: ok")),
         patch("src.services.referral.reward_first_scan", AsyncMock()),

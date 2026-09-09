@@ -107,3 +107,15 @@ async def test_download_pdf_filename_has_infrascan_prefix():
         await download_pdf(call, locale="ru")
     doc_arg = call.message.answer_document.call_args[1]["document"]
     assert "InfraScan" in doc_arg.filename
+
+
+def test_strip_markdown_cleans_html_and_entities():
+    from src.services.pdf import _strip_markdown
+
+    raw = "<b>Объект:</b> Стена &amp; <i>окно</i> &lt;100°C&gt; **bold**"
+    cleaned = _strip_markdown(raw)
+    assert "<b>" not in cleaned
+    assert "<i>" not in cleaned
+    assert "Объект: Стена & окно" in cleaned
+    assert "<100°C>" in cleaned
+    assert "**" not in cleaned

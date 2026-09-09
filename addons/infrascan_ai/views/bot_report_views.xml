@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- List -->
+    <record id="view_infrascan_bot_report_list" model="ir.ui.view">
+        <field name="name">infrascan.bot.report.list</field>
+        <field name="model">infrascan.bot.report</field>
+        <field name="arch" type="xml">
+            <list string="Отчёты бота"
+                  decoration-danger="risk_level == 'CRITICAL'"
+                  decoration-warning="risk_level in ('HIGH', 'MEDIUM')"
+                  decoration-success="risk_level == 'LOW'"
+                  create="0">
+                <field name="create_date" string="Дата"/>
+                <field name="client_tg_id" string="TG ID клиента"/>
+                <field name="object_type" string="Объект"/>
+                <field name="risk_level" string="Риск" widget="badge"
+                       decoration-success="risk_level == 'LOW'"
+                       decoration-warning="risk_level == 'MEDIUM'"
+                       decoration-danger="risk_level in ('HIGH', 'CRITICAL')"/>
+                <field name="risk_score" string="Score %"/>
+                <field name="is_premium" string="Premium" widget="boolean"/>
+                <field name="verdict" string="Вердикт" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form -->
+    <record id="view_infrascan_bot_report_form" model="ir.ui.view">
+        <field name="name">infrascan.bot.report.form</field>
+        <field name="model">infrascan.bot.report</field>
+        <field name="arch" type="xml">
+            <form string="Отчёт бота" create="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="object_type" placeholder="Тип объекта"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Клиент">
+                            <field name="client_tg_id"/>
+                            <field name="create_date" readonly="1"/>
+                            <field name="is_premium"/>
+                        </group>
+                        <group string="Риск">
+                            <field name="risk_level"/>
+                            <field name="risk_score"/>
+                        </group>
+                    </group>
+                    <group string="Вердикт ИИ">
+                        <field name="verdict" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search -->
+    <record id="view_infrascan_bot_report_search" model="ir.ui.view">
+        <field name="name">infrascan.bot.report.search</field>
+        <field name="model">infrascan.bot.report</field>
+        <field name="arch" type="xml">
+            <search string="Поиск отчётов">
+                <field name="client_tg_id" string="TG ID"/>
+                <field name="object_type" string="Объект"/>
+                <field name="verdict" string="Вердикт"/>
+                <filter string="Premium" name="premium" domain="[('is_premium','=',True)]"/>
+                <filter string="Критический риск" name="critical" domain="[('risk_level','=','CRITICAL')]"/>
+                <filter string="Высокий риск" name="high" domain="[('risk_level','=','HIGH')]"/>
+                <filter string="Сегодня"
+                        name="today"
+                        domain="[('create_date','&gt;=', context_today().strftime('%Y-%m-%d 00:00:00'))]"/>
+                <separator/>
+                <group>
+                    <filter string="Риск" name="by_risk" context="{'group_by': 'risk_level'}"/>
+                    <filter string="Клиент" name="by_client" context="{'group_by': 'client_tg_id'}"/>
+                    <filter string="Дата" name="by_date" context="{'group_by': 'create_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_infrascan_bot_reports" model="ir.actions.act_window">
+        <field name="name">Отчёты бота</field>
+        <field name="res_model">infrascan.bot.report</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_infrascan_bot_report_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Пока нет отчётов от Telegram-бота.
+            </p>
+            <p>
+                Отчёты появляются автоматически, когда клиент анализирует фото в боте.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu under InfraScan AI root (defined in project_task_views.xml) -->
+    <menuitem id="menu_infrascan_bot_reports"
+              name="📊 Отчёты бота"
+              parent="menu_infrascan_root"
+              action="action_infrascan_bot_reports"
+              sequence="30"/>
+
+</odoo>
