@@ -154,7 +154,13 @@ async def _call(model: str, method: str, **kwargs: Any) -> Any:
 # ─── Public API (same signatures as before) ──────────────────────────────────
 
 
-async def create_lead(name: str, phone: str, description: str = "") -> int | None:
+async def create_lead(
+    name: str, phone: str, description: str = "", client_tg_id: int | str | None = None
+) -> int | None:
+    tg_str = str(client_tg_id) if client_tg_id is not None else ""
+    if tg_str and f"id: {tg_str}" not in description and f"id={tg_str}" not in description:
+        description = f"TG ID: {tg_str}\n" + description
+
     # Primary: crm.lead
     result = await _call(
         "crm.lead",
@@ -168,16 +174,17 @@ async def create_lead(name: str, phone: str, description: str = "") -> int | Non
 
     # Fallback: project.task (phone goes into the description here, no dedicated field)
     task_desc = f"📞 Телефон: {phone}\n\n{description}"
+    task_vals: dict = {
+        "name": f"[Лид] {name}",
+        "project_id": settings.leads_project_id,
+        "description": task_desc,
+    }
+    if tg_str:
+        task_vals["x_client_tg_id"] = tg_str
     result = await _call(
         "project.task",
         "create",
-        vals_list=[
-            {
-                "name": f"[Лид] {name}",
-                "project_id": settings.leads_project_id,
-                "description": task_desc,
-            }
-        ],
+        vals_list=[task_vals],
     )
     task_id = _first_id(result)
     if task_id:
@@ -475,3 +482,103 @@ async def get_reports(client_tg_id: str, limit: int = 5) -> list:
         order="create_date desc",
     )
     return result or []
+
+
+def _m2o_name(val: Any) -> str:
+    """Extract display name from Odoo many2one field."""
+    if isinstance(val, (list, tuple)) and len(val) > 1:
+        return str(val[1] or "—")
+    if isinstance(val, dict):
+        return str(val.get("display_name") or val.get("name") or "—")
+    return str(val or "—")
+
+
+async def get_client_orders(client_tg_id: int | str) -> list[dict]:
+    """Retrieve active and recent leads/tasks for a client by Telegram ID."""
+    tg_str = str(client_tg_id)
+    orders: list[dict] = []
+
+    # 1. Search project.task by x_client_tg_id
+    tasks = await _call(
+        "project.task",
+        "search_read",
+        domain=[["x_client_tg_id", "=", tg_str]],
+        fields=["id", "name", "stage_id", "date_deadline", "create_date", "description"],
+        order="id desc",
+        limit=10,
+    )
+    if tasks and isinstance(tasks, list):
+        for t in tasks:
+            orders.append(
+                {
+                    "id": t["id"],
+                    "name": t.get("name") or f"Заявка #{t['id']}",
+                    "stage": _m2o_name(t.get("stage_id")),
+                    "date": str(t.get("create_date") or "")[:10],
+                    "type": "task",
+                    "deadline": str(t.get("date_deadline") or ""),
+                }
+            )
+
+    # 2. Search crm.lead by TG ID in description
+    leads = await _call(
+        "crm.lead",
+        "search_read",
+        domain=[
+            "|",
+            ["description", "ilike", f"id: {tg_str}"],
+            ["description", "ilike", f"id={tg_str}"],
+        ],
+        fields=["id", "name", "stage_id", "create_date", "description"],
+        order="id desc",
+        limit=10,
+    )
+    if leads and isinstance(leads, list):
+        for lead in leads:
+            orders.append(
+                {
+                    "id": lead["id"],
+                    "name": lead.get("name") or f"Лид #{lead['id']}",
+                    "stage": _m2o_name(lead.get("stage_id")),
+                    "date": str(lead.get("create_date") or "")[:10],
+                    "type": "crm",
+                    "deadline": "",
+                }
+            )
+
+    return orders
+
+
+async def update_task_stage(task_id: int, stage_keyword: str) -> bool:
+    """Update project.task stage by matching keyword in stage name."""
+    stages = await _call(
+        "project.task.type",
+        "search_read",
+        domain=[["name", "ilike", stage_keyword]],
+        fields=["id", "name"],
+        limit=1,
+    )
+    if stages and isinstance(stages, list) and len(stages) > 0:
+        stage_id = stages[0]["id"]
+        res = await _call("project.task", "write", ids=[task_id], vals={"stage_id": stage_id})
+        logger.info("Updated task #%d to stage %s (id=%d)", task_id, stages[0]["name"], stage_id)
+        return bool(res)
+    logger.warning("No stage found for keyword '%s'", stage_keyword)
+    return False
+
+
+async def update_lead_stage(lead_id: int, stage_keyword: str) -> bool:
+    """Update lead or task stage by keyword."""
+    stages = await _call(
+        "crm.stage",
+        "search_read",
+        domain=[["name", "ilike", stage_keyword]],
+        fields=["id", "name"],
+        limit=1,
+    )
+    if stages and isinstance(stages, list) and len(stages) > 0:
+        res = await _call("crm.lead", "write", ids=[lead_id], vals={"stage_id": stages[0]["id"]})
+        if res:
+            logger.info("Updated CRM lead #%d to stage %s", lead_id, stages[0]["name"])
+            return True
+    return await update_task_stage(lead_id, stage_keyword)

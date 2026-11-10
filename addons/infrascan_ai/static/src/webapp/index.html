@@ -280,14 +280,18 @@
         `<div class="detail-item"><div class="dot"></div><span>${issue}</span></div>`
       ).join('');
       document.getElementById('detail-panel').classList.add('visible');
-      tg.HapticFeedback.impactOccurred('light');
+      tg?.HapticFeedback?.impactOccurred?.('light');
     }
 
     } // end render()
 
     function _orderInspection() {
       const level = analysis.risk_level || 'MEDIUM';
-      tg.sendData(JSON.stringify({ action: 'order_inspection', risk_level: level }));
+      if (tg?.sendData) {
+        tg.sendData(JSON.stringify({ action: 'order_inspection', risk_level: level }));
+      } else {
+        window.open('https://t.me/infrascan_ai_bot', '_blank');
+      }
     }
 
     init();

@@ -89,3 +89,49 @@ async def test_lead_phone_contains_phone_in_reply():
     with patch("src.handlers.partner.odoo.create_lead", AsyncMock()):
         await lead_phone(msg, state=state)
     assert phone in msg.answer.call_args[0][0]
+
+
+# ── cmd_partner & registration ───────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cmd_partner_for_client_requests_registration():
+    from src.handlers.partner import cmd_partner
+
+    msg = _msg()
+    state = _state()
+    await cmd_partner(msg, state=state, role=Role.CLIENT)
+    state.set_state.assert_called_once()
+    assert "B2B-Партнёрская программа" in msg.answer.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_cmd_partner_for_partner_shows_dashboard():
+    from src.handlers.partner import cmd_partner
+
+    msg = _msg()
+    state = _state()
+    with (
+        patch("src.handlers.partner.roles.get_phone", AsyncMock(return_value="+79991234567")),
+        patch("src.handlers.partner.odoo.partner_balance", AsyncMock(return_value=1500.0)),
+    ):
+        await cmd_partner(msg, state=state, role=Role.PARTNER)
+    assert "Кабинет партнёра" in msg.answer.call_args[0][0]
+    assert "1,500.00 руб." in msg.answer.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_partner_reg_text_sets_role():
+    from src.handlers.partner import partner_reg_text
+
+    msg = _msg(text="+79991234567")
+    state = _state()
+    with (
+        patch("src.handlers.partner.roles.set_phone", AsyncMock()) as mock_phone,
+        patch("src.handlers.partner.roles.set_role", AsyncMock()) as mock_role,
+    ):
+        await partner_reg_text(msg, state=state)
+        mock_phone.assert_called_once_with(msg.from_user.id, "+79991234567")
+        mock_role.assert_called_once_with(msg.from_user.id, Role.PARTNER)
+    state.clear.assert_called_once()
+    assert "успешно подключены" in msg.answer.call_args[0][0]

@@ -683,3 +683,65 @@ footer,
 		align-items: stretch;
 	}
 }
+
+/* ── PDF Sample Button & Plan Badge ── */
+.is-btn-pdf {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	background: #ffffff !important;
+	color: var(--is-dark) !important;
+	border: 1.5px solid rgba(76, 201, 240, 0.6) !important;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+	font-weight: 600;
+	text-decoration: none !important;
+	transition: all 0.25s var(--is-ease-soft);
+}
+.is-btn-pdf:hover {
+	background: var(--is-cool) !important;
+	color: #0b1220 !important;
+	border-color: var(--is-cool) !important;
+	box-shadow: 0 6px 20px rgba(76, 201, 240, 0.35);
+	transform: translateY(-2px);
+}
+
+.is-plan-notice {
+	background: linear-gradient(135deg, rgba(76, 201, 240, 0.12), rgba(255, 107, 53, 0.08));
+	border: 1px solid rgba(76, 201, 240, 0.35);
+	border-radius: 12px;
+	color: #0b1220;
+	padding: 14px 20px;
+	margin-bottom: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 0.95rem;
+	animation: isFadeUp 0.4s ease both;
+}
+.is-plan-notice strong {
+	color: var(--is-orange);
+}
+.is-plan-notice a {
+	color: #4361ee;
+	font-size: 0.85rem;
+	text-decoration: underline;
+}
+
+/* ── Hide Odoo branding / promotion ── */
+.o_brand_promotion,
+.o_footer_copyright .o_brand_promotion,
+.o_footer_copyright .o_not_editable:has(.o_brand_promotion) {
+	display: none !important;
+	visibility: hidden !important;
+	height: 0 !important;
+	overflow: hidden !important;
+	opacity: 0 !important;
+	pointer-events: none !important;
+}
+
+.o_footer_copyright .text-muted {
+	width: 100%;
+	text-align: center !important;
+}
+
+

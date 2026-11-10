@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.config import settings
-from src.keyboards.menus import employee_menu, tasks_kb
+from src.keyboards.menus import employee_menu, engineer_task_actions_kb, tasks_kb
 from src.services import gemini, image_prep, odoo
 from src.services.redis import cache_analysis, get_cached_analysis
 from src.services.roles import Role
@@ -55,6 +55,25 @@ async def today_tasks(message: Message, role: Role) -> None:
         )
         return
     _sep = "──────────────────────"
+    if len(tasks) == 1:
+        t = tasks[0]
+        proj = html.escape(str(_m2o_name(t.get("project_id"))))
+        stage = html.escape(str(_m2o_name(t.get("stage_id"))))
+        deadline = html.escape(str(t.get("date_deadline") or "без срока"))
+        assigned = html.escape(str(t.get("x_telegram_id") or "общий"))
+        name = html.escape(str(t.get("name", "—")))
+        text = (
+            f"🚗 <b>Выезды на сегодня</b>  <code>(1)</code>\n"
+            f"<i>Ваш TG ID: <code>{message.from_user.id}</code></i>\n{_sep}\n"
+            f"<b>1. {name}</b>\n"
+            f"📁 {proj}\n"
+            f"📌 Статус: <b>{stage}</b>\n"
+            f"📅 Срок: {deadline}\n"
+            f"👷 Назначен: <code>{assigned}</code>\n{_sep}"
+        )
+        await message.answer(text, reply_markup=engineer_task_actions_kb(t["id"]))
+        return
+
     lines = [
         f"🚗 <b>Выезды на сегодня</b>  <code>({len(tasks)})</code>\n"
         f"<i>Ваш TG ID: <code>{message.from_user.id}</code></i>\n"
@@ -77,8 +96,57 @@ async def today_tasks(message: Message, role: Role) -> None:
     lines.append("\n📤 Чтобы сдать фото — «Сдать фото по объекту»")
     await message.answer(
         "\n".join(lines),
-        reply_markup=employee_menu(),
+        reply_markup=tasks_kb(tasks),
     )
+
+
+@router.callback_query(F.data.startswith("eng_stage:"))
+async def cb_engineer_stage(call: CallbackQuery, role: Role) -> None:
+    if not _is_employee(role):
+        await call.answer("⛔️ Доступно только выездным инженерам.", show_alert=True)
+        return
+    parts = call.data.split(":")
+    if len(parts) < 3:
+        await call.answer()
+        return
+    action = parts[1]
+    try:
+        task_id = int(parts[2])
+    except ValueError:
+        await call.answer()
+        return
+
+    if action == "enroute":
+        await odoo.update_task_stage(task_id, "В пути")
+        msg = "🚗 Статус обновлён: «В пути» (клиент уведомлен)"
+    elif action == "done":
+        await odoo.update_task_stage(task_id, "Выполнен")
+        msg = "✅ Выезд завершён (задача закрыта)"
+    else:
+        await call.answer("Неизвестное действие")
+        return
+
+    await call.answer(msg, show_alert=True)
+
+
+@router.callback_query(F.data.startswith("eng_photo:"))
+async def cb_engineer_photo_direct(call: CallbackQuery, state: FSMContext, role: Role) -> None:
+    if not _is_employee(role):
+        await call.answer("⛔️ Доступно только выездным инженерам.", show_alert=True)
+        return
+    task_id = int(call.data.split(":")[1])
+    await state.update_data(
+        task_id=task_id, task_name=f"Объект #{task_id}", photo_count=0, analyses=[]
+    )
+    await state.set_state(EmployeePhotoFlow.photos)
+    await call.message.answer(
+        f"📍 <b>Сдача фото по задаче #{task_id}</b>\n"
+        "──────────────────────\n\n"
+        "📤 Отправляйте фотографии прямо сюда.\n"
+        "Каждый снимок проходит <b>контроль качества</b> и <b>тепловизионный анализ ИИ</b>.\n\n"
+        "<i>Когда закончите — нажмите /done\nДля выхода без сохранения — /cancel</i>"
+    )
+    await call.answer()
 
 
 # ─── Submit Photos ───────────────────────────────────────────────────────────

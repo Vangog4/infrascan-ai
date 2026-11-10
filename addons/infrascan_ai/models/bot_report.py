@@ -7,6 +7,12 @@ from odoo import fields, models
 _logger = logging.getLogger(__name__)
 _TG_URL = "https://api.telegram.org/bot{token}/sendMessage"
 
+_MONTHS_RU = {
+    1: 'январь', 2: 'февраль', 3: 'март', 4: 'апрель',
+    5: 'май', 6: 'июнь', 7: 'июль', 8: 'август',
+    9: 'сентябрь', 10: 'октябрь', 11: 'ноябрь', 12: 'декабрь',
+}
+
 
 class InfraScanBotReport(models.Model):
     _name = 'infrascan.bot.report'
@@ -43,8 +49,8 @@ class InfraScanBotReport(models.Model):
     # ── Monthly B2B Digest ────────────────────────────────────────────────────
 
     def monthly_digest_cron(self):
-        since = datetime.utcnow() - timedelta(days=30)
-        reports = self.search([('create_date', '>=', since.strftime('%Y-%m-%d %H:%M:%S'))])
+        since = fields.Datetime.now() - timedelta(days=30)
+        reports = self.search([('create_date', '>=', since)])
         if not reports:
             return
 
@@ -62,7 +68,7 @@ class InfraScanBotReport(models.Model):
                     risk_counts[r.risk_level] += 1
             scores = [r.risk_score for r in user_reports if r.risk_score]
             avg_score = round(sum(scores) / len(scores), 1) if scores else 0
-            month_name = since.strftime('%B %Y')
+            month_name = f"{_MONTHS_RU.get(since.month, '')} {since.year}".strip()
 
             text = (
                 f"📊 <b>Ваш отчёт InfraScan за {month_name}</b>\n\n"

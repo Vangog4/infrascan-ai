@@ -27,6 +27,23 @@ def _seconds_until_midnight_utc() -> int:
     return max(1, int((midnight - now).total_seconds()))
 
 
+def get_quota_reset_info(locale: str = "ru") -> dict:
+    """Return countdown and human-readable time until free quota resets."""
+    seconds = _seconds_until_midnight_utc()
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    if locale == "ru":
+        countdown_str = f"{hours} ч. {minutes} мин. (в 03:00 МСК / 00:00 UTC)"
+    else:
+        countdown_str = f"{hours}h {minutes}m (at 00:00 UTC)"
+    return {
+        "seconds": seconds,
+        "hours": hours,
+        "minutes": minutes,
+        "text": countdown_str,
+    }
+
+
 async def is_premium(user_id: int) -> bool:
     val = await _r().get(_PREMIUM_KEY.format(user_id))
     if val is not None:

@@ -4,6 +4,7 @@
 (() => {
 	const BOT_URL = "https://t.me/infrascan_ai_bot";
 	const FORM_URL = "/zaiavka-na-audit";
+	const SAMPLE_PDF_URL = "/infrascan_ai/static/src/sample_report.pdf";
 
 	const qs = (sel, ctx) => (ctx || document).querySelector(sel);
 	const qsa = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
@@ -279,9 +280,35 @@
 			}
 		});
 
-		// Fix dead href="#" links → bot
+		// Sample PDF report button
+		qsa("a").forEach((a) => {
+			const text = a.textContent.trim().toLowerCase();
+			if (
+				text.includes("пример отчета") ||
+				text.includes("пример отчёта") ||
+				text.includes("образец отчета") ||
+				text.includes("образец отчёта") ||
+				text.includes("отчет (pdf)") ||
+				text.includes("отчёт (pdf)")
+			) {
+				a.textContent = "📄 Смотреть пример отчёта (PDF)";
+				a.href = SAMPLE_PDF_URL;
+				a.target = "_blank";
+				a.rel = "noopener noreferrer";
+				a.classList.add("is-btn-pdf");
+			}
+		});
+
+		// Fix dead href="#" links
 		document.querySelectorAll('a[href="#"]').forEach((a) => {
 			const text = a.textContent.trim().toLowerCase();
+			if (text.includes("отчет") || text.includes("отчёт") || text.includes("pdf")) {
+				a.href = SAMPLE_PDF_URL;
+				a.target = "_blank";
+				a.rel = "noopener noreferrer";
+				a.classList.add("is-btn-pdf");
+				return;
+			}
 			if (
 				text.includes("запис") ||
 				text.includes("заказ") ||
@@ -295,20 +322,34 @@
 			}
 		});
 
-		// Pricing / CTA section buttons → bot
-		qsa(
-			".s_key_benefits a.btn, .s_pricing_table a.btn, .s_call_to_action a.btn",
-		).forEach((btn) => {
+		// Pricing section buttons → direct to audit form with pre-selected service
+		qsa(".s_key_benefits .row > div, .s_pricing_table .row > div").forEach((col) => {
+			const colText = col.textContent.toLowerCase();
+			const btn = qs("a.btn", col);
+			if (!btn) return;
+
+			let planType = "Коттедж";
+			if (colText.includes("квартир")) {
+				planType = "Квартира";
+			} else if (colText.includes("коттедж") || colText.includes("приемк")) {
+				planType = "Коттедж";
+			} else if (colText.includes("электро") || colText.includes("пром") || colText.includes("щит")) {
+				planType = "Электрощитовая";
+			}
+
+			btn.textContent = "Заказать аудит →";
+			btn.href = `${FORM_URL}?type=${encodeURIComponent(planType)}`;
+			btn.removeAttribute("target");
+			btn.removeAttribute("rel");
+		});
+
+		// Call to action buttons
+		qsa(".s_call_to_action a.btn").forEach((btn) => {
 			const text = btn.textContent.trim();
-			if (
-				text.includes("Заказ") ||
-				text.includes("Запис") ||
-				text.includes("Получи")
-			) {
-				btn.textContent = "Записаться →";
-				btn.href = BOT_URL;
-				btn.target = "_blank";
-				btn.rel = "noopener noreferrer";
+			if (text.includes("Заказ") || text.includes("Запис") || text.includes("Получи")) {
+				btn.textContent = "Вызвать инженера →";
+				btn.href = FORM_URL;
+				btn.removeAttribute("target");
 			}
 		});
 
@@ -338,7 +379,7 @@
 			[/934/, "Электроаудит — обнаружение перегрева контактов"],
 			[/935/, "Диагностика тёплого пола тепловизором"],
 			[/936/, "ИнфраСкан — профессиональная тепловизионная диагностика"],
-			[/odoo_logo/, ""],
+			[/odoo_logo/, "Odoo"],
 		];
 		document.querySelectorAll("img").forEach((img) => {
 			const src = img.getAttribute("src") || "";
@@ -349,8 +390,131 @@
 						break;
 					}
 				}
+				if (!img.alt) {
+					img.alt = "ИнфраСкан AI — тепловизионное обследование";
+				}
 			}
 		});
+	}
+
+	/* ── 10. Form pre-selection on /zaiavka-na-audit ───────────── */
+	function initFormPreFill() {
+		if (!window.location.pathname.includes("zaiavka-na-audit")) return;
+		const params = new URLSearchParams(window.location.search);
+		const selectedType = params.get("type");
+		if (!selectedType) return;
+
+		const select = qs('select[name="Тип объекта"]');
+		if (select) {
+			for (let i = 0; i < select.options.length; i++) {
+				const optVal = select.options[i].value.toLowerCase();
+				const optText = select.options[i].text.toLowerCase();
+				const queryVal = selectedType.toLowerCase();
+				if (
+					optVal.includes(queryVal) ||
+					queryVal.includes(optVal) ||
+					optText.includes(queryVal) ||
+					queryVal.includes(optText)
+				) {
+					select.selectedIndex = i;
+					select.dispatchEvent(new Event("change", { bubbles: true }));
+					break;
+				}
+			}
+		}
+
+		const formSection = qs(".s_website_form");
+		if (formSection && !qs(".is-plan-notice")) {
+			const container = qs(".o_container_small", formSection) || formSection;
+			const formEl = qs("form", container);
+			if (formEl) {
+				const notice = document.createElement("div");
+				notice.className = "is-plan-notice";
+				notice.innerHTML = `
+					<div>📍 Выбран объект: <strong>${selectedType}</strong></div>
+					<a href="/#pricing">Изменить тариф</a>
+				`;
+				formEl.parentNode.insertBefore(notice, formEl);
+			}
+		}
+	}
+
+	/* ── 11. Schema.org LocalBusiness Structured Data ─────────── */
+	function initStructuredData() {
+		if (document.getElementById("is-schema-org")) return;
+		const script = document.createElement("script");
+		script.id = "is-schema-org";
+		script.type = "application/ld+json";
+		const schema = {
+			"@context": "https://schema.org",
+			"@type": "ProfessionalService",
+			"name": "ИнфраСкан AI",
+			"description": "Профессиональная тепловизионная диагностика зданий, энергоаудит и обследование электросетей с использованием искусственного интеллекта.",
+			"url": window.location.origin,
+			"telephone": "+7-922-316-94-40",
+			"email": "info@infrascan-ai.ru",
+			"priceRange": "4000 - 8000 RUB",
+			"address": {
+				"@type": "PostalAddress",
+				"addressLocality": "г. Чайковский",
+				"addressRegion": "Пермский край",
+				"addressCountry": "RU"
+			},
+			"geo": {
+				"@type": "GeoCoordinates",
+				"latitude": 56.7699,
+				"longitude": 54.1481
+			},
+			"areaServed": [
+				{ "@type": "City", "name": "Чайковский" },
+				{ "@type": "City", "name": "Воткинск" },
+				{ "@type": "City", "name": "Ижевск" },
+				{ "@type": "City", "name": "Пермь" }
+			],
+			"openingHoursSpecification": [
+				{
+					"@type": "OpeningHoursSpecification",
+					"dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+					"opens": "08:00",
+					"closes": "21:00"
+				}
+			],
+			"sameAs": [
+				BOT_URL
+			]
+		};
+		script.textContent = JSON.stringify(schema);
+		document.head.appendChild(script);
+	}
+
+	/* ── 12. Clickable contact links in footer ────────────────── */
+	function initContactLinks() {
+		qsa("footer a, footer p, footer li, footer span").forEach((el) => {
+			if (el.children.length === 0) {
+				const text = el.textContent.trim();
+				if (text.includes("+7 922 316-94-40") && el.tagName !== "A") {
+					el.innerHTML = '<a href="tel:+79223169440" style="color: inherit; text-decoration: none;">📞 +7 922 316-94-40</a>';
+				} else if (text.includes("info@infrascan-ai.ru") && el.tagName !== "A") {
+					el.innerHTML = '<a href="mailto:info@infrascan-ai.ru" style="color: inherit; text-decoration: none;">✉️ info@infrascan-ai.ru</a>';
+				}
+			}
+		});
+	}
+
+	/* ── 13. Remove Odoo branding in footer ───────────────────── */
+	function initCleanFooter() {
+		qsa(".o_brand_promotion").forEach((el) => {
+			const parent = el.closest(".col-md");
+			el.remove();
+			if (parent && parent.textContent.trim() === "") {
+				parent.remove();
+			}
+		});
+		const copyright = qs(".o_footer_copyright .text-muted");
+		if (copyright) {
+			copyright.classList.remove("text-md-start");
+			copyright.classList.add("text-center", "w-100");
+		}
 	}
 
 	/* ── Init ─────────────────────────────────────────────────── */
@@ -364,6 +528,10 @@
 		initHeroFix();
 		initNavAndSections();
 		initImageAlts();
+		initFormPreFill();
+		initStructuredData();
+		initContactLinks();
+		initCleanFooter();
 	}
 
 	if (document.readyState === "loading") {

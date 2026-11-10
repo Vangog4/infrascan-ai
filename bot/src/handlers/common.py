@@ -28,7 +28,7 @@ _SEP = "<code>━━━━━━━━━━━━━━━━━━━━━━
 _WELCOME_RU = (
     "🔥 <b>InfraScan AI — рентген вашего здания</b>\n" + _SEP + "\n\n"
     "<code>◉ СТАТУС        ОНЛАЙН\n"
-    "◉ МОДЕЛЬ        Gemini Vision\n"
+    "◉ ЯДРО ИИ       InfraScan Neural v2\n"
     "◉ ТАРИФ         {tier}\n"
     "◉ ОСТАЛОСЬ      {scans_left}</code>\n\n" + _SEP + "\n\n"
     "👇 <b>«🔥 Найти утечки тепла»</b> → отправьте фото окна, стены или щитка."
@@ -37,7 +37,7 @@ _WELCOME_RU = (
 _WELCOME_EN = (
     "🔥 <b>InfraScan AI — X-ray for your building</b>\n" + _SEP + "\n\n"
     "<code>◉ STATUS        ONLINE\n"
-    "◉ MODEL         Gemini Vision\n"
+    "◉ AI CORE       InfraScan Neural v2\n"
     "◉ PLAN          {tier}\n"
     "◉ LEFT          {scans_left}</code>\n\n" + _SEP + "\n\n"
     "👇 Tap <b>«🔥 Find Heat Leaks Now»</b> and send a photo."

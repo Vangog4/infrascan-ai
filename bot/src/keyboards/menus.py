@@ -151,11 +151,26 @@ def partner_menu() -> ReplyKeyboardMarkup:
 def employee_menu() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
     kb.row(KeyboardButton(text="🚗 Мои выезды на сегодня"))
-    kb.row(
-        KeyboardButton(text="📤 Сдать фото по объекту"),
-        KeyboardButton(text="🆘 SOS"),
-    )
+    kb.row(KeyboardButton(text="📤 Сдать фото по объекту"))
     return _markup(kb)
+
+
+def city_selection_kb(locale: str = "ru") -> InlineKeyboardMarkup:
+    """City selection keyboard for engineer dispatch / online audit."""
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="📍 Чайковский", callback_data="lead_city:Чайковский"),
+        InlineKeyboardButton(text="📍 Воткинск", callback_data="lead_city:Воткинск"),
+    )
+    b.row(
+        InlineKeyboardButton(text="📍 Ижевск / Сарапул", callback_data="lead_city:Ижевск"),
+        InlineKeyboardButton(text="📍 Пермь", callback_data="lead_city:Пермь"),
+    )
+    remote_text = (
+        "🌐 Другой регион РФ (Онлайн-аудит)" if locale == "ru" else "🌐 Other Region (Online Audit)"
+    )
+    b.row(InlineKeyboardButton(text=remote_text, callback_data="lead_city:remote"))
+    return b.as_markup()
 
 
 def contact_kb(
@@ -271,6 +286,18 @@ def account_upgrade_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMa
                 callback_data="action:invite",
             )
         )
+        b.row(
+            InlineKeyboardButton(
+                text="📋 Мои заявки на аудит",
+                callback_data="action:my_orders",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text="🤝 Стать B2B-партнёром (10%)",
+                callback_data="action:partner_reg",
+            )
+        )
     else:
         b.row(
             InlineKeyboardButton(
@@ -284,6 +311,90 @@ def account_upgrade_kb(locale: str = "ru", stars: int = 150) -> InlineKeyboardMa
                 callback_data="action:invite",
             )
         )
+        b.row(
+            InlineKeyboardButton(
+                text="📋 My Audit Orders",
+                callback_data="action:my_orders",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text="🤝 Become B2B Partner (10%)",
+                callback_data="action:partner_reg",
+            )
+        )
+    return b.as_markup()
+
+
+def account_premium_kb(locale: str = "ru") -> InlineKeyboardMarkup:
+    """Inline actions on the account screen for premium users."""
+    b = InlineKeyboardBuilder()
+    if locale == "ru":
+        b.row(
+            InlineKeyboardButton(
+                text="📋 Мои заявки на аудит",
+                callback_data="action:my_orders",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text=f"🎁 Пригласить друга ({scans_phrase(1, 'ru')})",
+                callback_data="action:invite",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text="🤝 Стать B2B-партнёром (10%)",
+                callback_data="action:partner_reg",
+            )
+        )
+    else:
+        b.row(
+            InlineKeyboardButton(
+                text="📋 My Audit Orders",
+                callback_data="action:my_orders",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text=f"🎁 Invite a Friend ({scans_phrase(1, 'en')})",
+                callback_data="action:invite",
+            )
+        )
+        b.row(
+            InlineKeyboardButton(
+                text="🤝 Become B2B Partner (10%)",
+                callback_data="action:partner_reg",
+            )
+        )
+    return b.as_markup()
+
+
+def admin_lead_actions_kb(lead_id: int) -> InlineKeyboardMarkup:
+    """Interactive CRM action buttons for admins under lead alert."""
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="⚡️ В работу", callback_data=f"adm_lead:work:{lead_id}"),
+        InlineKeyboardButton(text="✅ Выполнен", callback_data=f"adm_lead:done:{lead_id}"),
+    )
+    b.row(
+        InlineKeyboardButton(text="❌ Отклонить", callback_data=f"adm_lead:cancel:{lead_id}"),
+    )
+    return b.as_markup()
+
+
+def engineer_task_actions_kb(task_id: int) -> InlineKeyboardMarkup:
+    """Inline shortcuts for field engineers on today's tasks."""
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(
+            text="🚗 Выехал на объект", callback_data=f"eng_stage:enroute:{task_id}"
+        ),
+        InlineKeyboardButton(text="📸 Сдать фото", callback_data=f"eng_photo:{task_id}"),
+    )
+    b.row(
+        InlineKeyboardButton(text="✅ Завершить выезд", callback_data=f"eng_stage:done:{task_id}"),
+    )
     return b.as_markup()
 
 

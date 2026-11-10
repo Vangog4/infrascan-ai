@@ -1,3 +1,4 @@
+import html
 import logging
 import re
 from datetime import date, datetime, timedelta
@@ -88,38 +89,39 @@ class ProjectTask(models.Model):
         if 'stage_id' in vals:
             done_kw = {'выполнена', 'выполнено', 'done', 'завершена', 'закрыта'}
             for task in self:
-                new_stage_name = task.stage_id.name.lower().strip()
+                new_stage_name = (task.stage_id.name or '').lower().strip()
                 _, old_name = old_stage.get(task.id, (None, ''))
                 if task.stage_id.id != old_stage.get(task.id, (None,))[0]:
                     if any(kw in new_stage_name for kw in done_kw):
                         task._notify_admin_task_done()
                     elif task.x_telegram_id:
-                        task._notify_engineer_stage_change(old_name, task.stage_id.name)
+                        task._notify_engineer_stage_change(old_name, task.stage_id.name or '')
                     # Notify client on stage change
                     if task.x_client_tg_id:
-                        stage_lower = task.stage_id.name.lower()
-                        if any(kw in stage_lower for kw in ('назначен', 'assigned')):
+                        escaped_name = html.escape(task.name or '')
+                        if any(kw in new_stage_name for kw in ('назначен', 'assigned')):
                             client_msg = (
                                 f"👷 <b>Инженер назначен!</b>\n\n"
-                                f"🏗 {task.name}\n"
+                                f"🏗 {escaped_name}\n"
                                 f"Специалист назначен на вашу заявку. Ожидайте звонка."
                             )
-                        elif any(kw in stage_lower for kw in ('выехал', 'в пути', 'en route')):
+                        elif any(kw in new_stage_name for kw in ('выехал', 'в пути', 'en route')):
                             client_msg = (
                                 f"🚗 <b>Инженер выехал!</b>\n\n"
-                                f"🏗 {task.name}\n"
+                                f"🏗 {escaped_name}\n"
                                 f"Специалист уже едет к вам."
                             )
-                        elif any(kw in stage_lower for kw in ('выполнена', 'done', 'завершена', 'готово')):
+                        elif any(kw in new_stage_name for kw in ('выполнена', 'done', 'завершена', 'готово')):
                             client_msg = (
                                 f"✅ <b>Работа выполнена!</b>\n\n"
-                                f"🏗 {task.name}\n"
+                                f"🏗 {escaped_name}\n"
                                 f"Отчёт доступен в боте: /myreports"
                             )
                         else:
+                            st_name = html.escape(task.stage_id.name or 'Не указан')
                             client_msg = (
-                                f"📋 Статус вашей заявки: <b>{task.stage_id.name}</b>\n"
-                                f"🏗 {task.name}"
+                                f"📋 Статус вашей заявки: <b>{st_name}</b>\n"
+                                f"🏗 {escaped_name}"
                             )
                         task._send_telegram([task.x_client_tg_id], client_msg)
 
@@ -145,12 +147,12 @@ class ProjectTask(models.Model):
             self.date_deadline.strftime('%d.%m.%Y') if self.date_deadline else 'не указана'
         )
         desc_clean = re.sub(r'<[^>]+>', '', self.description or '').strip()
-        desc_block = f"\n\n📝 {desc_clean[:300]}" if desc_clean else ''
+        desc_block = f"\n\n📝 {html.escape(desc_clean[:300])}" if desc_clean else ''
         text = (
             f"📋 <b>Вам назначен выезд!</b>\n\n"
-            f"🏗 <b>Объект:</b> {self.name}\n"
+            f"🏗 <b>Объект:</b> {html.escape(self.name or '')}\n"
             f"📅 <b>Дата:</b> {deadline}\n"
-            f"📁 <b>Проект:</b> {self.project_id.name}"
+            f"📁 <b>Проект:</b> {html.escape(self.project_id.name or '')}"
             f"{desc_block}\n\n"
             f"<i>Используйте бота для сдачи отчёта: /start</i>"
         )
@@ -162,8 +164,8 @@ class ProjectTask(models.Model):
             return
         text = (
             f"🔄 <b>Статус задачи изменён</b>\n\n"
-            f"🏗 {self.name}\n"
-            f"{old_stage} → <b>{new_stage}</b>"
+            f"🏗 {html.escape(self.name or '')}\n"
+            f"{html.escape(old_stage or '')} → <b>{html.escape(new_stage or '')}</b>"
         )
         self._send_telegram([self.x_telegram_id], text)
 
@@ -171,11 +173,11 @@ class ProjectTask(models.Model):
         admin_ids = self._get_admin_ids()
         if not admin_ids:
             return
-        engineer = self.x_telegram_id or '—'
+        engineer = html.escape(str(self.x_telegram_id or '—'))
         now_str = datetime.now().strftime('%d.%m.%Y %H:%M')
         text = (
             f"✅ <b>Выезд выполнен!</b>\n\n"
-            f"🏗 <b>Объект:</b> {self.name}\n"
+            f"🏗 <b>Объект:</b> {html.escape(self.name or '')}\n"
             f"👷 <b>Инженер TG:</b> <code>{engineer}</code>\n"
             f"🕐 <b>Закрыта:</b> {now_str}"
         )
@@ -199,12 +201,12 @@ class ProjectTask(models.Model):
             )
             ai_tip = self._gemini_generate(prompt, max_tokens=80)
             if ai_tip:
-                quality_line = f"\n\n💡 <i>ИИ: {ai_tip}</i>"
+                quality_line = f"\n\n💡 <i>ИИ: {html.escape(ai_tip)}</i>"
 
         text = (
             f"📥 <b>Новый лид!</b>\n\n"
-            f"<b>{self.name}</b>\n"
-            f"{desc_clean[:400]}"
+            f"<b>{html.escape(self.name or '')}</b>\n"
+            f"{html.escape(desc_clean[:400])}"
             f"{quality_line}"
         )
         self._send_telegram(admin_ids, text)
@@ -293,7 +295,7 @@ class ProjectTask(models.Model):
             try:
                 response = requests.post(url, json=payload, timeout=30)
             except requests.exceptions.Timeout:
-                task.message_post(body="⚠️ Gemini не ответил за 30 сек. Попробуйте снова.")
+                task.message_post(body="⚠️ ИИ-сервис не ответил за 30 сек. Попробуйте снова.")
                 continue
             except requests.exceptions.RequestException as e:
                 task.message_post(body=f"❌ Сетевая ошибка: {e}")
@@ -302,16 +304,16 @@ class ProjectTask(models.Model):
             if response.status_code != 200:
                 snippet = response.text[:300]
                 task.message_post(
-                    body=f"❌ Ошибка Gemini HTTP {response.status_code}:<br/><code>{snippet}</code>"
+                    body=f"❌ Ошибка ИИ-сервиса HTTP {response.status_code}:<br/><code>{snippet}</code>"
                 )
                 continue
 
             try:
                 data = response.json()
                 answer = data['candidates'][0]['content']['parts'][0]['text']
-                task.message_post(body=f"🤖 <b>Вердикт Кибер-прораба:</b><br/>{answer}")
+                task.message_post(body=f"🤖 <b>Вердикт ИИ-анализа:</b><br/>{answer}")
             except (KeyError, IndexError, ValueError):
-                task.message_post(body="⚠️ Gemini ответил, но формат неожиданный. Смотрите логи.")
+                task.message_post(body="⚠️ ИИ-сервис ответил, но формат неожиданный. Смотрите логи.")
         return True
 
     # ── Cron: morning digest ─────────────────────────────────────────────────
@@ -343,7 +345,7 @@ class ProjectTask(models.Model):
             for i, t in enumerate(eng_tasks, 1):
                 dl = t.date_deadline.strftime('%d.%m') if t.date_deadline else '—'
                 stage = t.stage_id.name if t.stage_id else 'новая'
-                lines.append(f"{i}. <b>{t.name}</b>\n   📅 {dl}  ·  {stage}")
+                lines.append(f"{i}. <b>{html.escape(t.name or '')}</b>\n   📅 {dl}  ·  {html.escape(stage)}")
 
             count = len(eng_tasks)
             text = (
@@ -358,7 +360,7 @@ class ProjectTask(models.Model):
         # Notify admin about unassigned tasks
         if unassigned:
             admin_ids = self._get_admin_ids()
-            lines = [f"• {t.name} ({t.date_deadline or 'без даты'})" for t in unassigned[:10]]
+            lines = [f"• {html.escape(t.name or '')} ({t.date_deadline or 'без даты'})" for t in unassigned[:10]]
             text = (
                 f"⚠️ <b>Задачи без инженера на {date.today().strftime('%d.%m')}:</b>\n\n"
                 + "\n".join(lines)
@@ -388,7 +390,7 @@ class ProjectTask(models.Model):
         ])
 
         done_kw = {'выполнена', 'выполнено', 'done', 'завершена', 'закрыта', 'архив'}
-        done = [t for t in all_tasks if any(kw in t.stage_id.name.lower() for kw in done_kw)]
+        done = [t for t in all_tasks if any(kw in (t.stage_id.name or '').lower() for kw in done_kw)]
         in_progress = [t for t in all_tasks if t not in done]
         overdue = [
             t for t in in_progress
@@ -415,13 +417,13 @@ class ProjectTask(models.Model):
             text += f"\n⚠️ <b>Просрочено ({len(overdue)}):</b>\n"
             for t in overdue[:5]:
                 dl = t.date_deadline.strftime('%d.%m') if t.date_deadline else '—'
-                text += f"• {t.name} ({dl})\n"
+                text += f"• {html.escape(t.name or '')} ({dl})\n"
 
         if unassigned:
             text += f"\n👤 <b>Без инженера: {len(unassigned)}</b> — требуют назначения\n"
 
         if insight:
-            text += f"\n💡 <i>{insight}</i>"
+            text += f"\n💡 <i>{html.escape(insight)}</i>"
 
         self._send_telegram(admin_ids, text)
         _logger.info("Evening summary sent to %d admins", len(admin_ids))
@@ -470,7 +472,7 @@ class ProjectTask(models.Model):
             desc_clean = re.sub(r'<[^>]+>', '', lead.description or '').strip()
             phone_match = re.search(r'\+?[\d\s\-]{10,}', desc_clean)
             phone = phone_match.group().strip() if phone_match else '—'
-            lines.append(f"• {lead.name} | 📞 {phone} | ⏱ {age_h}ч без ответа")
+            lines.append(f"• {html.escape(lead.name or '')} | 📞 {html.escape(phone)} | ⏱ {age_h}ч без ответа")
 
         text = (
             f"⏰ <b>Необработанные лиды ({len(stale_leads)})</b>\n\n"

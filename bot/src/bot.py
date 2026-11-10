@@ -11,6 +11,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from src.config import settings
 from src.handlers import (
     account,
+    admin,
     client,
     common,
     employee,
@@ -68,6 +69,7 @@ def _build_dispatcher() -> tuple[Bot, Dispatcher]:
     dp.message.middleware(LoggingMiddleware())
 
     # Routers (most specific first)
+    dp.include_router(admin.router)
     dp.include_router(
         payments.router
     )  # Stars payment — before common to catch F.successful_payment
@@ -91,17 +93,23 @@ async def _set_commands(bot: Bot) -> None:
     commands_ru = [
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="account", description="Мой кабинет — план, бонусы, рефералы"),
+        BotCommand(command="myorders", description="Мои заявки на аудит"),
+        BotCommand(command="calc", description="Калькулятор теплопотерь"),
         BotCommand(command="premium", description="Подключить Premium"),
         BotCommand(command="ref", description="Пригласить друга (+бонусы)"),
-        BotCommand(command="help", description="Частые вопросы"),
+        BotCommand(command="partner", description="Кабинет партнёра (10% с заказов)"),
+        BotCommand(command="help", description="Частые вопросы и справка"),
         BotCommand(command="cancel", description="Отменить текущее действие"),
     ]
     commands_en = [
         BotCommand(command="start", description="Main menu"),
         BotCommand(command="account", description="My account — plan, bonus, referrals"),
+        BotCommand(command="myorders", description="My audit orders"),
+        BotCommand(command="calc", description="Heat loss calculator"),
         BotCommand(command="premium", description="Get Premium"),
         BotCommand(command="ref", description="Invite friends (+bonuses)"),
-        BotCommand(command="help", description="FAQ"),
+        BotCommand(command="partner", description="B2B Partner program (10%)"),
+        BotCommand(command="help", description="FAQ & Help"),
         BotCommand(command="cancel", description="Cancel current action"),
     ]
     scope = BotCommandScopeDefault()

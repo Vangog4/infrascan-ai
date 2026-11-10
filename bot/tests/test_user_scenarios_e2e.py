@@ -419,9 +419,14 @@ async def test_scenario_lead_capture_order_flow(fake_redis):
     fsm = _make_fsm_context(user_id)
     bot = _make_bot()
 
-    # Trigger order
+    # Trigger order -> asks for city
     call_order = _make_call(user_id, "action:order")
     await client.lead_from_button(call_order, fsm)
+    assert await fsm.get_state() == LeadFlow.city
+
+    # Select city (Чайковский)
+    call_city = _make_call(user_id, "lead_city:Чайковский")
+    await client.lead_city_selected(call_city, fsm)
     assert await fsm.get_state() == LeadFlow.contact
 
     # Send contact
@@ -450,6 +455,40 @@ async def test_scenario_lead_capture_order_flow(fake_redis):
         assert "&lt;Инженер&gt;" in admin_text
         assert "<Инженер>" not in admin_text
         assert "+79991234567" in admin_text
+
+
+@pytest.mark.asyncio
+async def test_scenario_lead_capture_remote_city_flow(fake_redis):
+    user_id = 10007
+    fsm = _make_fsm_context(user_id)
+    bot = _make_bot()
+
+    # Trigger order via button
+    call_order = _make_call(user_id, "action:order")
+    await client.lead_from_button(call_order, fsm)
+    assert await fsm.get_state() == LeadFlow.city
+
+    # Select remote city
+    call_remote = _make_call(user_id, "lead_city:remote")
+    await client.lead_city_selected(call_remote, fsm)
+    assert await fsm.get_state() == LeadFlow.contact
+    data = await fsm.get_data()
+    assert "Онлайн-аудит" in data["city"]
+
+    # Send contact
+    contact = Contact(phone_number="+79998887766", first_name="Анна")
+    msg_contact = _make_msg(user_id, contact=contact)
+
+    with (
+        patch("src.services.redis.get_redis", return_value=fake_redis),
+        patch("src.services.odoo.create_lead", AsyncMock(return_value=778)) as mock_lead,
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.config.settings.admin_ids", [9999]),
+    ):
+        await client.lead_contact(msg_contact, fsm, bot, locale="ru")
+        mock_lead.assert_awaited_once()
+        assert "Онлайн-аудит" in mock_lead.call_args.kwargs["description"]
+        assert "онлайн-экспертизу принята" in msg_contact.answer.call_args[0][0]
 
 
 @pytest.mark.asyncio
@@ -718,3 +757,35 @@ async def test_scenario_partner_and_employee_journeys(fake_redis):
         tasks_text = msg_emp.answer.call_args[0][0]
         assert "Выезды на сегодня" in tasks_text
         assert "ТЦ «Север» &lt;Корпус A&gt;" in tasks_text
+
+
+@pytest.mark.asyncio
+async def test_scenario_client_orders_and_quota_reset_flow(fake_redis):
+    """Scenario: Client checks order status and quota timer in account."""
+    user_id = 10013
+
+    # 1. Check orders when none exist
+    msg_orders = _make_msg(user_id, "/myorders")
+    with patch("src.services.odoo.get_client_orders", AsyncMock(return_value=[])):
+        await client.show_client_orders(msg_orders, locale="ru")
+    assert "нет активных заявок" in msg_orders.answer.call_args[0][0]
+
+    # 2. Check orders when active orders exist
+    orders_data = [
+        {"id": 42, "name": "Выезд в Чайковский", "stage": "В пути", "date": "2026-09-14"}
+    ]
+    with patch("src.services.odoo.get_client_orders", AsyncMock(return_value=orders_data)):
+        await client.show_client_orders(msg_orders, locale="ru")
+    res_text = msg_orders.answer.call_args[0][0]
+    assert "Выезд в Чайковский" in res_text
+    assert "В пути" in res_text
+
+    # 3. Account screen shows countdown
+    msg_acc = _make_msg(user_id, "👤 Мой кабинет")
+    with (
+        patch("src.services.premium.is_premium", AsyncMock(return_value=False)),
+        patch("src.services.premium.scans_remaining", AsyncMock(return_value=0)),
+    ):
+        await account.cmd_account(msg_acc, locale="ru")
+    acc_text = msg_acc.answer.call_args[0][0]
+    assert "Дневной лимит обновится через" in acc_text

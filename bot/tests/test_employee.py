@@ -190,3 +190,41 @@ def test_build_report_multiple_photos():
     ]
     result = _build_report("Объект", analyses)
     assert "Снимок #2" in result
+
+
+# ── engineer callbacks ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_engineer_stage_enroute():
+    from aiogram.types import CallbackQuery
+    from src.handlers.employee import cb_engineer_stage
+
+    call = MagicMock(spec=CallbackQuery)
+    call.data = "eng_stage:enroute:42"
+    call.answer = AsyncMock()
+
+    with patch(
+        "src.handlers.employee.odoo.update_task_stage", AsyncMock(return_value=True)
+    ) as mock_stage:
+        await cb_engineer_stage(call, role=Role.EMPLOYEE)
+        mock_stage.assert_called_once_with(42, "В пути")
+    assert "В пути" in call.answer.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_engineer_photo_direct_sets_state():
+    from aiogram.types import CallbackQuery
+    from src.handlers.employee import cb_engineer_photo_direct
+    from src.states.flows import EmployeePhotoFlow
+
+    call = MagicMock(spec=CallbackQuery)
+    call.data = "eng_photo:42"
+    call.answer = AsyncMock()
+    call.message = MagicMock()
+    call.message.answer = AsyncMock()
+    state = _state()
+
+    await cb_engineer_photo_direct(call, state=state, role=Role.EMPLOYEE)
+    state.set_state.assert_called_once_with(EmployeePhotoFlow.photos)
+    assert "Сдача фото по задаче #42" in call.message.answer.call_args[0][0]

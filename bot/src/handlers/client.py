@@ -5,6 +5,7 @@ import logging
 from datetime import UTC, date
 
 from aiogram import Bot, F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     BufferedInputFile,
@@ -22,8 +23,10 @@ from src.keyboards.menus import (
     ORDER_BTNS,
     PHOTO_BTNS,
     UPGRADE_BTNS,
+    admin_lead_actions_kb,
     calc_area_kb,
     calc_payment_kb,
+    city_selection_kb,
     client_menu,
     contact_kb,
     heating_kb,
@@ -135,6 +138,7 @@ async def _check_quota(
                 used_bonus = True
             else:
                 upgrade_b = InlineKeyboardBuilder()
+                reset_info = premium_svc.get_quota_reset_info(locale)
                 if locale == "ru":
                     upgrade_b.row(
                         InlineKeyboardButton(
@@ -152,7 +156,7 @@ async def _check_quota(
                         f"⚠️ <b>Дневной лимит исчерпан</b>\n"
                         f"──────────────────────\n"
                         f"📊 Использовано: <b>{settings.free_daily_scans}/{settings.free_daily_scans}</b> анализов\n"
-                        f"🕐 Лимит обновится в <b>00:00 UTC</b>\n\n"
+                        f"⏳ Лимит обновится через: <b>{reset_info['text']}</b>\n\n"
                         "<b>Как продолжить прямо сейчас:</b>\n"
                         "  ⭐️ Premium — безлимитный анализ\n"
                         "  🎁 Пригласите друга — получите +1 бонусный анализ",
@@ -175,7 +179,7 @@ async def _check_quota(
                         f"⚠️ <b>Daily limit reached</b>\n"
                         f"──────────────────────\n"
                         f"📊 Used: <b>{settings.free_daily_scans}/{settings.free_daily_scans}</b> analyses\n"
-                        f"🕐 Limit resets at <b>00:00 UTC</b>\n\n"
+                        f"⏳ Limit resets in: <b>{reset_info['text']}</b>\n\n"
                         "<b>Continue right now:</b>\n"
                         "  ⭐️ Premium — unlimited analysis\n"
                         "  🎁 Invite a friend — earn +1 bonus analysis",
@@ -845,26 +849,96 @@ async def calc_payment(message: Message, state: FSMContext) -> None:
 
 
 @router.message(F.text.in_(ORDER_BTNS))
-async def lead_start(message: Message, state: FSMContext) -> None:
-    await state.set_state(LeadFlow.contact)
-    await message.answer(
+async def lead_start(message: Message, state: FSMContext, locale: str = "ru") -> None:
+    await state.set_state(LeadFlow.city)
+    await state.update_data(locale=locale)
+    text = (
         "🚗 <b>Вызов инженера на объект</b>\n"
         "──────────────────────\n"
-        "Специалист приедет и выполнит полную\n"
-        "тепловизионную диагностику здания.\n\n"
-        "📱 Поделитесь номером телефона —\n"
-        "перезвоним для уточнения деталей:",
-        reply_markup=contact_kb(),
+        "Инструментальная тепловизионная диагностика сертифицированным прибором.\n\n"
+        "📍 <b>Выберите ваш город / район:</b>"
+        if locale == "ru"
+        else (
+            "🚗 <b>Request On-Site Engineer</b>\n"
+            "──────────────────────\n"
+            "Certified thermal diagnostic service.\n\n"
+            "📍 <b>Select your city / area:</b>"
+        )
     )
+    await message.answer(text, reply_markup=city_selection_kb(locale))
 
 
 @router.callback_query(F.data == "action:order")
-async def lead_from_button(call: CallbackQuery, state: FSMContext) -> None:
-    await state.set_state(LeadFlow.contact)
-    await call.message.answer(
-        "🚗 Отличный выбор! Поделитесь номером — инженер свяжется с вами в течение часа:",
-        reply_markup=contact_kb(),
+async def lead_from_button(call: CallbackQuery, state: FSMContext, locale: str = "ru") -> None:
+    await state.set_state(LeadFlow.city)
+    await state.update_data(locale=locale)
+    text = (
+        "🚗 <b>Вызов инженера на объект</b>\n"
+        "──────────────────────\n"
+        "📍 <b>Выберите ваш город / район:</b>"
+        if locale == "ru"
+        else (
+            "🚗 <b>Request On-Site Engineer</b>\n"
+            "──────────────────────\n"
+            "📍 <b>Select your city / area:</b>"
+        )
     )
+    await call.message.answer(text, reply_markup=city_selection_kb(locale))
+    await call.answer()
+
+
+@router.callback_query(LeadFlow.city, F.data.startswith("lead_city:"))
+async def lead_city_selected(call: CallbackQuery, state: FSMContext) -> None:
+    city_code = call.data.removeprefix("lead_city:")
+    data = await state.get_data()
+    locale = data.get("locale", "ru")
+
+    if city_code == "remote":
+        await state.update_data(city="Другой регион (Онлайн-аудит)")
+        await state.set_state(LeadFlow.contact)
+        text = (
+            "🌐 <b>Онлайн-экспертиза теплопотерь</b>\n"
+            "──────────────────────\n"
+            "Выезд нашего инженера с прибором сейчас доступен в <b>Пермском крае и Удмуртии</b> "
+            "(Чайковский, Воткинск, Ижевск, Пермь).\n\n"
+            "Для вашего региона мы выполняем <b>дистанционный экспертный аудит</b>:\n"
+            "• Детальный разбор снимков и термограмм нейросетью InfraScan AI\n"
+            "• Расчет скрытых потерь тепла в кВт·ч и рублях\n"
+            "• Экспертное заключение и план устранения дефектов в PDF\n\n"
+            "📱 Поделитесь номером телефона — инженер свяжется для проведения онлайн-аудита:"
+            if locale == "ru"
+            else (
+                "🌐 <b>Remote Thermal Audit</b>\n"
+                "──────────────────────\n"
+                "On-site visits are available in Perm Krai & Udmurtia.\n"
+                "For other regions, we provide remote expert diagnostics with PDF reports.\n\n"
+                "📱 Share your phone number to request a remote audit:"
+            )
+        )
+        await call.message.edit_text(text)
+        await call.message.answer(
+            "Отправьте ваш контакт 👇", reply_markup=contact_kb(locale=locale)
+        )
+    else:
+        await state.update_data(city=city_code)
+        await state.set_state(LeadFlow.contact)
+        text = (
+            f"📍 <b>Город выбран: {city_code}</b>\n"
+            "──────────────────────\n"
+            "Инженер приедет с профессиональным тепловизором InfiRay и лазерным дальномером.\n\n"
+            "📱 Поделитесь номером телефона — перезвоним для согласования времени выезда:"
+            if locale == "ru"
+            else (
+                f"📍 <b>City selected: {city_code}</b>\n"
+                "──────────────────────\n"
+                "The engineer will arrive with professional thermal equipment.\n\n"
+                "📱 Share your phone number to schedule the visit:"
+            )
+        )
+        await call.message.edit_text(text)
+        await call.message.answer(
+            "Отправьте ваш контакт 👇", reply_markup=contact_kb(locale=locale)
+        )
     await call.answer()
 
 
@@ -878,6 +952,7 @@ async def lead_contact(
 ) -> None:
     data = await state.get_data()
     maps_link = data.get("maps_link")
+    city = data.get("city", "Чайковский")
     await state.clear()
     contact: Contact = message.contact
     phone = contact.phone_number
@@ -891,7 +966,7 @@ async def lead_contact(
     # Cache phone for geo detection refinement
     await roles.set_phone(message.from_user.id, phone)
 
-    desc = f"Заявка через Telegram-бот. TG: {tg_ref}"
+    desc = f"Заявка через Telegram-бот. TG: {tg_ref}\nГород: {city}"
     if maps_link:
         desc += f"\nЛокация: {maps_link}"
 
@@ -899,6 +974,7 @@ async def lead_contact(
         name=name,
         phone=phone,
         description=desc,
+        client_tg_id=message.from_user.id,
     )
     odoo_status = (
         f"✅ Лид #{result} создан в Odoo" if result else "⚠️ Odoo недоступен — зафиксируй вручную"
@@ -906,32 +982,137 @@ async def lead_contact(
     safe_name = html.escape(name)
     safe_phone = html.escape(phone)
     safe_tg_ref = html.escape(tg_ref)
+    safe_city = html.escape(city)
     safe_odoo_status = html.escape(odoo_status)
     admin_msg = (
-        f"📥 <b>Новая заявка на выезд!</b>\n"
+        f"📥 <b>Новая заявка ({safe_city})!</b>\n"
         f"──────────────────────\n"
+        f"📍 <b>Локация:</b> {safe_city}\n"
         f"👤 <b>Имя:</b> {safe_name}\n"
         f"📞 <b>Телефон:</b> <code>{safe_phone}</code>\n"
         f"🔗 <b>Telegram:</b> {safe_tg_ref}\n"
     )
     if maps_link:
-        admin_msg += f"📍 <b>Локация:</b> <a href='{maps_link}'>Яндекс.Карты</a>\n"
+        admin_msg += f"🗺 <b>Карта:</b> <a href='{maps_link}'>Яндекс.Карты</a>\n"
     admin_msg += f"──────────────────────\n🗄 {safe_odoo_status}"
+    admin_kb = admin_lead_actions_kb(result) if result else None
     for admin_id in settings.admin_ids:
         if admin_id:
             try:
-                await bot.send_message(admin_id, admin_msg)
+                await bot.send_message(admin_id, admin_msg, reply_markup=admin_kb)
             except Exception:
                 pass
 
     is_prem = await premium_svc.is_premium(message.from_user.id)
     kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
+
+    if "Онлайн-аудит" in city:
+        confirm_text = (
+            "✅ <b>Заявка на онлайн-экспертизу принята!</b>\n"
+            "──────────────────────\n"
+            "Инженер свяжется с вами для получения снимков и проведения дистанционного аудита.\n\n"
+            "<i>Среднее время ответа — 15 минут в рабочие часы.</i>"
+        )
+    else:
+        confirm_text = (
+            f"✅ <b>Заявка на выезд принята! ({city})</b>\n"
+            "──────────────────────\n"
+            "🚗 Инженер свяжется с вами для согласования времени выезда.\n\n"
+            "<i>Среднее время ответа — 15 минут в рабочие часы.</i>"
+        )
+
+    await message.answer(confirm_text, reply_markup=kb)
+
+
+@router.message(LeadFlow.contact, F.text)
+async def lead_text_input(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    locale: str = "ru",
+    is_local: bool = True,
+) -> None:
+    text = (message.text or "").strip()
+    if text in ("❌ Отмена", "❌ Cancel", "/cancel"):
+        await state.clear()
+        is_prem = await premium_svc.is_premium(message.from_user.id)
+        kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
+        await message.answer("Действие отменено.", reply_markup=kb)
+        return
+
+    # Treat as manual phone entry if it looks like phone
+    digits = [c for c in text if c.isdigit() or c == "+"]
+    if len(digits) >= 7:
+        phone = "".join(digits)
+        data = await state.get_data()
+        maps_link = data.get("maps_link")
+        city = data.get("city", "Чайковский")
+        await state.clear()
+        name = message.from_user.full_name or "Клиент"
+        tg_ref = (
+            f"@{message.from_user.username}"
+            if message.from_user.username
+            else f"tg://user?id={message.from_user.id}"
+        )
+        await roles.set_phone(message.from_user.id, phone)
+        desc = f"Заявка через Telegram-бот. TG: {tg_ref}\nГород: {city}"
+        if maps_link:
+            desc += f"\nЛокация: {maps_link}"
+        result = await odoo.create_lead(
+            name=name,
+            phone=phone,
+            description=desc,
+            client_tg_id=message.from_user.id,
+        )
+        odoo_status = (
+            f"✅ Лид #{result} создан в Odoo"
+            if result
+            else "⚠️ Odoo недоступен — зафиксируй вручную"
+        )
+        safe_name = html.escape(name)
+        safe_phone = html.escape(phone)
+        safe_tg_ref = html.escape(tg_ref)
+        safe_city = html.escape(city)
+        admin_msg = (
+            f"📥 <b>Новая заявка ({safe_city})!</b>\n"
+            f"──────────────────────\n"
+            f"📍 <b>Локация:</b> {safe_city}\n"
+            f"👤 <b>Имя:</b> {safe_name}\n"
+            f"📞 <b>Телефон:</b> <code>{safe_phone}</code>\n"
+            f"🔗 <b>Telegram:</b> {safe_tg_ref}\n"
+        )
+        if maps_link:
+            admin_msg += f"🗺 <b>Карта:</b> <a href='{maps_link}'>Яндекс.Карты</a>\n"
+        admin_msg += f"──────────────────────\n🗄 {html.escape(odoo_status)}"
+        admin_kb = admin_lead_actions_kb(result) if result else None
+        for admin_id in settings.admin_ids:
+            if admin_id:
+                try:
+                    await bot.send_message(admin_id, admin_msg, reply_markup=admin_kb)
+                except Exception:
+                    pass
+        is_prem = await premium_svc.is_premium(message.from_user.id)
+        kb = premium_client_menu(locale, is_local) if is_prem else client_menu(locale, is_local)
+        if "Онлайн-аудит" in city:
+            confirm_text = (
+                "✅ <b>Заявка на онлайн-экспертизу принята!</b>\n"
+                "──────────────────────\n"
+                "Инженер свяжется с вами для получения снимков и проведения дистанционного аудита.\n\n"
+                "<i>Среднее время ответа — 15 минут в рабочие часы.</i>"
+            )
+        else:
+            confirm_text = (
+                f"✅ <b>Заявка на выезд принята! ({city})</b>\n"
+                "──────────────────────\n"
+                "🚗 Инженер свяжется с вами для согласования времени выезда.\n\n"
+                "<i>Среднее время ответа — 15 минут в рабочие часы.</i>"
+            )
+        await message.answer(confirm_text, reply_markup=kb)
+        return
+
     await message.answer(
-        "✅ <b>Заявка на выезд принята!</b>\n"
-        "──────────────────────\n"
-        "🚗 Инженер свяжется с вами для согласования времени.\n\n"
-        "<i>Среднее время ответа — 15 минут в рабочие часы.</i>",
-        reply_markup=kb,
+        "📱 Пожалуйста, нажмите кнопку «📱 Поделиться номером» или введите телефон (например, +79221234567):",
+        reply_markup=contact_kb(locale=locale),
     )
 
 
@@ -957,7 +1138,12 @@ async def lead_location(
             else f"tg://user?id={message.from_user.id}"
         )
         desc = f"Заявка через Telegram-бот. TG: {tg_ref}\nЛокация: {maps_link}"
-        result = await odoo.create_lead(name=name, phone=phone, description=desc)
+        result = await odoo.create_lead(
+            name=name,
+            phone=phone,
+            description=desc,
+            client_tg_id=message.from_user.id,
+        )
         odoo_status = f"✅ Лид #{result} создан в Odoo" if result else "⚠️ Odoo недоступен"
         admin_msg = (
             f"📥 <b>Новая заявка на выезд (с локацией)!</b>\n"
@@ -969,10 +1155,11 @@ async def lead_location(
             f"──────────────────────\n"
             f"🗄 {html.escape(odoo_status)}"
         )
+        admin_kb = admin_lead_actions_kb(result) if result else None
         for admin_id in settings.admin_ids:
             if admin_id:
                 try:
-                    await bot.send_message(admin_id, admin_msg)
+                    await bot.send_message(admin_id, admin_msg, reply_markup=admin_kb)
                 except Exception:
                     pass
         await state.clear()
@@ -1080,3 +1267,46 @@ async def download_voice(call: CallbackQuery, locale: str = "ru") -> None:
             else "🎤 <b>Voice summary ready</b>"
         ),
     )
+
+
+@router.message(Command("myorders"))
+@router.callback_query(F.data == "action:my_orders")
+async def show_client_orders(event: Message | CallbackQuery, locale: str = "ru") -> None:
+    user_id = event.from_user.id
+    orders = await odoo.get_client_orders(user_id)
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        reply_fn = event.message.answer
+    else:
+        reply_fn = event.answer
+
+    if not orders:
+        empty_text = (
+            "📋 <b>Ваши заявки на аудит</b>\n"
+            "──────────────────────\n\n"
+            "📭 У вас пока нет активных заявок на выезд или дистанционный аудит.\n\n"
+            "<i>Чтобы вызвать инженера или заказать онлайн-экспертизу, "
+            "нажмите кнопку «🚗 Вызвать инженера» в главном меню.</i>"
+            if locale == "ru"
+            else (
+                "📋 <b>Your Audit Orders</b>\n"
+                "──────────────────────\n\n"
+                "📭 You don't have any active inspection orders yet.\n\n"
+                "<i>To order an inspection, press «🚗 Order Inspection» in the main menu.</i>"
+            )
+        )
+        await reply_fn(empty_text)
+        return
+
+    lines = [
+        f"📋 <b>Ваши заявки на аудит</b>  <code>({len(orders)})</code>\n──────────────────────\n"
+    ]
+    for i, o in enumerate(orders, 1):
+        name = html.escape(str(o.get("name") or "Заявка"))
+        stage = html.escape(str(o.get("stage") or "Принята"))
+        date_str = html.escape(str(o.get("date") or "—"))
+        lines.append(f"<b>{i}. {name}</b>\n📅 Дата: {date_str}\n📌 Статус: <b>{stage}</b>\n")
+    lines.append(
+        "──────────────────────\n<i>Статус обновляется автоматически при выезде инженера.</i>"
+    )
+    await reply_fn("\n".join(lines))

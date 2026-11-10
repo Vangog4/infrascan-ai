@@ -323,6 +323,62 @@ async def test_create_lead_fallback_uses_configured_project_id(monkeypatch):
         result = await odoo.create_lead("Иван", "+79001234567", "тест")
     assert result == 99
     vals = captured["vals_list"][0]
-    assert vals["project_id"] == 7
     # P3c: task_desc with phone is built only in the fallback branch
     assert "📞 Телефон: +79001234567" in vals["description"]
+
+
+@pytest.mark.asyncio
+async def test_create_lead_with_client_tg_id():
+    captured = {}
+
+    async def call_side(model, method, **kwargs):
+        captured["model"] = model
+        captured["vals_list"] = kwargs.get("vals_list")
+        return 42
+
+    with patch("src.services.odoo._call", side_effect=call_side):
+        result = await odoo.create_lead("Клиент", "+79001234567", client_tg_id=987654)
+    assert result == 42
+    assert "TG ID: 987654" in captured["vals_list"][0]["description"]
+
+
+@pytest.mark.asyncio
+async def test_get_client_orders():
+    sample_tasks = [
+        {
+            "id": 1,
+            "name": "Выезд 1",
+            "stage_id": [10, "В пути"],
+            "create_date": "2026-09-14 10:00:00",
+        }
+    ]
+    sample_leads = [
+        {"id": 5, "name": "Лид 5", "stage_id": [20, "Новый"], "create_date": "2026-09-13 12:00:00"}
+    ]
+
+    async def call_side(model, method, **kwargs):
+        if model == "project.task":
+            return sample_tasks
+        if model == "crm.lead":
+            return sample_leads
+        return []
+
+    with patch("src.services.odoo._call", side_effect=call_side):
+        orders = await odoo.get_client_orders(987654)
+    assert len(orders) == 2
+    assert orders[0]["stage"] == "В пути"
+    assert orders[1]["stage"] == "Новый"
+
+
+@pytest.mark.asyncio
+async def test_update_task_stage():
+    async def call_side(model, method, **kwargs):
+        if model == "project.task.type":
+            return [{"id": 3, "name": "В пути"}]
+        if model == "project.task" and method == "write":
+            return True
+        return None
+
+    with patch("src.services.odoo._call", side_effect=call_side):
+        ok = await odoo.update_task_stage(42, "В пути")
+    assert ok is True

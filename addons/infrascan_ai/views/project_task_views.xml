@@ -26,7 +26,7 @@
                         invisible="not x_telegram_id"/>
                 <button name="action_analyze_thermal_image"
                         type="object"
-                        string="🔬 Анализ Gemini"
+                        string="🔬 Экспертный ИИ-анализ"
                         class="oe_stat_button"
                         icon="fa-search"/>
             </xpath>
@@ -45,10 +45,10 @@
                   decoration-muted="stage_id.name == '🗃 Архив'">
                 <field name="name" string="Объект"/>
                 <field name="stage_id" string="Статус" widget="badge"
-                       decoration-success="name == '✅ Выполнена'"
-                       decoration-warning="name == '🔧 На объекте'"
-                       decoration-info="name in ['👤 Назначена','🚗 В пути']"
-                       decoration-muted="name == '🗃 Архив'"/>
+                       decoration-success="stage_id.name == '✅ Выполнена'"
+                       decoration-warning="stage_id.name == '🔧 На объекте'"
+                       decoration-info="stage_id.name in ['👤 Назначена','🚗 В пути']"
+                       decoration-muted="stage_id.name == '🗃 Архив'"/>
                 <field name="x_telegram_id" string="Инженер (TG ID)"/>
                 <field name="date_deadline" string="Дата выезда"/>
                 <field name="project_id" string="Проект" optional="show"/>

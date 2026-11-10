@@ -12,6 +12,7 @@ class CalcFlow(StatesGroup):
 
 
 class LeadFlow(StatesGroup):
+    city = State()
     contact = State()
 
 
